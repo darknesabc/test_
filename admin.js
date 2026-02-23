@@ -963,12 +963,6 @@ return summary;
         <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
         <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
       </section>
-      
-      <section class="card" style="padding:14px; margin-top:14px;">
-        <div class="card-title" style="font-size:15px; margin-bottom:10px;">🕸️ 취약 영역 분석 (단원별 성취도)</div>
-        <div style="height: 280px; position: relative;"><canvas id="vulnRadarChart"></canvas></div>
-        <div id="vulnChartMsg" class="muted" style="font-size:12px; margin-top:10px; text-align:center;">성적 상세 조회 시 분석 결과가 표시됩니다.</div>
-      </section>
 
         <section class="card" style="padding:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">교육점수 요약</div><button class="btn btn-ghost btn-mini" id="btnEduDetail" style="padding:6px 10px;">상세</button></div>
@@ -1152,11 +1146,6 @@ return summary;
         try {
           const e2 = await apiPost("grade_errata", { token, exam: String(exam || "") });
           if (e2 && e2.ok) errata = e2;
-          // ✅ 여기에 아래 두 줄을 추가하세요
-            if (errata.analysis && errata.analysis.units) {
-              renderVulnerabilityChart(errata.analysis.units);
-            }
-          }
         } catch (_) { /* ignore */ }
 
         // ✅ 정오표만 표시(성적표는 요약에 이미 있음)
@@ -1501,37 +1490,7 @@ async function loadAdminGradeTrend(seat, studentId) {
     if (loadingMsg) loadingMsg.textContent = "그래프 로드 중 오류가 발생했습니다.";
   }
 }
-/** ✅ 취약 영역 방사형 차트 렌더링 */
-function renderVulnerabilityChart(analysisData) {
-  const canvas = document.getElementById("vulnRadarChart");
-  if (!canvas || !analysisData || analysisData.length === 0) return;
-  if (document.getElementById("vulnChartMsg")) document.getElementById("vulnChartMsg").style.display = "none";
-
-  if (window.vulnChart) window.vulnChart.destroy();
-  window.vulnChart = new Chart(canvas.getContext('2d'), {
-    type: 'radar',
-    data: {
-      labels: analysisData.map(d => d.area),
-      datasets: [{
-        label: '성취도(%)',
-        data: analysisData.map(d => d.score),
-        backgroundColor: 'rgba(52, 152, 219, 0.2)',
-        borderColor: '#3498db',
-        pointBackgroundColor: '#3498db',
-        borderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: {
-        r: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.1)' }, angleLines: { color: 'rgba(255,255,255,0.1)' }, ticks: { display: false } }
-      },
-      plugins: { legend: { display: false } }
-    }
-  });
-}
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
-
 
 
 
