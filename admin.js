@@ -1513,54 +1513,107 @@ async function loadAdminGradeTrend(seat, studentId) {
     if (loadingMsg) loadingMsg.textContent = "그래프 로드 중 오류가 발생했습니다.";
   }
 }
-  /** ✅ 취약 영역 방사형 차트(Radar Chart) 렌더링 */
-function renderVulnerabilityChart(analysisData) {
-  const canvas = document.getElementById("vulnRadarChart");
-  const msgEl = document.getElementById("vulnChartMsg");
-  if (!canvas || !analysisData || analysisData.length === 0) return;
-
-  if (msgEl) msgEl.style.display = "none";
-  const ctx = canvas.getContext('2d');
-  
-  // 기존 차트가 있으면 삭제하고 새로 그립니다.
-  if (window.vulnChart) window.vulnChart.destroy();
-
-  window.vulnChart = new Chart(ctx, {
-    type: 'radar',
-    data: {
-      labels: analysisData.map(d => d.area), // 단원명
-      datasets: [{
-        label: '성취도(%)',
-        data: analysisData.map(d => d.score), // 성취도 점수
-        backgroundColor: 'rgba(52, 152, 219, 0.2)',
-        borderColor: '#3498db',
-        pointBackgroundColor: '#3498db',
-        borderWidth: 2
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        r: {
-          min: 0,
-          max: 100,
-          beginAtZero: true,
-          grid: { color: 'rgba(255,255,255,0.1)' },
-          angleLines: { color: 'rgba(255,255,255,0.1)' },
-          pointLabels: {
-            color: 'rgba(255,255,255,0.7)',
-            font: { size: 12, weight: 'bold' }
-          },
-          ticks: { display: false, stepSize: 20 }
-        }
-      },
-      plugins: {
-        legend: { display: false }
-      }
+/** ✅ 취약 영역 방사형 차트(과목별 탭 버튼 포함) */
+  function renderVulnerabilityChart(unitsBySubject) {
+    const canvas = document.getElementById("vulnRadarChart");
+    const msgEl = document.getElementById("vulnChartMsg");
+    
+    // 데이터가 없거나 과목이 없으면 종료
+    if (!canvas || !unitsBySubject || Object.keys(unitsBySubject).length === 0) {
+      if (msgEl) msgEl.textContent = "분석할 데이터가 부족합니다.";
+      return;
     }
-  });
-}
+
+    if (msgEl) msgEl.style.display = "none";
+    
+    // ✅ 차트 위에 과목 선택 버튼들을 담을 공간 만들기
+    let btnContainer = document.getElementById("vulnSubjectBtns");
+    if (!btnContainer) {
+      btnContainer = document.createElement("div");
+      btnContainer.id = "vulnSubjectBtns";
+      btnContainer.style.display = "flex";
+      btnContainer.style.gap = "8px";
+      btnContainer.style.marginBottom = "15px";
+      btnContainer.style.justifyContent = "center";
+      btnContainer.style.flexWrap = "wrap";
+      canvas.parentNode.insertBefore(btnContainer, canvas); // 캔버스 바로 위에 삽입
+    }
+    btnContainer.innerHTML = ""; // 이전 버튼 초기화
+
+    const subjects = Object.keys(unitsBySubject);
+    
+    // 실제 차트를 그리는 내부 함수
+    const drawChart = (subj) => {
+      const data = unitsBySubject[subj];
+      if (!data || data.length === 0) return;
+
+      if (window.vulnChart) window.vulnChart.destroy();
+      const ctx = canvas.getContext('2d');
+      
+      window.vulnChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: data.map(d => d.area), // 단원명 (사실적 이해 등)
+          datasets: [{
+            label: `${subj} 성취도(%)`,
+            data: data.map(d => d.score),
+            backgroundColor: 'rgba(52, 152, 219, 0.25)', // 투명한 파란색
+            borderColor: '#3498db', // 선명한 파란색
+            pointBackgroundColor: '#3498db',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              min: 0, max: 100, beginAtZero: true,
+              grid: { color: 'rgba(255,255,255,0.15)' },
+              angleLines: { color: 'rgba(255,255,255,0.15)' },
+              pointLabels: { 
+                color: 'rgba(255,255,255,0.85)', 
+                font: { size: 12, weight: 'bold' } 
+              },
+              ticks: { display: false, stepSize: 20 }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    };
+
+    // ✅ 과목별 버튼 생성
+    subjects.forEach((subj, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-mini";
+      
+      // 버튼 기본 스타일 (첫 번째 과목은 선택된 상태로 파란색)
+      btn.style.background = idx === 0 ? "#3498db" : "rgba(255,255,255,0.1)";
+      btn.style.color = "#fff";
+      btn.style.border = "none";
+      btn.style.padding = "6px 14px";
+      btn.style.borderRadius = "8px";
+      btn.style.cursor = "pointer";
+      btn.style.fontWeight = "bold";
+      btn.textContent = subj;
+
+      btn.onclick = () => {
+        // 모든 버튼 색상을 회색으로 초기화
+        Array.from(btnContainer.children).forEach(b => {
+          b.style.background = "rgba(255,255,255,0.1)";
+        });
+        // 클릭한 버튼만 파란색으로 하이라이트
+        btn.style.background = "#3498db";
+        drawChart(subj); // 해당 과목 차트 그리기
+      };
+      
+      btnContainer.appendChild(btn);
+    });
+
+    // 처음에 화면이 열리면 첫 번째 과목(보통 국어)의 차트를 그림
+    drawChart(subjects[0]);
+  }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
 
 
