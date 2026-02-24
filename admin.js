@@ -997,7 +997,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /** ✅ 취약 영역 방사형 차트(과목별 탭 버튼 포함) */
+/** ✅ 취약 영역 방사형 차트(과목별 탭 버튼 포함) - 파트별 색상 적용 */
   function renderVulnerabilityChart(unitsBySubject) {
     const canvas = document.getElementById("vulnRadarChart");
     const msgEl = document.getElementById("vulnChartMsg");
@@ -1033,6 +1033,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (window.vulnChart) window.vulnChart.destroy();
       const ctx = canvas.getContext('2d');
+
+      // 🎯 [핵심 변경] 과목별 & 인덱스별 색상 배열 생성
+      const pointColors = data.map((d, index) => {
+        if (subj === "국어") {
+          if (index >= 0 && index <= 6) return '#3b82f6';  // 1~7: 독서 (파랑)
+          if (index >= 7 && index <= 13) return '#10b981'; // 8~14: 문학 (초록)
+          return '#f59e0b';                                // 15~16: 선택 (주황)
+        } else if (subj === "수학") {
+          if (index >= 0 && index <= 2) return '#ec4899';  // 1~3: 수1 (핑크)
+          if (index >= 3 && index <= 5) return '#8b5cf6';  // 4~6: 수2 (보라)
+          return '#eab308';                                // 7~9: 선택 (노랑)
+        }
+        return '#3498db'; // 영어, 사회 등 기타 과목 기본 색상
+      });
       
       window.vulnChart = new Chart(ctx, {
         type: 'radar',
@@ -1041,9 +1055,12 @@ document.addEventListener("DOMContentLoaded", () => {
           datasets: [{
             label: `${subj} 성취도(%)`,
             data: data.map(d => d.score),
-            backgroundColor: 'rgba(52, 152, 219, 0.25)', // 투명한 파란색
-            borderColor: '#3498db', // 선명한 파란색
-            pointBackgroundColor: '#3498db',
+            backgroundColor: 'rgba(52, 152, 219, 0.15)', // 배경 면은 옅은 파란색 통일 (가독성 위해)
+            borderColor: 'rgba(255, 255, 255, 0.3)',     // 거미줄 선과 어울리게 테두리는 반투명 하얀색/회색으로
+            pointBackgroundColor: pointColors,           // 🎯 꼭짓점 색상을 파트별로 적용
+            pointBorderColor: pointColors,               // 🎯 꼭짓점 테두리 색상도 파트별로 적용
+            pointRadius: 5,                              // 색상이 잘 보이도록 점 크기를 조금 키움
+            pointHoverRadius: 7,
             borderWidth: 2
           }]
         },
@@ -1056,7 +1073,8 @@ document.addEventListener("DOMContentLoaded", () => {
               grid: { color: 'rgba(255,255,255,0.15)' },
               angleLines: { color: 'rgba(255,255,255,0.15)' },
               pointLabels: { 
-                color: 'rgba(255,255,255,0.85)', 
+                // 🎯 바깥쪽 텍스트(라벨) 색상도 꼭짓점 색상과 깔맞춤 적용
+                color: (context) => pointColors[context.index] || 'rgba(255,255,255,0.85)', 
                 font: { size: 12, weight: 'bold' } 
               },
               ticks: { display: false, stepSize: 20 }
@@ -1099,3 +1117,4 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart(subjects[0]);
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
