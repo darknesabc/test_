@@ -1027,28 +1027,34 @@ document.addEventListener("DOMContentLoaded", () => {
     const subjects = Object.keys(unitsBySubject);
     
     // 실제 차트를 그리는 내부 함수
-    const drawChart = (subj) => {
-      const data = unitsBySubject[subj];
-      if (!data || data.length === 0) return;
+      const drawChart = (subj) => {
+        const data = unitsBySubject[subj];
+        if (!data || data.length === 0) return;
 
-      if (window.vulnChart) window.vulnChart.destroy();
-      const ctx = canvas.getContext('2d');
+        if (window.vulnChart) window.vulnChart.destroy();
+        const ctx = canvas.getContext('2d');
 
-      // 🎯 [핵심 변경] 과목별 & 인덱스별 색상 배열 생성
-      const pointColors = data.map((d, index) => {
-        if (subj === "국어") {
-          if (index >= 0 && index <= 6) return '#3b82f6';  // 1~7: 독서 (파랑)
-          if (index >= 7 && index <= 13) return '#10b981'; // 8~14: 문학 (초록)
-          return '#f59e0b';                                // 15~16: 선택 (주황)
-        } else if (subj === "수학") {
-          if (index >= 0 && index <= 2) return '#ec4899';  // 1~3: 수1 (핑크)
-          if (index >= 3 && index <= 5) return '#8b5cf6';  // 4~6: 수2 (보라)
-          return '#eab308';                                // 7~9: 선택 (노랑)
-        }
-        return '#3498db'; // 영어, 사회 등 기타 과목 기본 색상
-      });
-      
-      window.vulnChart = new Chart(ctx, {
+        // 🎯 [핵심 변경] 단원명코드(d.code)를 기반으로 정확하게 색상 분류
+        const pointColors = data.map((d) => {
+          // 백엔드에서 넘겨준 단원명코드 (예: 1, 8, 15 등)
+          const code = Number(d.code); 
+
+          if (subj === "국어") {
+            if (code >= 1 && code <= 7) return '#3b82f6';   // 1~7: 독서 (파랑)
+            if (code >= 8 && code <= 14) return '#10b981';  // 8~14: 문학 (초록)
+            if (code >= 15 && code <= 16) return '#f59e0b'; // 15~16: 선택 (주황)
+          } 
+          else if (subj === "수학") {
+            if (code >= 1 && code <= 3) return '#ec4899';   // 1~3: 수1 (핑크)
+            if (code >= 4 && code <= 6) return '#8b5cf6';   // 4~6: 수2 (보라)
+            if (code >= 7 && code <= 9) return '#eab308';   // 7~9: 선택 (노랑)
+          }
+
+          // 혹시 코드가 없거나 기타 과목인 경우 기본 색상
+          return '#3498db'; 
+        });
+        
+        window.vulnChart = new Chart(ctx, {
         type: 'radar',
         data: {
           labels: data.map(d => d.area), // 단원명 (사실적 이해 등)
@@ -1117,4 +1123,5 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart(subjects[0]);
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
