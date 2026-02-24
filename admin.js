@@ -433,17 +433,15 @@ const renderTable = (oxArr, rateArr, qFrom, qTo) => {
       // ✅ 1. 오답 판별: 빈칸이 아니고 'O'나 '○'가 아니면 모두 오답(X) 처리
       const isWrong = (ox !== "" && ox !== "O" && ox !== "○");
       
-      // ✅ 2. 정답률 70% 이상 판별
+      // ✅ 2. 정답률 칸 강조 조건: '학생이 틀렸으면서(isWrong)' AND '전체 정답률이 70% 이상'일 때만
       const isHighPct = (rt && typeof rt.pct === "number" && rt.pct >= 70);
-
-      // (참고) 만약 "틀렸으면서(isWrong) 정답률이 70% 이상일 때만" 정답률 칸을 칠하고 싶으시다면
-      // 아래의 isHighPct 대신 (isWrong && isHighPct) 를 사용하시면 됩니다.
+      const highlightPct = (isWrong && isHighPct);
 
       rows.push(`
         <tr>
           <td style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; width:52px;">${q}</td>
           <td class="${isWrong ? "errata-x-high" : ""}" style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center; width:52px; font-weight:900;">${escapeHtml(ox || "")}</td>
-          <td class="${isHighPct ? "errata-x-high" : ""}" style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; width:90px;">${escapeHtml(pctText(rt?.pct))}</td>
+          <td class="${highlightPct ? "errata-x-high" : ""}" style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; width:90px;">${escapeHtml(pctText(rt?.pct))}</td>
           <td style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; opacity:.8;">${rt ? `${rt.o}/${rt.n}` : "-"}</td>
         </tr>
       `);
@@ -1564,6 +1562,7 @@ function renderVulnerabilityChart(analysisData) {
   });
 }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
