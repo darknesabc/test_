@@ -997,7 +997,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-/** ✅ 취약 영역 방사형 차트 (누적 보기 토글 + 우측 상단 정렬 + 툴팁 추가) */
+/** ✅ 취약 영역 방사형 차트 (누적 보기 토글 + 에러 방어 로직 추가) */
   function renderVulnerabilityChart(unitsBySubject, token) {
     const canvas = document.getElementById("vulnRadarChart");
     const msgEl = document.getElementById("vulnChartMsg");
@@ -1009,13 +1009,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (msgEl) msgEl.style.display = "none";
     
-    // ✅ 버튼 컨테이너 (우측 상단 정렬을 위해 flex-end 사용)
     let btnContainer = document.getElementById("vulnSubjectBtns");
     if (!btnContainer) {
       btnContainer = document.createElement("div");
       btnContainer.id = "vulnSubjectBtns";
       btnContainer.style.display = "flex";
-      btnContainer.style.justifyContent = "flex-end"; // 🎯 탭들을 오른쪽으로 밀기
+      btnContainer.style.justifyContent = "flex-end"; 
       btnContainer.style.alignItems = "center";
       btnContainer.style.gap = "8px";
       btnContainer.style.marginBottom = "15px";
@@ -1027,16 +1026,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const subjects = Object.keys(unitsBySubject);
     let currentSubject = subjects[0];
     
-    // 🎯 누적 데이터 관리 상태값
     let isAccumulatedMode = false;
-    let accumulatedData = null; // 백엔드에서 받아온 누적 데이터를 캐싱
+    let accumulatedData = null;
 
-    // 실제 차트를 그리는 내부 함수
     const drawChart = () => {
-      // 누적 모드면 누적 데이터를, 아니면 현재 월 데이터를 사용
       const dataSource = isAccumulatedMode ? accumulatedData : unitsBySubject;
       const data = dataSource ? dataSource[currentSubject] : null;
       
+      // 데이터가 없으면 차트를 지웁니다.
       if (!data || data.length === 0) {
         if (window.vulnChart) window.vulnChart.destroy();
         return;
@@ -1066,7 +1063,6 @@ document.addEventListener("DOMContentLoaded", () => {
           datasets: [{
             label: `${currentSubject} 성취도(%)`,
             data: data.map(d => d.score),
-            // 누적 모드일 때는 배경을 약간 붉은빛(또는 주황빛)으로 변경하여 시각적 차이 줌
             backgroundColor: isAccumulatedMode ? 'rgba(231, 76, 60, 0.15)' : 'rgba(52, 152, 219, 0.15)', 
             borderColor: 'rgba(255, 255, 255, 0.3)',
             pointBackgroundColor: pointColors,
@@ -1094,7 +1090,6 @@ document.addEventListener("DOMContentLoaded", () => {
           plugins: { 
             legend: { display: false },
             tooltip: { 
-              // 🎯 툴팁 커스텀: "성취도: 80% (4맞음 / 5문항)" 형태로 출력
               callbacks: {
                 label: function(context) {
                   const item = data[context.dataIndex];
@@ -1110,7 +1105,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     };
 
-    // 🎯 1. [전체 (누적)] 토글 버튼 생성
+    // 🎯 [전체 (누적)] 토글 버튼
     const allBtn = document.createElement("button");
     allBtn.className = "btn btn-mini";
     allBtn.textContent = "전체 (누적)";
@@ -1121,37 +1116,42 @@ document.addEventListener("DOMContentLoaded", () => {
     allBtn.style.borderRadius = "8px";
     allBtn.style.cursor = "pointer";
     allBtn.style.fontWeight = "bold";
-    // marginRight: "auto"를 주면 flex-end 레이아웃에서 혼자 맨 왼쪽으로 밀려납니다!
     allBtn.style.marginRight = "auto"; 
 
     allBtn.onclick = async () => {
       isAccumulatedMode = !isAccumulatedMode;
       
-      // 누적 모드 켜지면 붉은색 포인트로 활성화 표시
-      allBtn.style.background = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.1)";
-      allBtn.style.borderColor = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.3)";
-      
       if (isAccumulatedMode && !accumulatedData) {
-          // 최초 1회만 백엔드에 누적 데이터를 요청합니다.
           msgEl.textContent = "누적 데이터를 분석 중입니다... 잠시만 기다려주세요.";
           msgEl.style.display = "block";
-          canvas.style.opacity = "0.3"; // 로딩 중 시각적 피드백
+          canvas.style.opacity = "0.3"; 
           
           try {
               const res = await apiPost("grade_analysis_accumulated", { token });
-              if (res.ok) accumulatedData = res.units;
+              // 💡 [핵심 방어 코드] 데이터가 텅 비어서 오면 알림을 띄우고 모드를 해제합니다.
+              if (res.ok && Object.keys(res.units).length > 0) {
+                  accumulatedData = res.units;
+              } else {
+                  alert("아직 누적된 성적 데이터가 없습니다.");
+                  isAccumulatedMode = false; 
+              }
           } catch (e) { 
-              console.error(e); 
+              alert("데이터를 불러오는데 오류가 발생했습니다.");
+              isAccumulatedMode = false;
           }
           
           msgEl.style.display = "none";
           canvas.style.opacity = "1";
       }
+      
+      // 버튼 색상 업데이트 및 차트 다시 그리기
+      allBtn.style.background = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.1)";
+      allBtn.style.borderColor = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.3)";
       drawChart();
     };
     btnContainer.appendChild(allBtn);
 
-    // 🎯 2. 과목 버튼들 생성 (국어, 수학, 영어 등)
+    // 🎯 과목 버튼들 생성
     const subjBtnGroup = [];
     subjects.forEach((subj, idx) => {
       const btn = document.createElement("button");
@@ -1176,10 +1176,6 @@ document.addEventListener("DOMContentLoaded", () => {
       btnContainer.appendChild(btn);
     });
 
-    // 최초 렌더링
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
-
-
-
