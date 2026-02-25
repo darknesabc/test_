@@ -1114,8 +1114,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // 빈 공간 클릭 무시
             if (elements.length === 0) return; 
             
-            // 국,수,영이 아니면 동작 안함 (탐구는 행동영역이 없는 경우가 많음)
-            if (!["국어", "수학", "영어"].includes(currentSubject)) return;
+            // 탐구 과목도 클릭되도록 제한 해제! 
 
             const idx = elements[0].index;
             const item = data[idx]; // 클릭한 단원의 데이터
@@ -1255,5 +1254,6 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
