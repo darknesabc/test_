@@ -804,12 +804,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!data.ok) throw new Error(data.error || "성적 불러오기 실패");
 
         let errata = null;
-        try {
+       try {
           const e2 = await apiPost("grade_errata", { token, exam: String(exam || "") });
           if (e2 && e2.ok) {
             errata = e2;
             if (errata.analysis && errata.analysis.units) {
-              renderVulnerabilityChart(errata.analysis.units);
+              renderVulnerabilityChart(errata.analysis.units, token); // ✅ token 추가!
             }
           }
         } catch (_) { /* ignore */ }
@@ -997,75 +997,81 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-/** ✅ 취약 영역 방사형 차트(과목별 탭 버튼 포함) - 파트별 색상 적용 */
-  function renderVulnerabilityChart(unitsBySubject) {
+/** ✅ 취약 영역 방사형 차트 (누적 보기 토글 + 우측 상단 정렬 + 툴팁 추가) */
+  function renderVulnerabilityChart(unitsBySubject, token) {
     const canvas = document.getElementById("vulnRadarChart");
     const msgEl = document.getElementById("vulnChartMsg");
+    const canvasWrap = canvas.parentNode;
     
-    // 데이터가 없거나 과목이 없으면 종료
     if (!canvas || !unitsBySubject || Object.keys(unitsBySubject).length === 0) {
       if (msgEl) msgEl.textContent = "분석할 데이터가 부족합니다.";
       return;
     }
-
     if (msgEl) msgEl.style.display = "none";
     
-    // ✅ 차트 위에 과목 선택 버튼들을 담을 공간 만들기
+    // ✅ 버튼 컨테이너 (우측 상단 정렬을 위해 flex-end 사용)
     let btnContainer = document.getElementById("vulnSubjectBtns");
     if (!btnContainer) {
       btnContainer = document.createElement("div");
       btnContainer.id = "vulnSubjectBtns";
       btnContainer.style.display = "flex";
+      btnContainer.style.justifyContent = "flex-end"; // 🎯 탭들을 오른쪽으로 밀기
+      btnContainer.style.alignItems = "center";
       btnContainer.style.gap = "8px";
       btnContainer.style.marginBottom = "15px";
-      btnContainer.style.justifyContent = "center";
       btnContainer.style.flexWrap = "wrap";
-      canvas.parentNode.insertBefore(btnContainer, canvas); // 캔버스 바로 위에 삽입
+      canvasWrap.insertBefore(btnContainer, canvas);
     }
-    btnContainer.innerHTML = ""; // 이전 버튼 초기화
+    btnContainer.innerHTML = ""; 
 
     const subjects = Object.keys(unitsBySubject);
+    let currentSubject = subjects[0];
     
+    // 🎯 누적 데이터 관리 상태값
+    let isAccumulatedMode = false;
+    let accumulatedData = null; // 백엔드에서 받아온 누적 데이터를 캐싱
+
     // 실제 차트를 그리는 내부 함수
-      const drawChart = (subj) => {
-        const data = unitsBySubject[subj];
-        if (!data || data.length === 0) return;
-
+    const drawChart = () => {
+      // 누적 모드면 누적 데이터를, 아니면 현재 월 데이터를 사용
+      const dataSource = isAccumulatedMode ? accumulatedData : unitsBySubject;
+      const data = dataSource ? dataSource[currentSubject] : null;
+      
+      if (!data || data.length === 0) {
         if (window.vulnChart) window.vulnChart.destroy();
-        const ctx = canvas.getContext('2d');
+        return;
+      }
 
-        // 🎯 [핵심 변경] 단원명코드(d.code)를 기반으로 정확하게 색상 분류
-        const pointColors = data.map((d) => {
-          // 백엔드에서 넘겨준 단원명코드 (예: 1, 8, 15 등)
-          const code = Number(d.code); 
+      if (window.vulnChart) window.vulnChart.destroy();
+      const ctx = canvas.getContext('2d');
 
-          if (subj === "국어") {
-            if (code >= 1 && code <= 7) return '#3b82f6';   // 1~7: 독서 (파랑)
-            if (code >= 8 && code <= 14) return '#10b981';  // 8~14: 문학 (초록)
-            if (code >= 15 && code <= 16) return '#f59e0b'; // 15~16: 선택 (주황)
-          } 
-          else if (subj === "수학") {
-            if (code >= 1 && code <= 3) return '#ec4899';   // 1~3: 수1 (핑크)
-            if (code >= 4 && code <= 6) return '#8b5cf6';   // 4~6: 수2 (보라)
-            if (code >= 7 && code <= 9) return '#eab308';   // 7~9: 선택 (노랑)
-          }
-
-          // 혹시 코드가 없거나 기타 과목인 경우 기본 색상
-          return '#3498db'; 
-        });
-        
-        window.vulnChart = new Chart(ctx, {
+      const pointColors = data.map((d) => {
+        const code = Number(d.code); 
+        if (currentSubject === "국어") {
+          if (code >= 1 && code <= 7) return '#3b82f6';
+          if (code >= 8 && code <= 14) return '#10b981';
+          if (code >= 15 && code <= 16) return '#f59e0b';
+        } else if (currentSubject === "수학") {
+          if (code >= 1 && code <= 3) return '#ec4899';
+          if (code >= 4 && code <= 6) return '#8b5cf6';
+          if (code >= 7 && code <= 9) return '#eab308';
+        }
+        return '#3498db'; 
+      });
+      
+      window.vulnChart = new Chart(ctx, {
         type: 'radar',
         data: {
-          labels: data.map(d => d.area), // 단원명 (사실적 이해 등)
+          labels: data.map(d => d.area),
           datasets: [{
-            label: `${subj} 성취도(%)`,
+            label: `${currentSubject} 성취도(%)`,
             data: data.map(d => d.score),
-            backgroundColor: 'rgba(52, 152, 219, 0.15)', // 배경 면은 옅은 파란색 통일 (가독성 위해)
-            borderColor: 'rgba(255, 255, 255, 0.3)',     // 거미줄 선과 어울리게 테두리는 반투명 하얀색/회색으로
-            pointBackgroundColor: pointColors,           // 🎯 꼭짓점 색상을 파트별로 적용
-            pointBorderColor: pointColors,               // 🎯 꼭짓점 테두리 색상도 파트별로 적용
-            pointRadius: 5,                              // 색상이 잘 보이도록 점 크기를 조금 키움
+            // 누적 모드일 때는 배경을 약간 붉은빛(또는 주황빛)으로 변경하여 시각적 차이 줌
+            backgroundColor: isAccumulatedMode ? 'rgba(231, 76, 60, 0.15)' : 'rgba(52, 152, 219, 0.15)', 
+            borderColor: 'rgba(255, 255, 255, 0.3)',
+            pointBackgroundColor: pointColors,
+            pointBorderColor: pointColors,
+            pointRadius: 5,
             pointHoverRadius: 7,
             borderWidth: 2
           }]
@@ -1079,24 +1085,77 @@ document.addEventListener("DOMContentLoaded", () => {
               grid: { color: 'rgba(255,255,255,0.15)' },
               angleLines: { color: 'rgba(255,255,255,0.15)' },
               pointLabels: { 
-                // 🎯 바깥쪽 텍스트(라벨) 색상도 꼭짓점 색상과 깔맞춤 적용
                 color: (context) => pointColors[context.index] || 'rgba(255,255,255,0.85)', 
                 font: { size: 12, weight: 'bold' } 
               },
               ticks: { display: false, stepSize: 20 }
             }
           },
-          plugins: { legend: { display: false } }
+          plugins: { 
+            legend: { display: false },
+            tooltip: { 
+              // 🎯 툴팁 커스텀: "성취도: 80% (4맞음 / 5문항)" 형태로 출력
+              callbacks: {
+                label: function(context) {
+                  const item = data[context.dataIndex];
+                  if (item && item.n !== undefined) {
+                    return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항)`;
+                  }
+                  return ` 성취도: ${item.score}%`;
+                }
+              }
+            }
+          }
         }
       });
     };
 
-    // ✅ 과목별 버튼 생성
+    // 🎯 1. [전체 (누적)] 토글 버튼 생성
+    const allBtn = document.createElement("button");
+    allBtn.className = "btn btn-mini";
+    allBtn.textContent = "전체 (누적)";
+    allBtn.style.background = "rgba(255,255,255,0.1)";
+    allBtn.style.color = "#fff";
+    allBtn.style.border = "1px solid rgba(255,255,255,0.3)";
+    allBtn.style.padding = "6px 14px";
+    allBtn.style.borderRadius = "8px";
+    allBtn.style.cursor = "pointer";
+    allBtn.style.fontWeight = "bold";
+    // marginRight: "auto"를 주면 flex-end 레이아웃에서 혼자 맨 왼쪽으로 밀려납니다!
+    allBtn.style.marginRight = "auto"; 
+
+    allBtn.onclick = async () => {
+      isAccumulatedMode = !isAccumulatedMode;
+      
+      // 누적 모드 켜지면 붉은색 포인트로 활성화 표시
+      allBtn.style.background = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.1)";
+      allBtn.style.borderColor = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.3)";
+      
+      if (isAccumulatedMode && !accumulatedData) {
+          // 최초 1회만 백엔드에 누적 데이터를 요청합니다.
+          msgEl.textContent = "누적 데이터를 분석 중입니다... 잠시만 기다려주세요.";
+          msgEl.style.display = "block";
+          canvas.style.opacity = "0.3"; // 로딩 중 시각적 피드백
+          
+          try {
+              const res = await apiPost("grade_analysis_accumulated", { token });
+              if (res.ok) accumulatedData = res.units;
+          } catch (e) { 
+              console.error(e); 
+          }
+          
+          msgEl.style.display = "none";
+          canvas.style.opacity = "1";
+      }
+      drawChart();
+    };
+    btnContainer.appendChild(allBtn);
+
+    // 🎯 2. 과목 버튼들 생성 (국어, 수학, 영어 등)
+    const subjBtnGroup = [];
     subjects.forEach((subj, idx) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-mini";
-      
-      // 버튼 기본 스타일 (첫 번째 과목은 선택된 상태로 파란색)
       btn.style.background = idx === 0 ? "#3498db" : "rgba(255,255,255,0.1)";
       btn.style.color = "#fff";
       btn.style.border = "none";
@@ -1107,21 +1166,20 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.textContent = subj;
 
       btn.onclick = () => {
-        // 모든 버튼 색상을 회색으로 초기화
-        Array.from(btnContainer.children).forEach(b => {
-          b.style.background = "rgba(255,255,255,0.1)";
-        });
-        // 클릭한 버튼만 파란색으로 하이라이트
+        currentSubject = subj; 
+        subjBtnGroup.forEach(b => b.style.background = "rgba(255,255,255,0.1)");
         btn.style.background = "#3498db";
-        drawChart(subj); // 해당 과목 차트 그리기
+        drawChart();
       };
       
+      subjBtnGroup.push(btn);
       btnContainer.appendChild(btn);
     });
 
-    // 처음에 화면이 열리면 첫 번째 과목(보통 국어)의 차트를 그림
-    drawChart(subjects[0]);
+    // 최초 렌더링
+    drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
