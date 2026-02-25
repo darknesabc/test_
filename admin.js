@@ -1031,13 +1031,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const drawChart = () => {
       const dataSource = isAccumulatedMode ? accumulatedData : unitsBySubject;
-      const data = dataSource ? dataSource[currentSubject] : null;
+      const rawData = dataSource ? dataSource[currentSubject] : null;
       
       // 데이터가 없으면 차트를 지웁니다.
-      if (!data || data.length === 0) {
+      if (!rawData || rawData.length === 0) {
         if (window.vulnChart) window.vulnChart.destroy();
         return;
       }
+
+      // 💡 [핵심 추가] 차트를 그리기 전에 '단원별 코드(code)' 순서대로 오름차순 정렬!
+      // 이렇게 하면 국어 1~7(파랑), 8~14(초록), 15~16(주황)이 순서대로 예쁘게 뭉칩니다.
+      // 코드가 없는 기타 과목을 위해 기본값(99) 처리도 해줍니다.
+      const data = [...rawData].sort((a, b) => Number(a.code || 99) - Number(b.code || 99));
 
       if (window.vulnChart) window.vulnChart.destroy();
       const ctx = canvas.getContext('2d');
@@ -1179,3 +1184,4 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
