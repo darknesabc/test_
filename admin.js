@@ -997,7 +997,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-/** ✅ 취약 영역 방사형 차트 (누적 보기 토글 + 에러 방어 로직 추가) */
+/** ✅ 취약 영역 방사형 차트 (+ 행동영역 상세 분석 카드 추가) */
   function renderVulnerabilityChart(unitsBySubject, token) {
     const canvas = document.getElementById("vulnRadarChart");
     const msgEl = document.getElementById("vulnChartMsg");
@@ -1009,6 +1009,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (msgEl) msgEl.style.display = "none";
     
+    // 버튼 컨테이너 (우측 상단)
     let btnContainer = document.getElementById("vulnSubjectBtns");
     if (!btnContainer) {
       btnContainer = document.createElement("div");
@@ -1023,6 +1024,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     btnContainer.innerHTML = ""; 
 
+    // 🎯 [신규] 차트 아래에 띄울 '세부 행동영역 분석 카드' DOM 생성
+    let detailCard = document.getElementById("vulnDetailCard");
+    if (!detailCard) {
+      detailCard = document.createElement("div");
+      detailCard.id = "vulnDetailCard";
+      detailCard.style.marginTop = "20px";
+      detailCard.style.display = "none"; // 평소엔 숨김
+      // 캔버스를 감싸는 래퍼 바로 아래에 추가
+      canvasWrap.parentNode.insertBefore(detailCard, canvasWrap.nextSibling);
+    }
+    detailCard.style.display = "none";
+
     const subjects = Object.keys(unitsBySubject);
     let currentSubject = subjects[0];
     
@@ -1030,18 +1043,18 @@ document.addEventListener("DOMContentLoaded", () => {
     let accumulatedData = null;
 
     const drawChart = () => {
+      // 탭 이동 시 상세 카드는 무조건 닫기
+      detailCard.style.display = "none"; 
+
       const dataSource = isAccumulatedMode ? accumulatedData : unitsBySubject;
       const rawData = dataSource ? dataSource[currentSubject] : null;
       
-      // 데이터가 없으면 차트를 지웁니다.
       if (!rawData || rawData.length === 0) {
         if (window.vulnChart) window.vulnChart.destroy();
         return;
       }
 
-      // 💡 [핵심 추가] 차트를 그리기 전에 '단원별 코드(code)' 순서대로 오름차순 정렬!
-      // 이렇게 하면 국어 1~7(파랑), 8~14(초록), 15~16(주황)이 순서대로 예쁘게 뭉칩니다.
-      // 코드가 없는 기타 과목을 위해 기본값(99) 처리도 해줍니다.
+      // 단원별 코드(code) 순서대로 정렬
       const data = [...rawData].sort((a, b) => Number(a.code || 99) - Number(b.code || 99));
 
       if (window.vulnChart) window.vulnChart.destroy();
@@ -1073,7 +1086,7 @@ document.addEventListener("DOMContentLoaded", () => {
             pointBackgroundColor: pointColors,
             pointBorderColor: pointColors,
             pointRadius: 5,
-            pointHoverRadius: 7,
+            pointHoverRadius: 8, // 호버시 조금 더 크게
             borderWidth: 2
           }]
         },
@@ -1092,6 +1105,66 @@ document.addEventListener("DOMContentLoaded", () => {
               ticks: { display: false, stepSize: 20 }
             }
           },
+          // 🎯 [신규] 차트에 이벤트 연결
+          onHover: (e, elements) => {
+            // 마우스 올렸을 때 클릭 가능(Pointer) 커서로 변경
+            e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+          },
+          onClick: (e, elements) => {
+            // 빈 공간 클릭 무시
+            if (elements.length === 0) return; 
+            
+            // 국,수,영이 아니면 동작 안함 (탐구는 행동영역이 없는 경우가 많음)
+            if (!["국어", "수학", "영어"].includes(currentSubject)) return;
+
+            const idx = elements[0].index;
+            const item = data[idx]; // 클릭한 단원의 데이터
+            
+            // 행동영역 데이터가 없으면 안내 메시지
+            if (!item || !item.details || Object.keys(item.details).length === 0) {
+              detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 행동영역 데이터가 없습니다.</div>`;
+              detailCard.style.display = "block";
+              return;
+            }
+
+            // 상세 카드 UI 만들기
+            let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
+            html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[idx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
+            html += `🔍 [${escapeHtml(item.area)}] 세부 영역 분석</div>`;
+            
+            // 행동영역별 진행률 바 그리기
+            for (const [beh, stats] of Object.entries(item.details)) {
+              if (!beh || beh === "기타") continue;
+              const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
+              
+              // 점수별 색상 구분 (안전=초록, 주의=노랑, 취약=빨강)
+              let color = "#2ecc71"; // 80% 이상 초록
+              if (pct < 50) color = "#e74c3c"; // 50% 미만 빨강
+              else if (pct < 80) color = "#f1c40f"; // 그 사이 노랑
+
+              html += `
+                <div style="margin-bottom: 12px;">
+                  <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; font-weight: 600;">
+                    <span style="opacity:0.9;">${escapeHtml(beh)}</span>
+                    <span style="color:${color};">${pct}% <span style="opacity:0.6; font-size:11px; margin-left:4px;">(${stats.o}/${stats.n})</span></span>
+                  </div>
+                  <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
+                    <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 6px; transition: width 0.5s ease-out;"></div>
+                  </div>
+                </div>
+              `;
+            }
+            html += `</div>`;
+            
+            // 화면에 띄우기
+            detailCard.innerHTML = html;
+            detailCard.style.display = "block";
+            
+            // 클릭 후 카드가 잘 보이도록 살짝 스크롤
+            setTimeout(() => {
+              detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
+          },
           plugins: { 
             legend: { display: false },
             tooltip: { 
@@ -1099,7 +1172,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 label: function(context) {
                   const item = data[context.dataIndex];
                   if (item && item.n !== undefined) {
-                    return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항)`;
+                    return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항) - 클릭하여 상세분석`;
                   }
                   return ` 성취도: ${item.score}%`;
                 }
@@ -1110,7 +1183,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     };
 
-    // 🎯 [전체 (누적)] 토글 버튼
+    // [전체 (누적)] 토글 버튼
     const allBtn = document.createElement("button");
     allBtn.className = "btn btn-mini";
     allBtn.textContent = "전체 (누적)";
@@ -1133,7 +1206,6 @@ document.addEventListener("DOMContentLoaded", () => {
           
           try {
               const res = await apiPost("grade_analysis_accumulated", { token });
-              // 💡 [핵심 방어 코드] 데이터가 텅 비어서 오면 알림을 띄우고 모드를 해제합니다.
               if (res.ok && Object.keys(res.units).length > 0) {
                   accumulatedData = res.units;
               } else {
@@ -1149,14 +1221,13 @@ document.addEventListener("DOMContentLoaded", () => {
           canvas.style.opacity = "1";
       }
       
-      // 버튼 색상 업데이트 및 차트 다시 그리기
       allBtn.style.background = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.1)";
       allBtn.style.borderColor = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.3)";
       drawChart();
     };
     btnContainer.appendChild(allBtn);
 
-    // 🎯 과목 버튼들 생성
+    // 과목 버튼들 생성
     const subjBtnGroup = [];
     subjects.forEach((subj, idx) => {
       const btn = document.createElement("button");
@@ -1184,4 +1255,5 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
