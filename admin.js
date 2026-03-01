@@ -606,7 +606,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <p style="font-size: 11px; color: rgba(255,255,255,.5); margin-top: 6px;">* 초기화 시 학생은 다시 기존 4자리 번호로 로그인해야 합니다.</p>
       </div>
       
-      <div class="grid-2" style="margin-top:10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px;">
+      <div class="grid-2" style="margin-top:10px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
         
         <section class="card" style="padding:14px; margin:0;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">📅 출결 요약</div><button class="btn btn-ghost btn-mini" id="btnAttDetail" style="padding:6px 10px;">상세</button></div>
@@ -1280,6 +1280,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
