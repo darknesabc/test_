@@ -594,12 +594,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const edu = sum.eduscore || null;
     const grd = sum.grade || null;
 
-    // 🌟 [수정됨] 상세 결과창(detailResult)을 메모리로 잠시 대피시킵니다.
-    const detailResult = document.getElementById("detailResult");
-    if (detailResult && detailResult.parentNode) {
-      detailResult.parentNode.removeChild(detailResult);
-    }
-
     detailBody.innerHTML = `
       <div style="margin-bottom:10px;">
         ${fmtKeyVal("이름", st.studentName || st.name || "-")}
@@ -658,7 +652,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       </div>
 
-      <div id="lifeDetailAnchor" style="margin-top: 14px;"></div>
+      <div id="lifeDetailContainer" style="margin-top: 14px;"></div>
 
       <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
         
@@ -705,31 +699,14 @@ document.addEventListener("DOMContentLoaded", () => {
         </section>
 
       </div>
-
-      <div id="gradeDetailAnchor" style="margin-top: 14px;"></div>
     `;
 
-    // 🌟 [수정됨] 기본 위치는 원래대로 맨 아래(gradeDetailAnchor)로 잡아둡니다.
-    const gradeAnchor = document.getElementById("gradeDetailAnchor");
-    if (gradeAnchor && detailResult) {
-      gradeAnchor.appendChild(detailResult);
-    }
-
-    // 🌟 [수정됨] 상세창을 지정된 앵커로 이동시키는 헬퍼 함수
-    function moveDetailResult(anchorId) {
-      const targetAnchor = document.getElementById(anchorId);
-      if (targetAnchor && detailResult) {
-        targetAnchor.appendChild(detailResult);
-      }
-    }
-
-    // 버튼 클릭 시 앵커 이동 후 loadDetail 실행
-    $("btnAttDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("attendance"); });
-    $("btnSleepDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("sleep_detail"); });
-    $("btnMoveDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("move_detail"); });
-    $("btnEduDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("eduscore_detail"); });
-    
-    $("btnGradeDetail").addEventListener("click", () => { moveDetailResult("gradeDetailAnchor"); loadDetail("grade_detail"); });
+    // 🌟 버튼 이벤트들 (단순하게 변경됨)
+    $("btnAttDetail").addEventListener("click", () => loadDetail("attendance"));
+    $("btnSleepDetail").addEventListener("click", () => loadDetail("sleep_detail"));
+    $("btnMoveDetail").addEventListener("click", () => loadDetail("move_detail"));
+    $("btnEduDetail").addEventListener("click", () => loadDetail("eduscore_detail"));
+    $("btnGradeDetail").addEventListener("click", () => loadDetail("grade_detail"));
 
     const btnResetPw = $("btnResetPw");
     if (btnResetPw) {
@@ -885,48 +862,64 @@ document.addEventListener("DOMContentLoaded", () => {
     const st = window.__lastStudent;
     const seat = st.seat || "";
     const studentId = st.studentId || "";
-    detailResult.innerHTML = "불러오는 중…";
+
+    // ✅ 핵심: 생활 관련은 중간(lifeDetailContainer), 성적 관련은 기존(detailResult)에 표시
+    const lifeContainer = $("lifeDetailContainer");
+    const gradeContainer = $("detailResult");
+    
+    const isGrade = (kind === "grade_detail");
+    const targetEl = isGrade ? gradeContainer : (lifeContainer || gradeContainer);
+
+    // 다른 쪽 결과창이 열려있다면 깔끔하게 닫아줍니다
+    if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
+    if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
+
+    targetEl.innerHTML = "불러오는 중…";
 
     try {
       const token = await issueStudentToken_(seat, studentId);
       if (kind === "attendance") {
         const [att, mv] = await Promise.all([ apiPost("attendance", { token }), apiPost("move_detail", { token, days: 14 }) ]);
-        if (!att.ok) return showError(att);
+        if (!att.ok) return showError(att, targetEl);
         const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
-        detailResult.innerHTML = renderAttendanceDetail_(att, moveMap);
+        targetEl.innerHTML = renderAttendanceDetail_(att, moveMap);
         return;
       }
       if (kind === "sleep_detail") {
         const data = await apiPost("sleep_detail", { token, days: 30 });
-        if (!data.ok) return showError(data);
-        detailResult.innerHTML = renderSleepDetail_(data);
+        if (!data.ok) return showError(data, targetEl);
+        targetEl.innerHTML = renderSleepDetail_(data);
         return;
       }
       if (kind === "move_detail") {
         const data = await apiPost("move_detail", { token, days: 30 });
-        if (!data.ok) return showError(data);
-        detailResult.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "복귀교시"], (data.items || []).map(x => [x.date, x.time, x.reason, x.returnPeriod]));
+        if (!data.ok) return showError(data, targetEl);
+        targetEl.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "복귀교시"], (data.items || []).map(x => [x.date, x.time, x.reason, x.returnPeriod]));
         return;
       }
       if (kind === "eduscore_detail") {
         const data = await apiPost("eduscore_detail", { token, days: 30 });
-        if (!data.ok) return showError(data);
-        detailResult.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "점수"], (data.items || []).map(x => [x.date, x.time, x.reason, x.score]));
+        if (!data.ok) return showError(data, targetEl);
+        targetEl.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "점수"], (data.items || []).map(x => [x.date, x.time, x.reason, x.score]));
         return;
       }
       if (kind === "grade_detail") {
         const summarySel = document.getElementById("gradeSummarySelect");
         const initialExam = summarySel ? String(summarySel.value || "").trim() : "";
-        await loadAdminGradeDetailUI_(token, initialExam);
+        await loadAdminGradeDetailUI_(token, initialExam); // 내부적으로 $("detailResult")를 씁니다
         return;
       }
-      detailResult.innerHTML = `<div style="color:#ff6b6b;">지원하지 않는 상세 종류</div>`;
+      targetEl.innerHTML = `<div style="color:#ff6b6b;">지원하지 않는 상세 종류</div>`;
     } catch (e) {
-      detailResult.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e.message || "오류")}</div>`;
+      targetEl.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e.message || "오류")}</div>`;
     }
   }
 
-  function showError(data) { detailResult.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(data.error || "오류")}</div>`; }
+  // showError 함수도 targetEl을 받도록 업데이트
+  function showError(data, targetEl) { 
+    const el = targetEl || $("detailResult");
+    el.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(data.error || "오류")}</div>`; 
+  }
 
   function renderSimpleTable_(headers, rows) {
     const th = headers.map(h => `<th style="text-align:left; padding:8px; border-bottom:1px solid rgba(255,255,255,.08);">${escapeHtml(h)}</th>`).join("");
@@ -1306,6 +1299,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
