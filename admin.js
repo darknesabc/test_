@@ -605,10 +605,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <button id="btnResetPw" class="btn" style="background: #e74c3c; color: white; padding: 8px 16px; font-size: 13px;">🔒 비밀번호 초기화</button>
         <p style="font-size: 11px; color: rgba(255,255,255,.5); margin-top: 6px;">* 초기화 시 학생은 다시 기존 4자리 번호로 로그인해야 합니다.</p>
       </div>
-      <div class="grid-2" style="margin-top:10px;">
+      
+      <div class="grid-2" style="margin-top:10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px;">
         
-        <section class="card" style="padding:14px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">출결 요약</div><button class="btn btn-ghost btn-mini" id="btnAttDetail" style="padding:6px 10px;">상세</button></div>
+        <section class="card" style="padding:14px; margin:0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">📅 출결 요약</div><button class="btn btn-ghost btn-mini" id="btnAttDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
             ${att && att.ok ? `
               이번주 출석: <b>${att.present ?? 0}</b><br>
@@ -617,19 +618,9 @@ document.addEventListener("DOMContentLoaded", () => {
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
           </div>
         </section>
-        
-        <section class="card" style="padding:14px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">취침 요약</div><button class="btn btn-ghost btn-mini" id="btnSleepDetail" style="padding:6px 10px;">상세</button></div>
-          <div class="card-sub">
-            ${slp && slp.ok ? `
-              최근 7일 취침일수: <b>${slp.sleepCount7d ?? 0}</b><br>
-              최근 7일 취침횟수: <b>${slp.sleepTotal7d ?? 0}</b>
-            ` : (loading ? "불러오는 중…" : "데이터 없음")}
-          </div>
-        </section>
-        
-        <section class="card" style="padding:14px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">이동 요약</div><button class="btn btn-ghost btn-mini" id="btnMoveDetail" style="padding:6px 10px;">상세</button></div>
+
+        <section class="card" style="padding:14px; margin:0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">🚶‍♂️ 이동 요약</div><button class="btn btn-ghost btn-mini" id="btnMoveDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
             ${mv && mv.ok ? `
               최근 이동: <b>${escapeHtml(mv.latestText || "-")}</b><br>
@@ -638,8 +629,18 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </section>
 
-        <section class="card" style="padding:14px;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">교육점수 요약</div><button class="btn btn-ghost btn-mini" id="btnEduDetail" style="padding:6px 10px;">상세</button></div>
+        <section class="card" style="padding:14px; margin:0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">💤 취침 요약</div><button class="btn btn-ghost btn-mini" id="btnSleepDetail" style="padding:6px 10px;">상세</button></div>
+          <div class="card-sub">
+            ${slp && slp.ok ? `
+              최근 7일 취침일수: <b>${slp.sleepCount7d ?? 0}</b><br>
+              최근 7일 취침횟수: <b>${slp.sleepTotal7d ?? 0}</b>
+            ` : (loading ? "불러오는 중…" : "데이터 없음")}
+          </div>
+        </section>
+
+        <section class="card" style="padding:14px; margin:0;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">💯 교육점수 요약</div><button class="btn btn-ghost btn-mini" id="btnEduDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
             ${edu && edu.ok ? `
               이번달 누적점수: <b>${edu.monthTotal ?? 0}</b><br>
@@ -649,7 +650,11 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </section>
 
-        <section class="card" style="padding:14px; margin-bottom:14px;">
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
+        
+        <section class="card" style="padding:14px; margin:0;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이 (백분위/등급)</div>
             <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
@@ -664,12 +669,12 @@ document.addEventListener("DOMContentLoaded", () => {
           <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
         </section>
 
-        <section class="card" style="padding:14px;">
+        <section class="card" style="padding:14px; margin:0;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <div style="display:flex; align-items:center; gap:10px;">
-              <div class="card-title" style="font-size:15px;">성적 요약</div>
+              <div class="card-title" style="font-size:15px; margin:0;">📊 성적 요약</div>
               ${grd && grd.ok && Array.isArray(grd.exams) && grd.exams.length ? `
-                <select id="gradeSummarySelect" class="select" style="min-width:140px;">
+                <select id="gradeSummarySelect" class="select" style="min-width:140px; font-size:13px; padding:4px 8px;">
                   ${grd.exams.map(it => {
                     const ex = String(it.exam || "");
                     const label = String(it.label || it.name || ex || "");
@@ -681,16 +686,16 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
             <button class="btn btn-ghost btn-mini" id="btnGradeDetail" style="padding:6px 10px;">상세</button>
           </div>
-          <div class="card-sub">
+          <div class="card-sub" style="margin-top:10px;">
             ${grd && grd.ok ? `
-              <div id="gradeSummaryLabel" style="margin-bottom:8px;">(${escapeHtml(grd.sheetName || "")})</div>
+              <div id="gradeSummaryLabel" style="margin-bottom:8px; font-weight:600; color:rgba(255,255,255,0.8);">(${escapeHtml(grd.sheetName || "")})</div>
               <div id="gradeSummaryTable">
                 ${renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {}))}
               </div>
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
           </div>
         </section>
-        
+
       </div>
     `;
 
@@ -1275,6 +1280,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
