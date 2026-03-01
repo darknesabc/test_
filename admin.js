@@ -594,6 +594,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const edu = sum.eduscore || null;
     const grd = sum.grade || null;
 
+    // 🌟 [수정됨] 상세 결과창(detailResult)을 메모리로 잠시 대피시킵니다.
+    const detailResult = document.getElementById("detailResult");
+    if (detailResult && detailResult.parentNode) {
+      detailResult.parentNode.removeChild(detailResult);
+    }
+
     detailBody.innerHTML = `
       <div style="margin-bottom:10px;">
         ${fmtKeyVal("이름", st.studentName || st.name || "-")}
@@ -652,6 +658,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
       </div>
 
+      <div id="lifeDetailAnchor" style="margin-top: 14px;"></div>
+
       <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
         
         <section class="card" style="padding:14px; margin:0;">
@@ -697,13 +705,31 @@ document.addEventListener("DOMContentLoaded", () => {
         </section>
 
       </div>
+
+      <div id="gradeDetailAnchor" style="margin-top: 14px;"></div>
     `;
 
-    $("btnAttDetail").addEventListener("click", () => loadDetail("attendance"));
-    $("btnSleepDetail").addEventListener("click", () => loadDetail("sleep_detail"));
-    $("btnMoveDetail").addEventListener("click", () => loadDetail("move_detail"));
-    $("btnEduDetail").addEventListener("click", () => loadDetail("eduscore_detail"));
-    $("btnGradeDetail").addEventListener("click", () => loadDetail("grade_detail"));
+    // 🌟 [수정됨] 기본 위치는 원래대로 맨 아래(gradeDetailAnchor)로 잡아둡니다.
+    const gradeAnchor = document.getElementById("gradeDetailAnchor");
+    if (gradeAnchor && detailResult) {
+      gradeAnchor.appendChild(detailResult);
+    }
+
+    // 🌟 [수정됨] 상세창을 지정된 앵커로 이동시키는 헬퍼 함수
+    function moveDetailResult(anchorId) {
+      const targetAnchor = document.getElementById(anchorId);
+      if (targetAnchor && detailResult) {
+        targetAnchor.appendChild(detailResult);
+      }
+    }
+
+    // 버튼 클릭 시 앵커 이동 후 loadDetail 실행
+    $("btnAttDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("attendance"); });
+    $("btnSleepDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("sleep_detail"); });
+    $("btnMoveDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("move_detail"); });
+    $("btnEduDetail").addEventListener("click", () => { moveDetailResult("lifeDetailAnchor"); loadDetail("eduscore_detail"); });
+    
+    $("btnGradeDetail").addEventListener("click", () => { moveDetailResult("gradeDetailAnchor"); loadDetail("grade_detail"); });
 
     const btnResetPw = $("btnResetPw");
     if (btnResetPw) {
@@ -1280,6 +1306,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
