@@ -606,6 +606,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <p style="font-size: 11px; color: rgba(255,255,255,.5); margin-top: 6px;">* 초기화 시 학생은 다시 기존 4자리 번호로 로그인해야 합니다.</p>
       </div>
       <div class="grid-2" style="margin-top:10px;">
+        
         <section class="card" style="padding:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">출결 요약</div><button class="btn btn-ghost btn-mini" id="btnAttDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
@@ -616,6 +617,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
           </div>
         </section>
+        
         <section class="card" style="padding:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">취침 요약</div><button class="btn btn-ghost btn-mini" id="btnSleepDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
@@ -625,6 +627,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
           </div>
         </section>
+        
         <section class="card" style="padding:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">이동 요약</div><button class="btn btn-ghost btn-mini" id="btnMoveDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
@@ -634,21 +637,8 @@ document.addEventListener("DOMContentLoaded", () => {
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
           </div>
         </section>
-        <section class="card" style="padding:14px; margin-bottom:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이 (백분위/등급)</div>
-          <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
-            <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
-            <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
-            <button class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
-            <button class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
-            <button class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
-          </div>
-        </div>
-        <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
-        <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
-      </section>
-      <section class="card" style="padding:14px;">
+
+        <section class="card" style="padding:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">교육점수 요약</div><button class="btn btn-ghost btn-mini" id="btnEduDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
             ${edu && edu.ok ? `
@@ -658,6 +648,22 @@ document.addEventListener("DOMContentLoaded", () => {
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
           </div>
         </section>
+
+        <section class="card" style="padding:14px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이 (백분위/등급)</div>
+            <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
+              <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
+              <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
+              <button class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
+              <button class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
+              <button class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
+            </div>
+          </div>
+          <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
+          <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
+        </section>
+
         <section class="card" style="padding:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <div style="display:flex; align-items:center; gap:10px;">
@@ -684,6 +690,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
           </div>
         </section>
+        
       </div>
     `;
 
@@ -1268,6 +1275,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
