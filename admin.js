@@ -648,16 +648,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
         <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
       </section>
-      <section class="card" style="padding:14px; margin-top:14px;">
-        <div class="card-title" style="font-size:15px; margin-bottom:10px;">🕸️ 취약 영역 분석 (단원별 성취도)</div>
-        <div style="height: 280px; position: relative;">
-          <canvas id="vulnRadarChart"></canvas>
-        </div>
-        <div id="vulnChartMsg" class="muted" style="font-size:12px; margin-top:10px; text-align:center;">
-          성적 상세 조회 시 분석 결과가 표시됩니다.
-        </div>
-      </section>
-        <section class="card" style="padding:14px;">
+      <section class="card" style="padding:14px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px;">교육점수 요약</div><button class="btn btn-ghost btn-mini" id="btnEduDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
             ${edu && edu.ok ? `
@@ -755,6 +746,8 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadAdminGradeDetailUI_(token, initialExam) {
     const host = $("detailResult");
     if (!host) return;
+    
+    // ✅ 정오표 밑에 취약 영역 분석 캔버스 영역 추가
     host.innerHTML = `
       <div class="card" style="padding:14px;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
@@ -763,7 +756,18 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         <p id="adminGradeLoading" class="muted" style="margin-top:10px;">불러오는 중...</p>
         <p id="adminGradeError" class="msg" style="margin-top:6px;"></p>
+        
         <div id="adminGradeTableWrap" style="display:none;"></div>
+
+        <div id="vulnChartWrapper" style="display:none; margin-top: 24px; padding-top: 20px; border-top: 1px dashed rgba(255,255,255,0.1);">
+          <div class="card-title" style="font-size:15px; margin-bottom:10px;">🕸️ 취약 영역 분석 (단원별 성취도)</div>
+          <div style="height: 280px; position: relative;">
+            <canvas id="vulnRadarChart"></canvas>
+          </div>
+          <div id="vulnChartMsg" class="muted" style="font-size:12px; margin-top:10px; text-align:center;">
+            데이터 분석 중...
+          </div>
+        </div>
       </div>
     `;
 
@@ -771,6 +775,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const loading = $("adminGradeLoading");
     const error = $("adminGradeError");
     const wrap = $("adminGradeTableWrap");
+    const vulnWrapper = $("vulnChartWrapper"); // ✅ 추가
 
     try {
       const exams = await apiPost("grade_exams", { token });
@@ -792,6 +797,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loading.textContent = "";
       error.textContent = e?.message || "성적 불러오기 실패";
       wrap.style.display = "none";
+      if (vulnWrapper) vulnWrapper.style.display = "none";
     }
 
     async function fetchAndRender(exam) {
@@ -800,27 +806,35 @@ document.addEventListener("DOMContentLoaded", () => {
         error.textContent = "";
         wrap.style.display = "none";
         wrap.innerHTML = "";
+        if (vulnWrapper) vulnWrapper.style.display = "none"; // ✅ 로딩 중 숨김
+
         const data = await apiPost("grade_summary", { token, exam: String(exam || "") });
         if (!data.ok) throw new Error(data.error || "성적 불러오기 실패");
 
         let errata = null;
-       try {
+        try {
           const e2 = await apiPost("grade_errata", { token, exam: String(exam || "") });
           if (e2 && e2.ok) {
             errata = e2;
-            if (errata.analysis && errata.analysis.units) {
-              renderVulnerabilityChart(errata.analysis.units, token); // ✅ token 추가!
-            }
           }
         } catch (_) { /* ignore */ }
 
+        // ✅ 1. 정오표 그리기
         wrap.innerHTML = (errata ? renderErrataHtml_(errata) : `<div class="muted">정오표 데이터가 없습니다.</div>`);
         wrap.style.display = "block";
         loading.textContent = "";
+
+        // ✅ 2. 취약 영역 분석 그리기
+        if (errata && errata.analysis && errata.analysis.units) {
+          if (vulnWrapper) vulnWrapper.style.display = "block"; // 분석 결과가 있으면 보이기
+          renderVulnerabilityChart(errata.analysis.units, token);
+        }
+
       } catch (e) {
         loading.textContent = "";
         error.textContent = e?.message || "성적 불러오기 실패";
         wrap.style.display = "none";
+        if (vulnWrapper) vulnWrapper.style.display = "none";
       }
     }
   }
@@ -1254,6 +1268,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
