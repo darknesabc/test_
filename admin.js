@@ -1299,12 +1299,3 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
-
-
-
-
-
-
-
-
-
