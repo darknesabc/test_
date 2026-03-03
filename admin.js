@@ -5,6 +5,26 @@
 // ✅ 여기에 Apps Script Web App URL(…/exec) 넣기
 const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_oNES0soDEyWz0N0suAsuZU35QJOSypO2LFC-Z2dpbDyoD/exec";
 
+/**
+ * ✅ [추가] 관리자 대시보드용 전체 학생 출결 데이터 가져오기
+ */
+async function fetchAdminDashboardAttendance(targetDate) {
+  const sess = getAdminSession();
+  if (!sess?.adminToken) return null;
+
+  try {
+    // 기존에 정의된 apiPost 함수를 활용합니다.
+    const res = await apiPost("admin_dashboard_attendance", {
+      adminToken: sess.adminToken,
+      targetDate: targetDate // 예: "3/3"
+    });
+    return res.ok ? res.data : null;
+  } catch (e) {
+    console.error("출결 데이터 로드 실패:", e);
+    return null;
+  }
+}
+
 /** =========================
  * ✅ 출결(관리자) - 학부모 출결 상세와 동일한 "이동 기록 반영" 로직
  * ========================= */
@@ -453,18 +473,46 @@ document.addEventListener("DOMContentLoaded", () => {
       if (items.length === 0) { setHint(searchMsg, "검색 결과가 없습니다."); return; }
       setHint(searchMsg, `검색 결과 ${items.length}명`);
 
+      // 1. 오늘 날짜 구하기 (시트의 "3/3" 형식과 맞춤)
+      const now = new Date();
+      const dateStr = `${now.getMonth() + 1}/${now.getDate()}`;
+      
+      // 2. 백엔드에서 오늘 모든 학생의 출결 상태 가져오기
+      const attendanceMap = await fetchAdminDashboardAttendance(dateStr);
+
       resultList.innerHTML = items.map((it, idx) => {
         const seat = pick(it, ["seat","좌석"], "-");
         const name = pick(it, ["name","studentName","이름"], "-");
         const teacher = pick(it, ["teacher","담임"], "-");
+        // 학번(studentId)을 가져옵니다. 점을 찍을 때 이 번호로 데이터를 찾습니다.
+        const sId = String(pick(it, ["studentId","학번"], "")).trim();
+
+        // 3. 이 학생의 1~8교시 출결 상태(코드) 배열 가져오기
+        const attArr = (attendanceMap && attendanceMap[sId]) || ["", "", "", "", "", "", "", ""];
+        
+        // 4. 상태 코드에 따라 색깔 점(Dot) 8개 생성
+        const dotsHtml = attArr.map((code, pIdx) => {
+          let color = "rgba(255,255,255,0.1)"; // 기본값 (빈 칸)
+          if (code === "1") color = "#2ecc71"; // 정상 출석 (초록색)
+          if (code === "3") color = "#e74c3c"; // 결석/주의 (빨간색)
+          // 2(지각)나 4(조퇴) 등 다른 색상이 필요하면 여기에 추가하면 돼요.
+          
+          return `<div style="width:6px; height:6px; background:${color}; border-radius:50%;" title="${pIdx+1}교시"></div>`;
+        }).join("");
+
         return `
           <button class="list-item" data-idx="${idx}"
-            style="width:100%; text-align:left; border:1px solid rgba(255,255,255,.10); background: rgba(10,15,25,.55); color: inherit; padding: 12px 14px; border-radius: 12px; cursor: pointer; display:flex; align-items:center; gap:10px; transition: transform .08s ease, background .15s ease, border-color .15s ease; margin: 8px 0;"
+            style="width:100%; text-align:left; border:1px solid rgba(255,255,255,.10); background: rgba(10,15,25,.55); color: inherit; padding: 12px 14px; border-radius: 12px; cursor: pointer; display:flex; align-items:center; gap:10px; transition: transform .08s ease; margin: 8px 0;"
           >
-            <span style="opacity:.9; font-weight:700;">${escapeHtml(seat)}</span>
-            <span style="opacity:.95;">${escapeHtml(name)}</span>
-            <span style="opacity:.7;">·</span>
-            <span style="opacity:.85;">담임 ${escapeHtml(teacher)}</span>
+            <div style="flex: 1; display: flex; align-items: center; gap: 10px;">
+              <span style="opacity:.9; font-weight:700; min-width:35px;">${escapeHtml(seat)}</span>
+              <span style="opacity:.95; min-width:50px;">${escapeHtml(name)}</span>
+              <span style="opacity:.7;">·</span>
+              <span style="opacity:.85; font-size:12px;">담임 ${escapeHtml(teacher)}</span>
+            </div>
+            <div style="display:flex; gap:3px;">
+              ${dotsHtml}
+            </div>
           </button>
         `;
       }).join("");
@@ -1299,3 +1347,4 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
