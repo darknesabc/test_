@@ -1041,16 +1041,42 @@ document.addEventListener("DOMContentLoaded", () => {
       const thSub = lastIdx.map(() => `<th style="text-align:left; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); opacity:.85;">스케줄</th><th style="text-align:left; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); opacity:.85;">출/결</th>`).join("");
       
       const bodyTr = rows.map(r => {
+        const period = r.period || "";
+        // 💡 [핵심] 교시 텍스트에서 숫자만 안전하게 뽑아내어 매칭 확률 100%로 상향
+        const pNumFront = parseInt(String(period).replace(/\D/g, ''), 10) || 0; 
+        
+        const cells = r.cells || [];
+        const tds = lastIdx.map(i => {
+          const c = cells[i] || {};
+          const sRaw = String(c.s ?? "").trim();  
+          const iso = String((dates[i] && dates[i].iso) || "").trim();
           
+          // 💡 완벽하게 매칭된 이동(지각) 사유 가져오기
+          const mvReason = (moveMap && moveMap[iso] && moveMap[iso][pNumFront]) ? String(moveMap[iso][pNumFront]) : "";
+          
+          // 1. 스케줄 칸 텍스트 조립
+          let s = sRaw;
+          if (sRaw === "" || sRaw === "-") {
+              s = escapeHtml(mvReason);
+          } else if (mvReason.includes("지각")) {
+              s = escapeHtml(sRaw) + " <span style='color:#f1c40f; font-size:11px; font-weight:bold;'>(" + escapeHtml(mvReason) + ")</span>";
+          } else {
+              s = escapeHtml(sRaw);
+          }
+          
+          // 2. 출결 상태 라벨 조립
           const aRaw = String(c.a ?? "").trim();   
-          const aText = mapAttendance_(aRaw);      
-          // 💡 s 자체에 HTML(span)이 포함되어 있으므로 escapeHtml(s)를 제거하고 s만 넣습니다.
+          let aText = mapAttendance_(aRaw);      
+          
+          // 💡 [추가] 출결 시트에 결석(3)으로 찍혀있더라도, 교육점수에 '지각'이 있다면 표에서도 '지각'으로 덮어쓰기!
+          if (aRaw === "3" && mvReason.includes("지각")) {
+              aText = "지각";
+          }
+          
           return `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap;">${s || "-"}</td><td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap; ${statusStyle_(aText)}">${escapeHtml(aText)}</td>`;
         }).join("");
         return `<tr><td style="position:sticky; left:0; z-index:2; background:rgba(8,12,20,.92); padding:10px; border-bottom:1px solid rgba(255,255,255,.06); font-weight:700;">${escapeHtml(period)}</td>${tds}</tr>`;
       }).join("");
-
-      const displayStyle = bIdx === 0 ? "block" : "none";
 
       return `
         <div id="week-table-block-${bIdx}" class="attendance-week-block" style="display: ${displayStyle}; animation: fadeIn 0.3s ease;">
@@ -1399,13 +1425,3 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
-
-
-
-
-
-
-
-
-
-
