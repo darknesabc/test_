@@ -1030,7 +1030,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // 💡 여기까지 덮어쓰시면 됩니다!
 
   function renderSleepDetail_(data) {
-  function renderSleepDetail_(data) {
     const groups = data.groups || [];
     if (!groups.length) return "취침 상세 데이터가 없습니다.";
     const rows = [];
@@ -1356,6 +1355,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
