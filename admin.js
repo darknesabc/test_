@@ -917,9 +917,32 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const token = await issueStudentToken_(seat, studentId);
       if (kind === "attendance") {
-        const [att, mv] = await Promise.all([ apiPost("attendance", { token }), apiPost("move_detail", { token, days: 14 }) ]);
+        // 💡 180일치 이동 & 교육점수 가져오기
+        const [att, mv, edu] = await Promise.all([ 
+          apiPost("attendance", { token }), 
+          apiPost("move_detail", { token, days: 180 }),
+          apiPost("eduscore_detail", { token, days: 180 })
+        ]);
         if (!att.ok) return showError(att, targetEl);
+        
         const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
+        
+        // 💡 교육점수에서 '지각' 데이터만 추출해서 합성
+        if (edu && edu.ok) {
+          edu.items.forEach(it => {
+            if (it.reason && it.reason.includes("지각")) {
+              const iso = String(it.date || "").trim();
+              let pNum = parseInt(it.period, 10) || 0;
+              if (pNum === 0 && it.time) pNum = inferStartPeriodByTime_(it.time);
+              
+              if (iso && pNum > 0) {
+                moveMap[iso] = moveMap[iso] || {};
+                if (!moveMap[iso][pNum]) moveMap[iso][pNum] = it.reason;
+                else if (!moveMap[iso][pNum].includes(it.reason)) moveMap[iso][pNum] += ` / ${it.reason}`;
+              }
+            }
+          });
+        }
         targetEl.innerHTML = renderAttendanceDetail_(att, moveMap);
         return;
       }
@@ -1382,6 +1405,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
