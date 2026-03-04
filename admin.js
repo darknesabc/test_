@@ -1048,10 +1048,21 @@ document.addEventListener("DOMContentLoaded", () => {
           const sRaw = String(c.s ?? "").trim();  
           const iso = String((dates[i] && dates[i].iso) || "").trim();
           const mvReason = (moveMap && moveMap[iso] && moveMap[iso][r.period]) ? String(moveMap[iso][r.period]) : "";
-          const s = sRaw || mvReason; 
+          
+          // 💡 스케줄에 "학교"가 적혀있어도, "지각"이 있으면 옆에 노란색으로 표시! (예: 학교 (무단지각))
+          let s = sRaw;
+          if (sRaw === "" || sRaw === "-") {
+              s = escapeHtml(mvReason);
+          } else if (mvReason.includes("지각")) {
+              s = escapeHtml(sRaw) + " <span style='color:#f1c40f; font-size:11px; font-weight:bold;'>(" + escapeHtml(mvReason) + ")</span>";
+          } else {
+              s = escapeHtml(sRaw);
+          }
+          
           const aRaw = String(c.a ?? "").trim();   
           const aText = mapAttendance_(aRaw);      
-          return `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap;">${escapeHtml(s || "-")}</td><td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap; ${statusStyle_(aText)}">${escapeHtml(aText)}</td>`;
+          // 💡 s 자체에 HTML(span)이 포함되어 있으므로 escapeHtml(s)를 제거하고 s만 넣습니다.
+          return `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap;">${s || "-"}</td><td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap; ${statusStyle_(aText)}">${escapeHtml(aText)}</td>`;
         }).join("");
         return `<tr><td style="position:sticky; left:0; z-index:2; background:rgba(8,12,20,.92); padding:10px; border-bottom:1px solid rgba(255,255,255,.06); font-weight:700;">${escapeHtml(period)}</td>${tds}</tr>`;
       }).join("");
@@ -1405,6 +1416,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
