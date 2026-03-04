@@ -928,50 +928,70 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderAttendanceDetail_(data, moveMap) {
-    const dates = data.dates || [];
-    const rows = data.rows || [];
-    if (!dates.length || !rows.length) return "출결 상세 데이터가 없습니다.";
+  // 💡 핵심 변경: 백엔드에서 받은 allBlocks를 기반으로 여러 주차 테이블 생성
+  const blocks = data.allBlocks && data.allBlocks.length > 0 ? data.allBlocks : [{ dates: data.dates, rows: data.rows }];
+
+  if (!blocks || blocks.length === 0 || !blocks[0].dates || !blocks[0].dates.length) return "출결 상세 데이터가 없습니다.";
+
+  function mapAttendance_(val) {
+    const t = String(val ?? "").trim();
+    if (t === "1") return "출석"; if (t === "3") return "결석"; if (t === "2") return "지각"; if (t === "4") return "조퇴"; return t || "-";
+  }
+
+  function statusStyle_(val) {
+    const t0 = String(val || "").trim();
+    const t = (t0 === "1") ? "출석" : (t0 === "3") ? "결석" : t0;
+    if (!t || t === "-" ) return "opacity:.55;";
+    if (t.includes("출석")) return "background: rgba(46, 204, 113, .22);";
+    if (t.includes("결석")) return "background: rgba(231, 76, 60, .22);";
+    if (t.includes("지각")) return "background: rgba(241, 196, 15, .22);";
+    if (t.includes("조퇴")) return "background: rgba(155, 89, 182, .22);";
+    if (t.includes("외출")) return "background: rgba(52, 152, 219, .22);";
+    return "background: rgba(255,255,255,.06);";
+  }
+
+  const htmls = blocks.map((block, bIdx) => {
+    const dates = block.dates || [];
+    const rows = block.rows || [];
+    if (!dates.length || !rows.length) return "";
+
     const showN = Math.min(14, dates.length);
     const idxSorted = dates.map((d, i) => ({ i, iso: d.iso || "" })).filter(x => x.iso).sort((a,b) => a.iso.localeCompare(b.iso));
     const lastIdx = idxSorted.slice(-showN).map(x => x.i);
 
-    function mapAttendance_(val) {
-      const t = String(val ?? "").trim();
-      if (t === "1") return "출석"; if (t === "3") return "결석"; if (t === "2") return "지각"; if (t === "4") return "조퇴"; return t || "-";
-    }
-   
-    function statusStyle_(val) {
-      const t0 = String(val || "").trim();
-      const t = (t0 === "1") ? "출석" : (t0 === "3") ? "결석" : t0;
-      if (!t || t === "-" ) return "opacity:.55;";
-      if (t.includes("출석")) return "background: rgba(46, 204, 113, .22);";
-      if (t.includes("결석")) return "background: rgba(231, 76, 60, .22);";
-      if (t.includes("지각")) return "background: rgba(241, 196, 15, .22);";
-      if (t.includes("조퇴")) return "background: rgba(155, 89, 182, .22);";
-      if (t.includes("외출")) return "background: rgba(52, 152, 219, .22);";
-      return "background: rgba(255,255,255,.06);";
-    }
-
     const thTop = `<th rowspan="2" style="position:sticky; left:0; z-index:3; background:rgba(8,12,20,.92); padding:10px; border-bottom:1px solid rgba(255,255,255,.10); width:60px;">교시</th>${lastIdx.map(i => `<th colspan="2" style="text-align:center; padding:10px; border-bottom:1px solid rgba(255,255,255,.10);">${escapeHtml(`${dates[i].md}(${dates[i].dow})`)}</th>`).join("")}`;
     const thSub = lastIdx.map(() => `<th style="text-align:left; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); opacity:.85;">스케줄</th><th style="text-align:left; padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08); opacity:.85;">출/결</th>`).join("");
+    
     const bodyTr = rows.map(r => {
       const period = r.period || "";
       const cells = r.cells || [];
       const tds = lastIdx.map(i => {
         const c = cells[i] || {};
-        const sRaw = String(c.s ?? "").trim();  
+        const sRaw = String(c.s ?? "").trim();
         const iso = String((dates[i] && dates[i].iso) || "").trim();
         const mvReason = (moveMap && moveMap[iso] && moveMap[iso][r.period]) ? String(moveMap[iso][r.period]) : "";
-        const s = sRaw || mvReason; 
-        const aRaw = String(c.a ?? "").trim();   
-        const aText = mapAttendance_(aRaw);      
+        const s = sRaw || mvReason;
+        const aRaw = String(c.a ?? "").trim();
+        const aText = mapAttendance_(aRaw);
         return `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap;">${escapeHtml(s || "-")}</td><td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap; ${statusStyle_(aText)}">${escapeHtml(aText)}</td>`;
       }).join("");
       return `<tr><td style="position:sticky; left:0; z-index:2; background:rgba(8,12,20,.92); padding:10px; border-bottom:1px solid rgba(255,255,255,.06); font-weight:700;">${escapeHtml(period)}</td>${tds}</tr>`;
     }).join("");
 
-    return `<div style="overflow:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08);"><table style="width:max-content; min-width:100%; border-collapse:separate; border-spacing:0; font-size:14px;"><thead style="background: rgba(255,255,255,.03);"><tr>${thTop}</tr><tr>${thSub}</tr></thead><tbody>${bodyTr || `<tr><td style="padding:12px; opacity:.8;" colspan="${1 + lastIdx.length*2}">데이터 없음</td></tr>`}</tbody></table></div>`;
-  }
+    // 여러 주차일 경우 UI 상단에 타이틀 추가
+    let titleHtml = "";
+    if (blocks.length > 1) {
+      const sDate = dates[lastIdx[0]];
+      const eDate = dates[lastIdx[lastIdx.length - 1]];
+      const titleText = bIdx === 0 ? "이번 주 기록" : "이전 주차 기록";
+      titleHtml = `<div style="margin: 24px 0 10px 4px; font-size:15px; font-weight:700; color:#3498db;">📅 ${sDate.md} ~ ${eDate.md} (${titleText})</div>`;
+    }
+
+    return `${titleHtml}<div style="overflow:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08); margin-bottom: 20px;"><table style="width:max-content; min-width:100%; border-collapse:separate; border-spacing:0; font-size:14px;"><thead style="background: rgba(255,255,255,.03);"><tr>${thTop}</tr><tr>${thSub}</tr></thead><tbody>${bodyTr || `<tr><td style="padding:12px; opacity:.8;" colspan="${1 + lastIdx.length*2}">데이터 없음</td></tr>`}</tbody></table></div>`;
+  });
+
+  return htmls.join("");
+}
 
   function renderSleepDetail_(data) {
     const groups = data.groups || [];
@@ -1299,3 +1319,4 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
