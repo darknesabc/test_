@@ -1475,7 +1475,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================================================================
-  // 💡 [신규] 우리 반 전체 현황(대시보드 홈) 띄우기
+  // 💡 [신규] 우리 반 전체 현황(대시보드 홈) - 담임별 자동 분류 적용
   // =========================================================================
   async function loadClassDashboard() {
     const sess = getAdminSession();
@@ -1488,14 +1488,12 @@ document.addEventListener("DOMContentLoaded", () => {
       dashDiv.id = "classDashboard";
       dashDiv.style.marginTop = "24px";
       dashDiv.style.marginBottom = "24px";
-      // 검색 버튼 영역(qInput.parentNode) 바로 뒤에 삽입
       qInput.parentNode.after(dashDiv); 
     }
 
-    dashDiv.innerHTML = `<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.6);">우리 반 현황을 불러오는 중입니다...</div>`;
+    dashDiv.innerHTML = `<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.6);">데이터를 불러오는 중입니다...</div>`;
 
     try {
-      // 💡 백엔드에 역할(role)과 관리자 이름(adminName)도 같이 보냅니다!
       const res = await apiPost("admin_class_summary", { 
         adminToken: sess.adminToken,
         role: sess.role,
@@ -1513,39 +1511,70 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // 카드 그리드(바둑판) 만들기
+      // 💡 [핵심] 가져온 224명의 학생을 "담임 선생님 이름" 기준으로 그룹 묶기!
+      const grouped = {};
+      items.forEach(st => {
+        const tName = String(st.teacher || "").trim() || "미배정";
+        if (!grouped[tName]) grouped[tName] = [];
+        grouped[tName].push(st);
+      });
+
+      // 담임 이름 가나다순으로 정렬하기 (단, '미배정' 그룹은 맨 끝으로 빼기)
+      const teacherNames = Object.keys(grouped).sort((a, b) => {
+        if (a === "미배정") return 1;
+        if (b === "미배정") return -1;
+        return a.localeCompare(b);
+      });
+
+      // 권한에 따라 제목 다르게 표시하기
+      const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
+
       let gridHtml = `
         <div style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
-          <span>📊 오늘의 우리 반 현황 <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(${items.length}명)</span></span>
+          <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
         </div>
       `;
-      gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
-      items.forEach(st => {
-        // 💡 10점 이상이면 벌점 위험 뱃지 표시
-        const isWarning = st.monthTotal >= 10;
-        const warningBadge = isWarning ? `<div style="position:absolute; top:-6px; right:-6px; background:#e74c3c; color:white; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">벌점 ${st.monthTotal}</div>` : "";
-
-        // 학생 카드 UI
+      // 💡 묶어둔 그룹별로 화면에 출력하기
+      teacherNames.forEach(tName => {
+        const groupItems = grouped[tName];
+        
+        // 🧑‍🏫 선생님 이름 제목 (섹션 구분선)
         gridHtml += `
-          <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; cursor: pointer; transition: all 0.2s; display:flex; flex-direction:column; gap:6px;"
-               onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
-            ${warningBadge}
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-              <span style="font-weight:800; font-size:14px;">${escapeHtml(st.name)}</span>
-              <span style="font-size:11px; opacity:0.6;">${escapeHtml(st.seat)}</span>
-            </div>
-            <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:${st.statusColor};">
-              <div style="width:8px; height:8px; border-radius:50%; background:${st.statusColor};"></div>
-              ${st.todayStatus}
-            </div>
+          <div style="margin-top: 24px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
+            <span style="font-size:15px; font-weight:800; color:#3498db;">🧑‍🏫 ${escapeHtml(tName)} 선생님</span>
+            <span style="font-size:12px; opacity:0.6; margin-left:8px;">${groupItems.length}명</span>
           </div>
         `;
+        
+        // 해당 반의 바둑판 카드 그리기
+        gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
+
+        groupItems.forEach(st => {
+          const isWarning = st.monthTotal >= 10;
+          const warningBadge = isWarning ? `<div style="position:absolute; top:-6px; right:-6px; background:#e74c3c; color:white; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">벌점 ${st.monthTotal}</div>` : "";
+
+          gridHtml += `
+            <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; cursor: pointer; transition: all 0.2s; display:flex; flex-direction:column; gap:6px;"
+                 onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+              ${warningBadge}
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-weight:800; font-size:14px;">${escapeHtml(st.name)}</span>
+                <span style="font-size:11px; opacity:0.6;">${escapeHtml(st.seat)}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:${st.statusColor};">
+                <div style="width:8px; height:8px; border-radius:50%; background:${st.statusColor};"></div>
+                ${st.todayStatus}
+              </div>
+            </div>
+          `;
+        });
+        gridHtml += `</div>`;
       });
-      gridHtml += `</div>`;
+
       dashDiv.innerHTML = gridHtml;
 
-      // 마우스 오버(올렸을 때) 살짝 뜨는 애니메이션 효과
+      // 마우스 오버 효과 (카드 둥둥 뜨는 느낌)
       document.querySelectorAll(".class-dash-card").forEach(card => {
         card.addEventListener("mouseover", () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; });
         card.addEventListener("mouseout", () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; });
@@ -1556,9 +1585,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // 💡 이미 로그인 되어있는 상태에서 새로고침했을 때 대시보드 띄우기
   if (sess?.adminToken) {
     loadClassDashboard(); 
   }
   
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
