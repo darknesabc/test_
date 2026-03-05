@@ -1055,6 +1055,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (t.includes("지각")) return "background: rgba(241, 196, 15, .22);";
       if (t.includes("조퇴")) return "background: rgba(155, 89, 182, .22);";
       if (t.includes("외출")) return "background: rgba(52, 152, 219, .22);";
+      // 💡 [신규] 공결(인정결석) 색상 추가 (차분한 회색)
+      if (t.includes("공결")) return "background: rgba(255, 255, 255, 0.1); color: rgba(255,255,255,0.7); font-weight:normal;";
       return "background: rgba(255,255,255,.06);";
     }
 
@@ -1116,9 +1118,13 @@ document.addEventListener("DOMContentLoaded", () => {
           const aRaw = String(c.a ?? "").trim();   
           let aText = mapAttendance_(aRaw);      
           
-          // 💡 [추가] 출결 시트에 결석(3)으로 찍혀있더라도, 교육점수에 '지각'이 있다면 표에서도 '지각'으로 덮어쓰기!
-          if (aRaw === "3" && mvReason.includes("지각")) {
-              aText = "지각";
+          // 💡 [완벽 방어 로직] 
+          if (aRaw === "3") {
+              if (mvReason.includes("지각")) {
+                  aText = "지각"; // 교육점수에 지각이 있으면 지각
+              } else if (sRaw !== "" && sRaw !== "-") {
+                  aText = "공결"; // 💡 스케줄(병원 등)이 적혀있으면 빨간 결석 대신 '공결'로 표시!
+              }
           }
           
           return `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap;">${s || "-"}</td><td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap; ${statusStyle_(aText)}">${escapeHtml(aText)}</td>`;
@@ -1590,4 +1596,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
