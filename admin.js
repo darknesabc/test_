@@ -433,6 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
       loginCard.style.display = "none";
       adminArea.style.display = "block";
       logoutBtn.style.display = "inline-flex";
+      loadClassDashboard(); // ✅ 로그인 성공 직후 대시보드 띄우기
     } catch (e) {
       setHint(loginMsg, "네트워크 오류", true);
     } finally {
@@ -1472,8 +1473,92 @@ document.addEventListener("DOMContentLoaded", () => {
 
     drawChart();
   }
+
+  // =========================================================================
+  // 💡 [신규] 우리 반 전체 현황(대시보드 홈) 띄우기
+  // =========================================================================
+  async function loadClassDashboard() {
+    const sess = getAdminSession();
+    if (!sess?.adminToken) return;
+
+    // 검색창 바로 아래에 현황판을 꽂아넣을 공간 만들기
+    let dashDiv = document.getElementById("classDashboard");
+    if (!dashDiv) {
+      dashDiv = document.createElement("div");
+      dashDiv.id = "classDashboard";
+      dashDiv.style.marginTop = "24px";
+      dashDiv.style.marginBottom = "24px";
+      // 검색 버튼 영역(qInput.parentNode) 바로 뒤에 삽입
+      qInput.parentNode.after(dashDiv); 
+    }
+
+    dashDiv.innerHTML = `<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.6);">우리 반 현황을 불러오는 중입니다...</div>`;
+
+    try {
+      // 💡 백엔드에 역할(role)과 관리자 이름(adminName)도 같이 보냅니다!
+      const res = await apiPost("admin_class_summary", { 
+        adminToken: sess.adminToken,
+        role: sess.role,
+        adminName: sess.adminName 
+      });
+      
+      if (!res.ok) {
+        dashDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">현황을 불러오지 못했습니다: ${res.error}</div>`;
+        return;
+      }
+
+      const items = res.items || [];
+      if (items.length === 0) {
+        dashDiv.innerHTML = `<div style="color:rgba(255,255,255,0.5); padding:10px;">배정된 학생이 없습니다.</div>`; 
+        return;
+      }
+
+      // 카드 그리드(바둑판) 만들기
+      let gridHtml = `
+        <div style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+          <span>📊 오늘의 우리 반 현황 <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(${items.length}명)</span></span>
+        </div>
+      `;
+      gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
+
+      items.forEach(st => {
+        // 💡 10점 이상이면 벌점 위험 뱃지 표시
+        const isWarning = st.monthTotal >= 10;
+        const warningBadge = isWarning ? `<div style="position:absolute; top:-6px; right:-6px; background:#e74c3c; color:white; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">벌점 ${st.monthTotal}</div>` : "";
+
+        // 학생 카드 UI
+        gridHtml += `
+          <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; cursor: pointer; transition: all 0.2s; display:flex; flex-direction:column; gap:6px;"
+               onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+            ${warningBadge}
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span style="font-weight:800; font-size:14px;">${escapeHtml(st.name)}</span>
+              <span style="font-size:11px; opacity:0.6;">${escapeHtml(st.seat)}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:${st.statusColor};">
+              <div style="width:8px; height:8px; border-radius:50%; background:${st.statusColor};"></div>
+              ${st.todayStatus}
+            </div>
+          </div>
+        `;
+      });
+      gridHtml += `</div>`;
+      dashDiv.innerHTML = gridHtml;
+
+      // 마우스 오버(올렸을 때) 살짝 뜨는 애니메이션 효과
+      document.querySelectorAll(".class-dash-card").forEach(card => {
+        card.addEventListener("mouseover", () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; });
+        card.addEventListener("mouseout", () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; });
+      });
+
+    } catch (e) {
+      dashDiv.innerHTML = ``; 
+    }
+  }
+
+  // 💡 이미 로그인 되어있는 상태에서 새로고침했을 때 대시보드 띄우기
+  if (sess?.adminToken) {
+    loadClassDashboard(); 
+  }
+  
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
-
-
-
-
