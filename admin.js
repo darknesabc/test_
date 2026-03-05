@@ -605,9 +605,32 @@ document.addEventListener("DOMContentLoaded", () => {
     const edu = sum.eduscore || null;
     const grd = sum.grade || null;
 
+    // 💡 [신규] 경고 뱃지 자동 판별 로직
+    let badgesHtml = "";
+    if (!loading) {
+      // 1. 🚨 출결 위험 뱃지: 전체 누적 출석률 < 70%
+      if (att && att.ok && att.attRate !== undefined && att.attRate < 70) {
+        badgesHtml += `<span style="display:inline-flex; align-items:center; margin-left:8px; background:rgba(231,76,60,0.15); color:#ff6b6b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:800; border:1px solid rgba(231,76,60,0.4);">🚨 출결위험 (${att.attRate}%)</span>`;
+      }
+      // 2. ⚠️ 단기 결석 뱃지: 이번 주 결석 >= 3회
+      if (att && att.ok && att.absent >= 3) {
+        badgesHtml += `<span style="display:inline-flex; align-items:center; margin-left:6px; background:rgba(243,156,18,0.15); color:#f1c40f; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:800; border:1px solid rgba(243,156,18,0.4);">⚠️ 단기결석 (${att.absent}회)</span>`;
+      }
+      // 3. 🔴 벌점 과다 뱃지: 이번 달 벌점 누적 >= 10점
+      if (edu && edu.ok && edu.monthTotal >= 10) {
+        badgesHtml += `<span style="display:inline-flex; align-items:center; margin-left:6px; background:rgba(192,57,43,0.2); color:#ff4757; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:800; border:1px solid rgba(192,57,43,0.5);">🔴 벌점과다 (${edu.monthTotal}점)</span>`;
+      }
+    }
+
     detailBody.innerHTML = `
       <div style="margin-bottom:10px;">
-        ${fmtKeyVal("이름", st.studentName || st.name || "-")}
+        <div style="display:flex; gap:8px; margin:2px 0; align-items:center;">
+          <div style="min-width:90px; opacity:.8;">이름</div>
+          <div style="font-weight:600; display:flex; align-items:center; flex-wrap:wrap;">
+            <span style="font-size:16px;">${escapeHtml(st.studentName || st.name || "-")}</span>
+            ${badgesHtml}
+          </div>
+        </div>
         ${fmtKeyVal("좌석", st.seat || "-")}
         ${fmtKeyVal("학번", st.studentId || "-")}
         ${fmtKeyVal("담임", st.teacher || "-")}
@@ -1450,6 +1473,7 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
