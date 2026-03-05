@@ -53,20 +53,31 @@ function inferStartPeriodByTime_(timeHHMM) {
   return 0;
 }
 
+/** =========================
+ * ✅ 이동 기록으로 출결 스케줄 공란 채우기 (복귀안함 대응 업데이트)
+ * ========================= */
 function buildMoveMapFromItems_(items) {
   const map = {}; 
   const arr = Array.isArray(items) ? items : [];
   for (const it of arr) {
     const iso = String(it?.date || "").trim();
     if (!iso) continue;
+
     const time = String(it?.time || "").trim();           
     const reason = String(it?.reason || "").trim();
-    const rp = parseInt(String(it?.returnPeriod || "").trim(), 10) || 0;
+    
+    // 💡 [수정 포인트] 프론트엔드에서도 '복귀안함'을 8교시로 인식하게 합니다.
+    const rpRaw = String(it?.returnPeriod || "").trim();
+    let rp = parseInt(rpRaw, 10) || 0;
+    if (rpRaw === "복귀안함") rp = 8; 
+
     if (!reason || rp <= 0) continue;
+
     const sp = inferStartPeriodByTime_(time); 
     const from = sp > 0 ? sp : Math.max(1, rp - 1);
     const to = rp;
     const start = (from <= to) ? from : Math.max(1, rp - 1);
+
     map[iso] = map[iso] || {};
     for (let p = start; p <= to; p++) {
       map[iso][p] = reason;
@@ -1617,6 +1628,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
