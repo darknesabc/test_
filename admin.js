@@ -988,7 +988,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return `<div style="overflow:auto;"><table style="width:100%; border-collapse:collapse; font-size:14px;"><thead><tr>${th}</tr></thead><tbody>${tr || `<tr><td style="padding:10px; opacity:.8;" colspan="${headers.length}">데이터 없음</td></tr>`}</tbody></table></div>`;
   }
 
-  // 💡 여기서부터 renderAttendanceDetail_ 함수 전체를 덮어쓰세요!
+  // 💡 여기서부터 renderAttendanceDetail_ 함수 전체를 다시 채워 넣으세요!
   function renderAttendanceDetail_(data, moveMap) {
     const blocks = data.allBlocks && data.allBlocks.length > 0 ? data.allBlocks : [{ dates: data.dates, rows: data.rows }];
     if (!blocks || blocks.length === 0 || !blocks[0].dates || !blocks[0].dates.length) return "출결 상세 데이터가 없습니다.";
@@ -1078,7 +1078,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return `<tr><td style="position:sticky; left:0; z-index:2; background:rgba(8,12,20,.92); padding:10px; border-bottom:1px solid rgba(255,255,255,.06); font-weight:700;">${escapeHtml(period)}</td>${tds}</tr>`;
       }).join("");
 
-      // 🚨 이 줄이 지워져서 오류가 났던 것입니다! (복구 완료)
       const displayStyle = bIdx === 0 ? "block" : "none";
 
       return `
@@ -1100,7 +1099,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return selectorHtml + tablesHtml.join("");
   }
-  // 💡 여기까지 덮어쓰시면 됩니다!
 
   function renderSleepDetail_(data) {
     const groups = data.groups || [];
@@ -1428,4 +1426,5 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
