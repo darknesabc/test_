@@ -627,29 +627,53 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="card-sub">
             ${(() => {
               if (!att || !att.ok) return loading ? "불러오는 중…" : "데이터 없음";
-              const rate = att.attRate ?? 0;
-              // 출석률에 따른 색상 변화 (80%이상 초록, 60%이상 노랑, 미만 빨강)
-              let color = "#2ecc71";
-              if (rate < 80) color = "#f1c40f";
-              if (rate < 60) color = "#e74c3c";
+              
+              // 💡 1. [이번 주] 출석률 계산
+              const wAtt = att.present ?? 0;
+              const wLate = att.weekLate ?? 0;
+              const wAbs = att.absent ?? 0;
+              const wTotal = wAtt + wLate + wAbs;
+              const wRate = wTotal > 0 ? Math.round((wAtt / wTotal) * 100) : 0;
+              
+              let wColor = "#3498db"; // 이번 주는 긍정적인 파란색!
+              if (wRate < 80) wColor = "#f1c40f";
+              if (wRate < 60) wColor = "#e74c3c";
+
+              // 💡 2. [전체 누적] 출석률 계산
+              const tRate = att.attRate ?? 0;
+              let tColor = "#2ecc71"; // 누적은 든든한 초록색!
+              if (tRate < 80) tColor = "#f1c40f";
+              if (tRate < 60) tColor = "#e74c3c";
               
               return `
-                <div style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+                <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
                   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="font-weight: 800; color: ${color};">전체 출석률</span>
-                    <span style="font-weight: 900; color: ${color}; font-size: 15px;">${rate}%</span>
+                    <span style="font-weight: 800; color: ${wColor};">이번 주 출석률</span>
+                    <span style="font-weight: 900; color: ${wColor}; font-size: 15px;">${wRate}%</span>
                   </div>
                   <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 8px;">
-                    <div style="width: ${rate}%; background: ${color}; height: 100%; border-radius: 4px;"></div>
+                    <div style="width: ${wRate}%; background: ${wColor}; height: 100%; border-radius: 4px; transition: width 0.5s ease-out;"></div>
                   </div>
                   <div style="font-size: 12px; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between;">
-                    <span>출석 <b>${att.totalAtt ?? 0}</b></span>
-                    <span>지각 <b style="color:#f1c40f;">${att.totalLate ?? 0}</b></span>
-                    <span>결석 <b style="color:#e74c3c;">${att.totalAbs ?? 0}</b></span>
+                    <span>출석 <b>${wAtt}</b></span>
+                    <span>지각 <b style="color:#f1c40f;">${wLate}</b></span>
+                    <span>결석 <b style="color:#e74c3c;">${wAbs}</b></span>
                   </div>
                 </div>
+                
+                <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
+                  <div style="font-size: 13px; color: rgba(255,255,255,0.85); display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 700;">전체 누적 출석률</span>
+                    <span style="color: ${tColor}; font-weight: 800;">${tRate}%</span>
+                  </div>
+                  <div style="font-size: 11px; color: rgba(255,255,255,0.5); display: flex; justify-content: space-between; margin-top: 4px;">
+                    <span>출석 ${att.totalAtt ?? 0}</span>
+                    <span>지각 ${att.totalLate ?? 0}</span>
+                    <span>결석 ${att.totalAbs ?? 0}</span>
+                  </div>
+                </div>
+
                 <div style="font-size: 13px; color: rgba(255,255,255,0.8);">
-                  이번 주 결석: <b style="color:#e74c3c;">${att.absent ?? 0}</b>회<br>
                   최근 결석: ${Array.isArray(att.recentAbsences) && att.recentAbsences.length ? `<ul style="margin:4px 0 0 16px; padding:0; color:#e74c3c;">${att.recentAbsences.map(x => `<li>${escapeHtml(x.md)}(${escapeHtml(x.dow)}) ${escapeHtml(x.period)}교시</li>`).join("")}</ul>` : "<span style='color:#2ecc71;'>없음</span>"}
                 </div>
               `;
@@ -1426,5 +1450,6 @@ document.addEventListener("DOMContentLoaded", () => {
     drawChart();
   }
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
