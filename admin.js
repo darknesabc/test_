@@ -1118,13 +1118,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const aRaw = String(c.a ?? "").trim();   
           let aText = mapAttendance_(aRaw);      
           
-          // 💡 [완벽 방어 로직] 
-          if (aRaw === "3") {
-              if (mvReason.includes("지각")) {
-                  aText = "지각"; // 교육점수에 지각이 있으면 지각
-              } else if (sRaw !== "" && sRaw !== "-") {
-                  aText = "공결"; // 💡 스케줄(병원 등)이 적혀있으면 빨간 결석 대신 '공결'로 표시!
-              }
+          // 💡 [원상복구] 시트에 '3(결석)'으로 입력되어 있으면 그대로 빨간색 결석으로 둡니다.
+          // (단, '지각'으로 연동된 기록이 있을 때만 노란색 지각으로 바꿔줍니다.)
+          if (aRaw === "3" && mvReason.includes("지각")) {
+              aText = "지각"; 
           }
           
           return `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap;">${s || "-"}</td><td style="padding:10px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap; ${statusStyle_(aText)}">${escapeHtml(aText)}</td>`;
@@ -1596,5 +1593,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
