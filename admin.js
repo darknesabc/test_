@@ -1532,10 +1532,13 @@ document.addEventListener("DOMContentLoaded", () => {
       // 권한에 따라 제목 다르게 표시하기
       const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
 
+      // 💡 [수정] 제목 영역을 클릭 가능한 버튼 형태로 만들고, 바둑판 전체를 묶는 div(#dashContent) 추가
       let gridHtml = `
-        <div style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+        <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
           <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
+          <span id="dashToggleIcon" style="font-size:13px; opacity:0.8; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">🔼 접기</span>
         </div>
+        <div id="dashContent" style="display:block; animation: fadeIn 0.3s ease;">
       `;
 
       // 💡 묶어둔 그룹별로 화면에 출력하기
@@ -1544,7 +1547,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // 🧑‍🏫 선생님 이름 제목 (섹션 구분선)
         gridHtml += `
-          <div style="margin-top: 24px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
+          <div style="margin-top: 16px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
             <span style="font-size:15px; font-weight:800; color:#3498db;">🧑‍🏫 ${escapeHtml(tName)} 선생님</span>
             <span style="font-size:12px; opacity:0.6; margin-left:8px;">${groupItems.length}명</span>
           </div>
@@ -1575,7 +1578,28 @@ document.addEventListener("DOMContentLoaded", () => {
         gridHtml += `</div>`;
       });
 
+      gridHtml += `</div>`; // 💡 dashContent 닫기
+
       dashDiv.innerHTML = gridHtml;
+
+      // 💡 [신규] 접기/펼치기 클릭 이벤트 적용
+      const dashHeader = document.getElementById("dashHeader");
+      const dashContent = document.getElementById("dashContent");
+      const dashToggleIcon = document.getElementById("dashToggleIcon");
+
+      if (dashHeader && dashContent) {
+        dashHeader.addEventListener("click", () => {
+          if (dashContent.style.display === "none") {
+            dashContent.style.display = "block";
+            dashToggleIcon.textContent = "🔼 접기";
+            dashHeader.style.opacity = "1";
+          } else {
+            dashContent.style.display = "none";
+            dashToggleIcon.textContent = "🔽 펼치기";
+            dashHeader.style.opacity = "0.7"; // 접었을 때 살짝 어두워지는 디테일
+          }
+        });
+      }
 
       // 마우스 오버 효과 (카드 둥둥 뜨는 느낌)
       document.querySelectorAll(".class-dash-card").forEach(card => {
@@ -1593,6 +1617,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
