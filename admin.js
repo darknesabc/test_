@@ -1567,31 +1567,33 @@ document.addEventListener("DOMContentLoaded", () => {
         // 해당 반의 바둑판 카드 그리기
         gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
-        groupItems.forEach(st => {
-          const isWarning = st.monthTotal >= 10;
-          const warningBadge = isWarning ? `<div style="position:absolute; top:-6px; right:-6px; background:#e74c3c; color:white; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px; box-shadow:0 2px 4px rgba(0,0,0,0.5);">벌점 ${st.monthTotal}</div>` : "";
+        /* =========================================================
+   🚨 벌점 상태별 카드 스타일 (10점 경고, 15점 위험)
+   ========================================================= */
 
-          gridHtml += `
-            <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; cursor: pointer; transition: all 0.2s; display:flex; flex-direction:column; gap:6px;"
-                 onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
-              ${warningBadge}
-              <div style="display:flex; align-items:center; justify-content:space-between;">
-                <span style="font-weight:800; font-size:14px;">${escapeHtml(st.name)}</span>
-                <span style="font-size:11px; opacity:0.6;">${escapeHtml(st.seat)}</span>
-              </div>
-              <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:${st.statusColor};">
-                <div style="width:8px; height:8px; border-radius:50%; background:${st.statusColor};"></div>
-                ${st.todayStatus}
-              </div>
-            </div>
-          `;
-        });
-        gridHtml += `</div>`;
-      });
+/* [위험] 15점 이상: 테두리가 빨간색으로 번쩍이는 효과 */
+@keyframes pulse-red-border {
+  0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.6); border-color: #ff4757; }
+  70% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); border-color: #ff4757; }
+  100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); border-color: #ff4757; }
+}
 
-      gridHtml += `</div>`; // 💡 dashContent 닫기
+.card-danger {
+  animation: pulse-red-border 1.5s infinite !important;
+  border: 2px solid #ff4757 !important;
+  background: rgba(255, 71, 87, 0.08) !important; /* 배경도 살짝 붉은빛 */
+}
 
-      dashDiv.innerHTML = gridHtml;
+/* [경고] 10점 이상: 주황색 테두리와 연한 강조 배경 */
+.card-warning {
+  border: 1.5px solid #ffa502 !important;
+  background: rgba(255, 165, 2, 0.05) !important;
+}
+
+/* 카드 공통: 상태가 변할 때 부드럽게 전환되도록 설정 */
+.class-dash-card {
+  transition: all 0.3s ease-in-out;
+}
 
       // 💡 [신규] 접기/펼치기 클릭 이벤트 적용
       const dashHeader = document.getElementById("dashHeader");
@@ -1628,6 +1630,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
+
 
 
 
