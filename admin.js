@@ -1567,35 +1567,42 @@ document.addEventListener("DOMContentLoaded", () => {
         // 해당 반의 바둑판 카드 그리기
         gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
-        /* =========================================================
-   🚨 벌점 상태별 카드 스타일 (10점 경고, 15점 위험)
-   ========================================================= */
+        groupItems.forEach(st => {
+          // 💡 [자바스크립트 로직] 벌점 점수별 시각적 효과 결정
+          const score = Number(st.monthTotal || 0); 
+          let badgeHtml = "";
+          let statusClass = "";
 
-/* [위험] 15점 이상: 테두리가 빨간색으로 번쩍이는 효과 */
-@keyframes pulse-red-border {
-  0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.6); border-color: #ff4757; }
-  70% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); border-color: #ff4757; }
-  100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); border-color: #ff4757; }
-}
+          if (score >= 15) {
+            statusClass = "card-danger"; // styles.css의 빨간 번쩍임 효과와 연결
+            badgeHtml = `<div style="position:absolute; top:-10px; right:-5px; background:#ff4757; color:white; font-size:10px; font-weight:900; padding:2px 8px; border-radius:10px; z-index:10; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">🚨 위험 ${score}점</div>`;
+          } else if (score >= 10) {
+            statusClass = "card-warning"; // styles.css의 주황색 테두리 효과와 연결
+            badgeHtml = `<div style="position:absolute; top:-10px; right:-5px; background:#ffa502; color:white; font-size:10px; font-weight:800; padding:2px 8px; border-radius:10px; z-index:10; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">⚠️ 경고 ${score}점</div>`;
+          }
 
-.card-danger {
-  animation: pulse-red-border 1.5s infinite !important;
-  border: 2px solid #ff4757 !important;
-  background: rgba(255, 71, 87, 0.08) !important; /* 배경도 살짝 붉은빛 */
-}
+          gridHtml += `
+            <div class="class-dash-card ${statusClass}" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 12px; cursor: pointer; display:flex; flex-direction:column; gap:6px;"
+                 onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+              ${badgeHtml}
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-weight:800; font-size:14px;">${escapeHtml(st.name)}</span>
+                <span style="font-size:11px; opacity:0.6;">${escapeHtml(st.seat)}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:${st.statusColor};">
+                <div style="width:8px; height:8px; border-radius:50%; background:${st.statusColor};"></div>
+                ${st.todayStatus}
+              </div>
+            </div>
+          `;
+        });
+        gridHtml += `</div>`; // 카드 그룹 닫기
+      });
 
-/* [경고] 10점 이상: 주황색 테두리와 연한 강조 배경 */
-.card-warning {
-  border: 1.5px solid #ffa502 !important;
-  background: rgba(255, 165, 2, 0.05) !important;
-}
+      gridHtml += `</div>`; // dashContent 닫기
+      dashDiv.innerHTML = gridHtml;
 
-/* 카드 공통: 상태가 변할 때 부드럽게 전환되도록 설정 */
-.class-dash-card {
-  transition: all 0.3s ease-in-out;
-}
-
-      // 💡 [신규] 접기/펼치기 클릭 이벤트 적용
+      // 💡 [이벤트] 접기/펼치기 클릭 로직
       const dashHeader = document.getElementById("dashHeader");
       const dashContent = document.getElementById("dashContent");
       const dashToggleIcon = document.getElementById("dashToggleIcon");
@@ -1609,19 +1616,19 @@ document.addEventListener("DOMContentLoaded", () => {
           } else {
             dashContent.style.display = "none";
             dashToggleIcon.textContent = "🔽 펼치기";
-            dashHeader.style.opacity = "0.7"; // 접었을 때 살짝 어두워지는 디테일
+            dashHeader.style.opacity = "0.7";
           }
         });
       }
 
-      // 마우스 오버 효과 (카드 둥둥 뜨는 느낌)
+      // 마우스 오버 시 살짝 뜨는 효과 추가
       document.querySelectorAll(".class-dash-card").forEach(card => {
         card.addEventListener("mouseover", () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; });
         card.addEventListener("mouseout", () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; });
       });
 
     } catch (e) {
-      dashDiv.innerHTML = ``; 
+      dashDiv.innerHTML = `<div style="color:#ff6b6b;">로딩 중 오류 발생: ${e.message}</div>`; 
     }
   }
 
@@ -1629,10 +1636,4 @@ document.addEventListener("DOMContentLoaded", () => {
     loadClassDashboard(); 
   }
   
-}); // ✅ 이 닫는 괄호가 파일의 '진짜' 마지막 줄에 딱 하나만 있어야 합니다!
-
-
-
-
-
-
+}); // 파일의 진짜 마지막 줄
