@@ -257,3 +257,32 @@ body {
 @media (max-width: 720px){
   #noticeCard { height: 200px; }
 }
+
+
+/* =========================================================
+   🚨 벌점 상태별 카드 스타일 (10점 경고, 15점 위험)
+   ========================================================= */
+
+/* [위험] 15점 이상: 테두리가 빨간색으로 번쩍이는 효과 */
+@keyframes pulse-red-border {
+  0% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.6); border-color: #ff4757; }
+  70% { box-shadow: 0 0 0 10px rgba(255, 71, 87, 0); border-color: #ff4757; }
+  100% { box-shadow: 0 0 0 0 rgba(255, 71, 87, 0); border-color: #ff4757; }
+}
+
+.card-danger {
+  animation: pulse-red-border 1.5s infinite !important;
+  border: 2px solid #ff4757 !important;
+  background: rgba(255, 71, 87, 0.08) !important; /* 배경도 살짝 붉은빛 */
+}
+
+/* [경고] 10점 이상: 주황색 테두리와 연한 강조 배경 */
+.card-warning {
+  border: 1.5px solid #ffa502 !important;
+  background: rgba(255, 165, 2, 0.05) !important;
+}
+
+/* 카드 공통: 상태가 변할 때 부드럽게 전환되도록 설정 */
+.class-dash-card {
+  transition: all 0.3s ease-in-out;
+}
