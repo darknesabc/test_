@@ -1587,9 +1587,20 @@ groupItems.forEach(st => {
     if (edu >= 15) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#6c5ce7; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 위험 ${edu}</div>`;
     else if (edu >= 10) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#a29bfe; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 경고 ${edu}</div>`;
 
-    // --- 4. 이름 옆 신호등 (현재 교시 상태) ---
+   // --- 4. 이름 옆 신호등 (현재 교시 실시간 상태) ---
     const cs = String(st.currentStatus);
-    const lampColor = (cs === "1") ? "#2ecc71" : (cs === "3") ? "#ff4757" : "rgba(255,255,255,0.2)";
+    let lampColor = "rgba(255,255,255,0.2)"; // 기본 (데이터 없음/대기)
+    
+    if (cs === "1") {
+        lampColor = "#2ecc71"; // 초록색: 정상 출석
+    } else if (cs === "3") {
+        lampColor = "#ff4757"; // 빨간색: 스케줄 없는 무단 결석 (위험!)
+    } else if (cs === "3S") {
+        lampColor = "#f39c12"; // 💡 주황색: 스케줄 있는 결석 (이동/수업 중)
+    } else if (cs === "2") {
+        lampColor = "#f1c40f"; // 노란색: 지각
+    }
+
     const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:6px; box-shadow: 0 0 6px ${lampColor};"></div>`;
 
     gridHtml += `
@@ -1649,6 +1660,7 @@ groupItems.forEach(st => {
   }
   
 }); // 파일의 진짜 마지막 줄
+
 
 
 
