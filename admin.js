@@ -1568,37 +1568,40 @@ document.addEventListener("DOMContentLoaded", () => {
         gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
         groupItems.forEach(st => {
-  // 1. 데이터 추출 (백엔드에서 보내주는 필드명 기준)
-  const score = Number(st.monthTotal || 0); // 우측: 벌점
-  const sleep = Number(st.sleepTotal || 0); // 중앙: 취침
-  const attRate = Number(st.attRate || 100); // 좌측: 출결위험
-  const weekAbs = Number(st.weekAbs || 0);   // 좌측: 단기결석
+  // 1. 데이터 추출
+  const score = Number(st.monthTotal || 0); 
+  const sleep = Number(st.sleepToday || 0); // 💡 오늘 취침 기준
+  const attRate = Number(st.attRate || 100); // 💡 이번 주 출석률 기준
+  const weekAbs = Number(st.weekAbs || 0);   // 💡 이번 주 결석 횟수 기준
 
   let lBadge = "", cBadge = "", rBadge = "";
   let statusClass = "";
 
-  // 🚩 [좌측] 출결 뱃지 판별 (출결위험 우선)
-  if (attRate < 70) {
-    lBadge = `<div class="db-badge b-danger">🚨 출결 ${attRate}회%</div>`;
-  } else if (weekAbs >= 3) {
-    lBadge = `<div class="db-badge b-warning">⚠️ 결석 ${weekAbs}회</div>`;
+  // 🚩 [좌측] 이번 주 출결 (비율 % 와 결석 N회 동시 표시)
+  if (attRate < 90 || weekAbs > 0) {
+    // 90% 미만이거나 결석이 1회라도 있으면 표시
+    const colorClass = attRate < 70 ? "b-danger" : "b-warning";
+    lBadge = `<div class="db-badge ${colorClass}">출결 ${attRate}% (결석 ${weekAbs}회)</div>`;
   }
 
-  // 💤 [가운데] 취침 뱃지 판별 (3/6 기준)
+  // 💤 [가운데] 오늘 취침 (오늘 3회 이상 경고 / 6회 이상 위험)
   if (sleep >= 6) {
-    cBadge = `<div class="db-badge b-danger">🚨 취침 ${sleep}</div>`;
+    cBadge = `<div class="db-badge b-danger">🚨 오늘 취침 ${sleep}회</div>`;
   } else if (sleep >= 3) {
-    cBadge = `<div class="db-badge b-warning">💤 ${sleep}회</div>`;
+    cBadge = `<div class="db-badge b-warning">💤 오늘 취침 ${sleep}회</div>`;
   }
 
-  // 🛑 [우측] 교육점수 뱃지 판별 (10/15 기준)
+  // 🛑 [우측] 교육점수 (기존 유지)
   if (score >= 15) {
     rBadge = `<div class="db-badge b-danger">🛑 ${score}점</div>`;
-    statusClass = "card-danger card-critical"; // 15점 이상 시 카드 전체 강조
+    statusClass = "card-danger card-critical";
   } else if (score >= 10) {
     rBadge = `<div class="db-badge b-warning">⚠️ ${score}점</div>`;
     statusClass = "card-warning";
   }
+
+  // ... (이하 HTML 조립 로직 동일)
+});
 
   // 💡 HTML 조립
   gridHtml += `
@@ -1664,5 +1667,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // 파일의 진짜 마지막 줄
+
 
 
