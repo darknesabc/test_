@@ -1525,7 +1525,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // 💡 [핵심] 가져온 224명의 학생을 "담임 선생님 이름" 기준으로 그룹 묶기!
+      // 💡 [핵심] 가져온 학생을 "담임 선생님 이름" 기준으로 그룹 묶기!
       const grouped = {};
       items.forEach(st => {
         const tName = String(st.teacher || "").trim() || "미배정";
@@ -1543,7 +1543,6 @@ document.addEventListener("DOMContentLoaded", () => {
       // 권한에 따라 제목 다르게 표시하기
       const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
 
-      // 💡 [수정] 제목 영역을 클릭 가능한 버튼 형태로 만들고, 바둑판 전체를 묶는 div(#dashContent) 추가
       let gridHtml = `
         <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
           <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
@@ -1567,67 +1566,67 @@ document.addEventListener("DOMContentLoaded", () => {
         // 해당 반의 바둑판 카드 그리기
         gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
+        // ============================================
+        // 💡 개별 학생 카드 생성 시작 (여기가 수정됨!)
+        // ============================================
         groupItems.forEach(st => {
-  // 1. 데이터 추출
-  const score = Number(st.monthTotal || 0); 
-  const sleep = Number(st.sleepToday || 0); // 💡 오늘 취침 기준
-  const attRate = Number(st.attRate || 100); // 💡 이번 주 출석률 기준
-  const weekAbs = Number(st.weekAbs || 0);   // 💡 이번 주 결석 횟수 기준
+          // 1. 데이터 추출
+          const score = Number(st.monthTotal || 0); 
+          const sleep = Number(st.sleepToday || 0); 
+          const attRate = Number(st.attRate || 100); 
+          const weekAbs = Number(st.weekAbs || 0);   
 
-  let lBadge = "", cBadge = "", rBadge = "";
-  let statusClass = "";
+          let lBadge = "", cBadge = "", rBadge = "";
+          let statusClass = "";
 
-  // 🚩 [좌측] 이번 주 출결 (비율 % 와 결석 N회 동시 표시)
-  if (attRate < 90 || weekAbs > 0) {
-    // 90% 미만이거나 결석이 1회라도 있으면 표시
-    const colorClass = attRate < 70 ? "b-danger" : "b-warning";
-    lBadge = `<div class="db-badge ${colorClass}">출결 ${attRate}% (결석 ${weekAbs}회)</div>`;
-  }
+          // 🚩 [좌측] 이번 주 출결
+          if (attRate < 90 || weekAbs > 0) {
+            const colorClass = attRate < 70 ? "b-danger" : "b-warning";
+            lBadge = `<div class="db-badge ${colorClass}">출결 ${attRate}% (결석 ${weekAbs}회)</div>`;
+          }
 
-  // 💤 [가운데] 오늘 취침 (오늘 3회 이상 경고 / 6회 이상 위험)
-  if (sleep >= 6) {
-    cBadge = `<div class="db-badge b-danger">🚨 오늘 취침 ${sleep}회</div>`;
-  } else if (sleep >= 3) {
-    cBadge = `<div class="db-badge b-warning">💤 오늘 취침 ${sleep}회</div>`;
-  }
+          // 💤 [가운데] 오늘 취침
+          if (sleep >= 6) {
+            cBadge = `<div class="db-badge b-danger">🚨 오늘 취침 ${sleep}회</div>`;
+          } else if (sleep >= 3) {
+            cBadge = `<div class="db-badge b-warning">💤 오늘 취침 ${sleep}회</div>`;
+          }
 
-  // 🛑 [우측] 교육점수 (기존 유지)
-  if (score >= 15) {
-    rBadge = `<div class="db-badge b-danger">🛑 ${score}점</div>`;
-    statusClass = "card-danger card-critical";
-  } else if (score >= 10) {
-    rBadge = `<div class="db-badge b-warning">⚠️ ${score}점</div>`;
-    statusClass = "card-warning";
-  }
+          // 🛑 [우측] 교육점수
+          if (score >= 15) {
+            rBadge = `<div class="db-badge b-danger">🛑 ${score}점</div>`;
+            statusClass = "card-danger card-critical";
+          } else if (score >= 10) {
+            rBadge = `<div class="db-badge b-warning">⚠️ ${score}점</div>`;
+            statusClass = "card-warning";
+          }
 
-  // ... (이하 HTML 조립 로직 동일)
-});
+          // 2. HTML 조립 (문법 오류 수정)
+          gridHtml += `
+            <div class="class-dash-card ${statusClass}" 
+                 style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 16px 12px 12px 12px; cursor: pointer; display:flex; flex-direction:column; gap:6px;"
+                 onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+              
+              <div class="badge-row">
+                <div style="flex:1; display:flex; justify-content:flex-start;">${lBadge}</div>
+                <div style="flex:1; display:flex; justify-content:center;">${cBadge}</div>
+                <div style="flex:1; display:flex; justify-content:flex-end;">${rBadge}</div>
+              </div>
 
-  // 💡 HTML 조립
-  gridHtml += `
-    <div class="class-dash-card ${statusClass}" 
-         style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 16px 12px 12px 12px; cursor: pointer; display:flex; flex-direction:column; gap:6px;"
-         onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
-      
-      <div class="badge-row">
-        <div style="flex:1; display:flex; justify-content:flex-start;">${lBadge}</div>
-        <div style="flex:1; display:flex; justify-content:center;">${cBadge}</div>
-        <div style="flex:1; display:flex; justify-content:flex-end;">${rBadge}</div>
-      </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-top: 4px;">
+                <span style="font-weight:800; font-size:14px;">${escapeHtml(st.name)}</span>
+                <span style="font-size:11px; opacity:0.6;">${escapeHtml(st.seat)}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:${st.statusColor};">
+                <div style="width:8px; height:8px; border-radius:50%; background:${st.statusColor};"></div>
+                ${st.todayStatus}
+              </div>
+            </div>
+          `;
+        }); // ⬅️ 개별 학생 forEach 닫기
 
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-top: 4px;">
-        <span style="font-weight:800; font-size:14px;">${escapeHtml(st.name)}</span>
-        <span style="font-size:11px; opacity:0.6;">${escapeHtml(st.seat)}</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; color:${st.statusColor};">
-        <div style="width:8px; height:8px; border-radius:50%; background:${st.statusColor};"></div>
-        ${st.todayStatus}
-      </div>
-    </div>
-  `;
-});
         gridHtml += `</div>`; // 카드 그룹 닫기
-      });
+      }); // ⬅️ 선생님 forEach 닫기
 
       gridHtml += `</div>`; // dashContent 닫기
       dashDiv.innerHTML = gridHtml;
@@ -1660,13 +1659,6 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       dashDiv.innerHTML = `<div style="color:#ff6b6b;">로딩 중 오류 발생: ${e.message}</div>`; 
     }
-  }
-
-  if (sess?.adminToken) {
-    loadClassDashboard(); 
-  }
+  } // ⬅️ loadClassDashboard 함수 닫기
   
 }); // 파일의 진짜 마지막 줄
-
-
-
