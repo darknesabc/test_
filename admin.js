@@ -1579,7 +1579,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 🚩 [좌측] 출결 뱃지 판별 (출결위험 우선)
   if (attRate < 70) {
-    lBadge = `<div class="db-badge b-danger">🚨 출결 ${attRate}%</div>`;
+    lBadge = `<div class="db-badge b-danger">🚨 출결 ${attRate}회%</div>`;
   } else if (weekAbs >= 3) {
     lBadge = `<div class="db-badge b-warning">⚠️ 결석 ${weekAbs}회</div>`;
   }
@@ -1664,4 +1664,5 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // 파일의 진짜 마지막 줄
+
 
