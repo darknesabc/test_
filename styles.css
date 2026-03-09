@@ -286,3 +286,63 @@ body {
 .class-dash-card {
   transition: all 0.3s ease-in-out;
 }
+
+/* =========================================================
+   ✅ 3단 뱃지 시스템 스타일 (좌:출결 / 중:취침 / 우:벌점)
+   ========================================================= */
+
+/* 1. 뱃지들이 한 줄로 나열될 컨테이너 */
+.badge-row {
+  position: absolute;
+  top: -10px; /* 카드의 위쪽 테두리에 살짝 걸치게 배치 */
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between; /* 좌, 중, 우 간격 정렬 */
+  padding: 0 8px;
+  pointer-events: none; /* 뱃지가 클릭을 방해하지 않도록 설정 */
+  z-index: 10;
+}
+
+/* 2. 개별 뱃지 공통 디자인 */
+.db-badge {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3); /* 어두운 배경에서 잘 보이도록 그림자 추가 */
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 3. 뱃지 상태별 색상 (빨강 / 주황) */
+.b-danger { 
+  background: #ff4757 !important; 
+  border: 1px solid rgba(255,255,255,0.2); 
+}
+.b-warning { 
+  background: #ffa502 !important; 
+  border: 1px solid rgba(255,255,255,0.2); 
+}
+
+/* 4. 카드 자체의 여백 조정 (뱃지가 들어갈 공간 확보) */
+.class-dash-card {
+  position: relative; /* 뱃지 배치의 기준점 */
+  padding-top: 16px !important; /* 상단 뱃지와 이름이 겹치지 않게 여백 추가 */
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+/* 카드에 마우스 올렸을 때 효과 */
+.class-dash-card:hover {
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-2px);
+}
