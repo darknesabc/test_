@@ -1568,7 +1568,7 @@ document.addEventListener("DOMContentLoaded", () => {
         gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
         groupItems.forEach(st => {
-        // 1. [벌점 뱃지] (우측 상단)
+        // 1. 벌점 뱃지 (우측 상단)
         const score = Number(st.monthTotal || 0); 
         let badgeHtml = "";
         let statusClass = "";
@@ -1580,7 +1580,7 @@ document.addEventListener("DOMContentLoaded", () => {
           badgeHtml = `<div style="position:absolute; top:-10px; right:-5px; background:#ffa502; color:white; font-size:10px; font-weight:800; padding:2px 8px; border-radius:10px; z-index:10; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">⚠️ 경고 ${score}점</div>`;
         }
 
-        // 2. [취침 뱃지] (가운데 상단)
+        // 2. 취침 뱃지 (가운데 상단 - 합산된 오늘 횟수 기준)
         const sleepCount = Number(st.sleepToday || 0); 
         let sleepBadgeHtml = "";
         if (sleepCount >= 6) {
@@ -1644,6 +1644,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // 파일의 진짜 마지막 줄
+
 
 
 
