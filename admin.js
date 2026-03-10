@@ -1552,89 +1552,72 @@ let gridHtml = `
        <div id="dashContent" style="display:block; animation: fadeIn 0.3s ease;">
      `;
 
+// ... (위쪽 생략)
+
 // 💡 묶어둔 그룹별로 화면에 출력하기
 teacherNames.forEach(tName => {
-const groupItems = grouped[tName];
+    const groupItems = grouped[tName];
 
-// 🧑‍🏫 선생님 이름 제목 (섹션 구분선)
-gridHtml += `
-         <div style="margin-top: 16px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
-           <span style="font-size:15px; font-weight:800; color:#3498db;">🧑‍🏫 ${escapeHtml(tName)} 선생님</span>
-           <span style="font-size:12px; opacity:0.6; margin-left:8px;">${groupItems.length}명</span>
-         </div>
-       `;
+    // 🧑‍🏫 선생님 이름 제목 (섹션 구분선)
+    gridHtml += `
+      <div style="margin-top: 16px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
+        <span style="font-size:15px; font-weight:800; color:#3498db;">🧑‍🏫 ${escapeHtml(tName)} 선생님</span>
+        <span style="font-size:12px; opacity:0.6; margin-left:8px;">${groupItems.length}명</span>
+      </div>
+    `;
 
-// 해당 반의 바둑판 카드 그리기
-gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
+    // 해당 반의 바둑판 카드 그리기
+    gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
-        /* loadClassDashboard 함수 내부의 groupItems.forEach 부분 교체 */
-        /* loadClassDashboard 함수 내부 카드 생성 루프 부분 교체 */
-groupItems.forEach(st => {
-    // --- 1. 왼쪽: 출결 뱃지 (오늘 결석 기준) ---
-    // 1. 왼쪽 상단: 당일 출결 뱃지
-const abs = Number(st.todayAbs || 0);
-let badgeAtt = "";
-if (abs >= 6) badgeAtt = `<div style="position:absolute; top:-10px; left:0; background:#ff4757; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 위험 ${abs}</div>`;
-else if (abs >= 3) badgeAtt = `<div style="position:absolute; top:-10px; left:0; background:#ffa502; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 경고 ${abs}</div>`;
+    groupItems.forEach(st => {
+        // 1. 당일 출결 뱃지
+        const abs = Number(st.todayAbs || 0);
+        let badgeAtt = "";
+        if (abs >= 6) badgeAtt = `<div style="position:absolute; top:-10px; left:0; background:#ff4757; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 위험 ${abs}</div>`;
+        else if (abs >= 3) badgeAtt = `<div style="position:absolute; top:-10px; left:0; background:#ffa502; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 경고 ${abs}</div>`;
 
-    // --- 2. 중앙: 취침 뱃지 (오늘 합산 기준) ---
-    // 2. 중앙 상단: 당일 취침 뱃지 (3회 이상 노출)
-const sleep = Number(st.sleepToday || 0);
-let badgeSleep = "";
-if (sleep >= 6) badgeSleep = `<div style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:#eb4d4b; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 위험 ${sleep}</div>`;
-else if (sleep >= 3) badgeSleep = `<div style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:#f9ca24; color:#111; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 경고 ${sleep}</div>`;
+        // 2. 당일 취침 뱃지
+        const sleep = Number(st.sleepToday || 0);
+        let badgeSleep = "";
+        if (sleep >= 6) badgeSleep = `<div style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:#eb4d4b; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 위험 ${sleep}</div>`;
+        else if (sleep >= 3) badgeSleep = `<div style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:#f9ca24; color:#111; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 경고 ${sleep}</div>`;
 
-    // --- 3. 오른쪽: 벌점 뱃지 (이번 달 누적 기준) ---
-    // 3. 오른쪽 상단: 이번 달 교육점수 뱃지
-const edu = Number(st.monthTotal || 0);
-let badgeEdu = "";
-if (edu >= 15) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#6c5ce7; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 위험 ${edu}</div>`;
-else if (edu >= 10) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#a29bfe; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 경고 ${edu}</div>`;
+        // 3. 당월 교육점수 뱃지
+        const edu = Number(st.monthTotal || 0);
+        let badgeEdu = "";
+        if (edu >= 15) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#6c5ce7; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 위험 ${edu}</div>`;
+        else if (edu >= 10) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#a29bfe; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 경고 ${edu}</div>`;
 
-   // --- 4. 이름 옆 신호등 (현재 교시 실시간 상태) ---
-    // 4. 이름 옆 4색 신호등 로직
-const cs = String(st.currentStatus);
-    let lampColor = "rgba(255,255,255,0.2)"; // 기본 (데이터 없음/대기)
-    
-    if (cs === "1") {
-        lampColor = "#2ecc71"; // 초록색: 정상 출석
-    } else if (cs === "3") {
-        lampColor = "#ff4757"; // 빨간색: 스케줄 없는 무단 결석 (위험!)
-    } else if (cs === "3S") {
-        lampColor = "#f39c12"; // 💡 주황색: 스케줄 있는 결석 (이동/수업 중)
-    } else if (cs === "2") {
-        lampColor = "#f1c40f"; // 노란색: 지각
-    }
-    let lampColor = "rgba(255,255,255,0.15)"; // 데이터 없음
-    if (cs === "1") lampColor = "#2ecc71";      // 초록: 출석
-    else if (cs === "3") lampColor = "#ff4757"; // 빨강: 무단 결석
-    else if (cs === "3S") lampColor = "#f39c12";// 💡 주황: 스케줄 있는 결석
-    else if (cs === "2") lampColor = "#f1c40f"; // 노랑: 지각
+        // 4. 이름 옆 4색 신호등 로직
+        const cs = String(st.currentStatus);
+        let lampColor = "rgba(255,255,255,0.15)"; 
+        if (cs === "1") lampColor = "#2ecc71";      // 초록: 출석
+        else if (cs === "3") lampColor = "#ff4757"; // 빨강: 무단 결석
+        else if (cs === "3S") lampColor = "#f39c12";// 주황: 스케줄 결석
+        else if (cs === "2") lampColor = "#f1c40f"; // 노랑: 지각
 
-    const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:6px; box-shadow: 0 0 6px ${lampColor};"></div>`;
-    const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
+        const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
 
-gridHtml += `
-      <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px;"
-      <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px;"
-          onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
-       ${badgeAtt} ${badgeSleep} ${badgeEdu}
-       
-       <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-         <div style="font-weight:800; font-size:14px; display:flex; align-items:center;">${lampHtml} ${escapeHtml(st.name)}</div>
-         <div style="font-size:11px; opacity:0.5;">${escapeHtml(st.seat)}</div>
-       </div>
+        gridHtml += `
+          <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
+               onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+            ${badgeAtt} ${badgeSleep} ${badgeEdu}
+            
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+              <div style="font-weight:800; font-size:14px; display:flex; align-items:center;">${lampHtml} ${escapeHtml(st.name)}</div>
+              <div style="font-size:11px; opacity:0.5;">${escapeHtml(st.seat)}</div>
+            </div>
 
-        <div style="text-align:center; padding: 4px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
-          <div style="font-size:11px; color:#3498db; font-weight:700;">🚰 화장실/정수기: ${st.restroomToday}회</div>
-        <div style="text-align:center; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
-          <div style="font-size:11px; color:#3498db; font-weight:800;">🚰 화장실/정수기: ${st.restroomToday}회</div>
-       </div>
-     </div>
-   `;
+            <div style="text-align:center; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
+              <div style="font-size:11px; color:#3498db; font-weight:800;">🚰 화장실/정수기: ${st.restroomToday}회</div>
+            </div>
+          </div>
+        `;
+    });
+    gridHtml += `</div>`; // 카드 그룹 닫기
 });
-gridHtml += `</div>`; // 카드 그룹 닫기
-});
+
+// ... (아래쪽 생략)
 
 gridHtml += `</div>`; // dashContent 닫기
 dashDiv.innerHTML = gridHtml;
@@ -1674,3 +1657,4 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
