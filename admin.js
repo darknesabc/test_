@@ -1489,20 +1489,21 @@ drawChart();
 }
 
 // =========================================================================
-// 💡 [최종본] 우리 반 전체 현황(대시보드 홈) - 모든 버그 수정 완료
+// 💡 [최종] 우리 반 전체 현황(대시보드 홈) - 중간 생략 없는 완전판
 // =========================================================================
 async function loadClassDashboard() {
     const sess = getAdminSession();
     if (!sess?.adminToken) return;
 
+    // 대시보드 공간 생성
     let dashDiv = document.getElementById("classDashboard");
     if (!dashDiv) {
         dashDiv = document.createElement("div");
         dashDiv.id = "classDashboard";
         dashDiv.style.marginTop = "24px";
         dashDiv.style.marginBottom = "24px";
-        const qInputParent = document.getElementById("qInput").parentNode;
-        qInputParent.after(dashDiv);
+        const qInputEl = document.getElementById("qInput");
+        if (qInputEl) qInputEl.parentNode.after(dashDiv);
     }
 
     dashDiv.innerHTML = `<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.6);">데이터를 불러오는 중입니다...</div>`;
@@ -1525,6 +1526,7 @@ async function loadClassDashboard() {
             return;
         }
 
+        // 담임별 그룹화
         const grouped = {};
         items.forEach(st => {
             const tName = String(st.teacher || "").trim() || "미배정";
@@ -1577,7 +1579,7 @@ async function loadClassDashboard() {
                 if (edu >= 15) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#6c5ce7; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 위험 ${edu}</div>`;
                 else if (edu >= 10) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#a29bfe; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 경고 ${edu}</div>`;
 
-                // 4. 이름 옆 신호등 로직
+                // 4. 이름 옆 실시간 상태 신호등
                 const cs = String(st.currentStatus);
                 let lampColor = "rgba(255,255,255,0.15)";
                 if (cs === "1") lampColor = "#2ecc71";
@@ -1601,17 +1603,16 @@ async function loadClassDashboard() {
                   </div>
                 `;
             });
-            gridHtml += `</div>`; // 카드 그리드 닫기
+            gridHtml += `</div>`; // teacher group grid 닫기
         });
 
         gridHtml += `</div>`; // dashContent 닫기
         dashDiv.innerHTML = gridHtml;
 
-        // 이벤트 바인딩
+        // 접기/펼치기 이벤트 바인딩
         const dashHeader = document.getElementById("dashHeader");
         const dashContent = document.getElementById("dashContent");
         const dashToggleIcon = document.getElementById("dashToggleIcon");
-
         if (dashHeader && dashContent) {
             dashHeader.onclick = () => {
                 if (dashContent.style.display === "none") {
@@ -1626,7 +1627,7 @@ async function loadClassDashboard() {
             };
         }
 
-        // 호버 효과 재바인딩
+        // 호버 효과 바인딩
         document.querySelectorAll(".class-dash-card").forEach(card => {
             card.onmouseover = () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; };
             card.onmouseout = () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; };
@@ -1636,12 +1637,12 @@ async function loadClassDashboard() {
         dashDiv.innerHTML = `<div style="color:#ff6b6b;">로딩 중 오류 발생: ${e.message}</div>`;
     }
 }
-
 if (sess?.adminToken) {
 loadClassDashboard(); 
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
 
