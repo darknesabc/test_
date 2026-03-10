@@ -1489,20 +1489,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // =========================================================================
-  // 💡 [신규] 우리 반 전체 현황(대시보드 홈) - 담임별 자동 분류 적용
+  // 💡 [최종 완성] 우리 반 전체 현황(대시보드 홈) - 다중 뱃지 & 데이터 동기화 완료
   // =========================================================================
   async function loadClassDashboard() {
     const sess = getAdminSession();
     if (!sess?.adminToken) return;
 
-    // 검색창 바로 아래에 현황판을 꽂아넣을 공간 만들기
     let dashDiv = document.getElementById("classDashboard");
     if (!dashDiv) {
       dashDiv = document.createElement("div");
       dashDiv.id = "classDashboard";
       dashDiv.style.marginTop = "24px";
       dashDiv.style.marginBottom = "24px";
-      qInput.parentNode.after(dashDiv); 
+      const qInput = document.getElementById("qInput");
+      if (qInput) qInput.parentNode.after(dashDiv); 
     }
 
     dashDiv.innerHTML = `<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.6);">데이터를 불러오는 중입니다...</div>`;
@@ -1525,7 +1525,6 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // 💡 [핵심] 가져온 224명의 학생을 "담임 선생님 이름" 기준으로 그룹 묶기!
       const grouped = {};
       items.forEach(st => {
         const tName = String(st.teacher || "").trim() || "미배정";
@@ -1533,17 +1532,14 @@ document.addEventListener("DOMContentLoaded", () => {
         grouped[tName].push(st);
       });
 
-      // 담임 이름 가나다순으로 정렬하기 (단, '미배정' 그룹은 맨 끝으로 빼기)
       const teacherNames = Object.keys(grouped).sort((a, b) => {
         if (a === "미배정") return 1;
         if (b === "미배정") return -1;
         return a.localeCompare(b);
       });
 
-      // 권한에 따라 제목 다르게 표시하기
       const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
 
-      // 💡 [수정] 제목 영역을 클릭 가능한 버튼 형태로 만들고, 바둑판 전체를 묶는 div(#dashContent) 추가
       let gridHtml = `
         <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
           <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
@@ -1552,113 +1548,85 @@ document.addEventListener("DOMContentLoaded", () => {
         <div id="dashContent" style="display:block; animation: fadeIn 0.3s ease;">
       `;
 
-      // 💡 묶어둔 그룹별로 화면에 출력하기
       teacherNames.forEach(tName => {
         const groupItems = grouped[tName];
-        
-        // 🧑‍🏫 선생님 이름 제목 (섹션 구분선)
         gridHtml += `
           <div style="margin-top: 16px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
             <span style="font-size:15px; font-weight:800; color:#3498db;">🧑‍🏫 ${escapeHtml(tName)} 선생님</span>
             <span style="font-size:12px; opacity:0.6; margin-left:8px;">${groupItems.length}명</span>
           </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">
         `;
-        
-        // 해당 반의 바둑판 카드 그리기
-        gridHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">`;
 
-        /* loadClassDashboard 함수 내부 카드 생성 루프 부분 교체 */
         groupItems.forEach(st => {
-          // --- 💡 핵심: 뱃지들을 하나로 묶기 위한 배열 생성 ---
           let badges = [];
+          // 🚩 1. 당일 출결 뱃지 (결석 뱃지)
+          // 백엔드 데이터에 따라 st.weekAbs 또는 st.todayAbs 사용
+          const abs = Number(st.weekAbs || 0); 
+          if (abs >= 6) badges.push(`<div style="background:#ff4757; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 위험 ${abs}</div>`);
+          else if (abs >= 3) badges.push(`<div style="background:#ffa502; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 경고 ${abs}</div>`);
 
-          // 1. 당일 출결 뱃지
-          const abs = Number(st.todayAbs || 0);
-          if (abs >= 6) {
-              badges.push(`<div style="background:#ff4757; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 위험 ${abs}</div>`);
-          } else if (abs >= 3) {
-              badges.push(`<div style="background:#ffa502; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 경고 ${abs}</div>`);
-          }
-
-          // 2. 당일 취침 뱃지 (이영동: 7회 등 반영)
+          // 💤 2. 당일 취침 뱃지
           const sleep = Number(st.sleepToday || 0);
-          if (sleep >= 6) {
-              badges.push(`<div style="background:#eb4d4b; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 위험 ${sleep}</div>`);
-          } else if (sleep >= 3) {
-              badges.push(`<div style="background:#f9ca24; color:#111; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 경고 ${sleep}</div>`);
-          }
+          if (sleep >= 6) badges.push(`<div style="background:#eb4d4b; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 위험 ${sleep}</div>`);
+          else if (sleep >= 3) badges.push(`<div style="background:#f9ca24; color:#111; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 경고 ${sleep}</div>`);
 
-          // 3. 이번 달 교육점수 뱃지 (이영동: 13점 등 반영)
+          // 💯 3. 이번 달 교육점수 뱃지
           const edu = Number(st.monthTotal || 0);
-          if (edu >= 15) {
-              badges.push(`<div style="background:#6c5ce7; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 위험 ${edu}</div>`);
-          } else if (edu >= 10) {
-              badges.push(`<div style="background:#a29bfe; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 경고 ${edu}</div>`);
-          }
+          if (edu >= 15) badges.push(`<div style="background:#6c5ce7; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 위험 ${edu}</div>`);
+          else if (edu >= 10) badges.push(`<div style="background:#a29bfe; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 경고 ${edu}</div>`);
 
-          // --- 💡 뱃지 컨테이너 조립 (가로 정렬 Flexbox) ---
           const badgeContainerHtml = `
             <div style="position:absolute; top:-12px; right:8px; display:flex; gap:4px; z-index:20; flex-wrap:wrap; justify-content:flex-end;">
               ${badges.join("")}
             </div>
           `;
 
-          // 4. 이름 옆 4색 신호등 로직
-          const cs = String(st.currentStatus);
-          let lampColor = "rgba(255,255,255,0.15)";
-          if (cs === "1") lampColor = "#2ecc71";
-          else if (cs === "3") lampColor = "#ff4757";
-          else if (cs === "3S") lampColor = "#f39c12";
-          else if (cs === "2") lampColor = "#f1c40f";
-
+          // 💡 4. 신호등 램프 로직 (백엔드 색상 데이터 활용)
+          const lampColor = st.statusColor || "rgba(255,255,255,0.15)";
           const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
 
-          // 5. 최종 카드 HTML 조립
           gridHtml += `
             <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px;"
                  onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
-              
-              ${badgeContainerHtml} <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+              ${badgeContainerHtml}
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
                 <div style="font-weight:800; font-size:14px; display:flex; align-items:center;">${lampHtml} ${escapeHtml(st.name)}</div>
                 <div style="font-size:11px; opacity:0.5;">${escapeHtml(st.seat)}</div>
               </div>
-
               <div style="text-align:center; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
-                <div style="font-size:11px; color:#3498db; font-weight:800;">🚰 화장실/정수기: ${st.restroomToday || 0}회</div>
+                <div style="font-size:11px; color:#3498db; font-weight:800;">● ${st.todayStatus || "기록없음"}</div>
               </div>
             </div>
           `;
-        });
-        gridHtml += `</div>`; // 카드 그룹 닫기 (위치 원상 복구)
+        }); // groupItems.forEach 끝
+        gridHtml += `</div>`; // 카드 그리드 div 닫기
+      }); // teacherNames.forEach 끝 (💡 중괄호 누락 해결!)
+
+      gridHtml += `</div>`; // dashContent 닫기
       dashDiv.innerHTML = gridHtml;
 
-      // 💡 [이벤트] 접기/펼치기 클릭 로직
+      // 접기/펼치기 및 마우스 오버 이벤트 등록
       const dashHeader = document.getElementById("dashHeader");
       const dashContent = document.getElementById("dashContent");
       const dashToggleIcon = document.getElementById("dashToggleIcon");
 
       if (dashHeader && dashContent) {
-        dashHeader.addEventListener("click", () => {
-          if (dashContent.style.display === "none") {
-            dashContent.style.display = "block";
-            dashToggleIcon.textContent = "🔼 접기";
-            dashHeader.style.opacity = "1";
-          } else {
-            dashContent.style.display = "none";
-            dashToggleIcon.textContent = "🔽 펼치기";
-            dashHeader.style.opacity = "0.7";
-          }
-        });
+        dashHeader.onclick = () => {
+          const isHidden = dashContent.style.display === "none";
+          dashContent.style.display = isHidden ? "block" : "none";
+          dashToggleIcon.textContent = isHidden ? "🔼 접기" : "🔽 펼치기";
+          dashHeader.style.opacity = isHidden ? "1" : "0.7";
+        };
       }
 
-      // 마우스 오버 시 살짝 뜨는 효과 추가
       document.querySelectorAll(".class-dash-card").forEach(card => {
-        card.addEventListener("mouseover", () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; });
-        card.addEventListener("mouseout", () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; });
+        card.onmouseover = () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; };
+        card.onmouseout = () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; };
       });
 
     } catch (e) {
-      dashDiv.innerHTML = `<div style="color:#ff6b6b;">로딩 중 오류 발생: ${e.message}</div>`; 
+      dashDiv.innerHTML = `<div style="color:#ff6b6b; padding:20px;">로딩 중 오류 발생: ${e.message}</div>`; 
     }
   }
 
@@ -1667,3 +1635,4 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   
 }); // 파일의 진짜 마지막 줄
+
