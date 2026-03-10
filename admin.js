@@ -1495,24 +1495,22 @@ async function loadClassDashboard() {
     const sess = getAdminSession();
     if (!sess?.adminToken) return;
 
-    // 대시보드 공간 생성
     let dashDiv = document.getElementById("classDashboard");
     if (!dashDiv) {
         dashDiv = document.createElement("div");
         dashDiv.id = "classDashboard";
         dashDiv.style.marginTop = "24px";
         dashDiv.style.marginBottom = "24px";
-        const qInputEl = document.getElementById("qInput");
-        if (qInputEl) qInputEl.parentNode.after(dashDiv);
+        qInput.parentNode.after(dashDiv); 
     }
 
     dashDiv.innerHTML = `<div style="text-align:center; padding:20px; color:rgba(255,255,255,0.6);">데이터를 불러오는 중입니다...</div>`;
 
     try {
-        const res = await apiPost("admin_class_summary", {
+        const res = await apiPost("admin_class_summary", { 
             adminToken: sess.adminToken,
             role: sess.role,
-            adminName: sess.adminName
+            adminName: sess.adminName 
         });
 
         if (!res.ok) {
@@ -1522,11 +1520,10 @@ async function loadClassDashboard() {
 
         const items = res.items || [];
         if (items.length === 0) {
-            dashDiv.innerHTML = `<div style="color:rgba(255,255,255,0.5); padding:10px;">배정된 학생이 없습니다.</div>`;
+            dashDiv.innerHTML = `<div style="color:rgba(255,255,255,0.5); padding:10px;">배정된 학생이 없습니다.</div>`; 
             return;
         }
 
-        // 담임별 그룹화
         const grouped = {};
         items.forEach(st => {
             const tName = String(st.teacher || "").trim() || "미배정";
@@ -1543,11 +1540,11 @@ async function loadClassDashboard() {
         const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
 
         let gridHtml = `
-            <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
-              <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
-              <span id="dashToggleIcon" style="font-size:13px; opacity:0.8; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">🔼 접기</span>
-            </div>
-            <div id="dashContent" style="display:block; animation: fadeIn 0.3s ease;">
+               <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
+                 <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
+                 <span id="dashToggleIcon" style="font-size:13px; opacity:0.8; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">🔼 접기</span>
+               </div>
+               <div id="dashContent" style="display:block; animation: fadeIn 0.3s ease;">
         `;
 
         teacherNames.forEach(tName => {
@@ -1561,27 +1558,23 @@ async function loadClassDashboard() {
             `;
 
             groupItems.forEach(st => {
-                // 1. 당일 출결 뱃지
                 const abs = Number(st.todayAbs || 0);
                 let badgeAtt = "";
                 if (abs >= 6) badgeAtt = `<div style="position:absolute; top:-10px; left:0; background:#ff4757; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 위험 ${abs}</div>`;
                 else if (abs >= 3) badgeAtt = `<div style="position:absolute; top:-10px; left:0; background:#ffa502; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">📅 경고 ${abs}</div>`;
 
-                // 2. 당일 취침 뱃지
                 const sleep = Number(st.sleepToday || 0);
                 let badgeSleep = "";
                 if (sleep >= 6) badgeSleep = `<div style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:#eb4d4b; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 위험 ${sleep}</div>`;
                 else if (sleep >= 3) badgeSleep = `<div style="position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:#f9ca24; color:#111; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap;">💤 경고 ${sleep}</div>`;
 
-                // 3. 당월 교육점수 뱃지
                 const edu = Number(st.monthTotal || 0);
                 let badgeEdu = "";
                 if (edu >= 15) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#6c5ce7; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 위험 ${edu}</div>`;
                 else if (edu >= 10) badgeEdu = `<div style="position:absolute; top:-10px; right:0; background:#a29bfe; color:white; font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; z-index:12; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">💯 경고 ${edu}</div>`;
 
-                // 4. 이름 옆 실시간 상태 신호등
                 const cs = String(st.currentStatus);
-                let lampColor = "rgba(255,255,255,0.15)";
+                let lampColor = "rgba(255,255,255,0.15)"; 
                 if (cs === "1") lampColor = "#2ecc71";
                 else if (cs === "3") lampColor = "#ff4757";
                 else if (cs === "3S") lampColor = "#f39c12";
@@ -1603,13 +1596,12 @@ async function loadClassDashboard() {
                   </div>
                 `;
             });
-            gridHtml += `</div>`; // teacher group grid 닫기
+            gridHtml += `</div>`;
         });
 
-        gridHtml += `</div>`; // dashContent 닫기
+        gridHtml += `</div>`;
         dashDiv.innerHTML = gridHtml;
 
-        // 접기/펼치기 이벤트 바인딩
         const dashHeader = document.getElementById("dashHeader");
         const dashContent = document.getElementById("dashContent");
         const dashToggleIcon = document.getElementById("dashToggleIcon");
@@ -1627,7 +1619,6 @@ async function loadClassDashboard() {
             };
         }
 
-        // 호버 효과 바인딩
         document.querySelectorAll(".class-dash-card").forEach(card => {
             card.onmouseover = () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; };
             card.onmouseout = () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; };
@@ -1637,13 +1628,9 @@ async function loadClassDashboard() {
         dashDiv.innerHTML = `<div style="color:#ff6b6b;">로딩 중 오류 발생: ${e.message}</div>`;
     }
 }
+   
 if (sess?.adminToken) {
 loadClassDashboard(); 
 }
 
 }); // 파일의 진짜 마지막 줄
-
-
-
-
-
