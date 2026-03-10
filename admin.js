@@ -1558,38 +1558,37 @@ async function loadClassDashboard() {
             `;
 
             groupItems.forEach(st => {
-                // 💡 [개선] 공통 뱃지 스타일 정의 (위치값 제거, 디자인 통일)
-                const bStyle = "font-size:9px; font-weight:900; padding:2px 6px; border-radius:6px; box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space:nowrap; display:inline-flex; align-items:center;";
+                // 1. 공통 뱃지 스타일 (개별 위치 속성 제거, 디자인 통일)
+                const bStyle = "font-size:9px; font-weight:900; padding:2px 6px; border-radius:6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space:nowrap; display:inline-flex; align-items:center;";
 
-                // 1. 당일 출결 뱃지
+                // 2. 출결 뱃지 (badgeAtt)
                 const abs = Number(st.todayAbs || 0);
                 let badgeAtt = "";
                 if (abs >= 6) badgeAtt = `<span style="${bStyle} background:#ff4757; color:white;">📅 위험 ${abs}</span>`;
                 else if (abs >= 3) badgeAtt = `<span style="${bStyle} background:#ffa502; color:white;">📅 경고 ${abs}</span>`;
 
-                // 2. 당일 취침 뱃지
+                // 3. 취침 뱃지 (badgeSleep)
                 const sleep = Number(st.sleepToday || 0);
                 let badgeSleep = "";
                 if (sleep >= 6) badgeSleep = `<span style="${bStyle} background:#eb4d4b; color:white;">💤 위험 ${sleep}</span>`;
                 else if (sleep >= 3) badgeSleep = `<span style="${bStyle} background:#f9ca24; color:#111;">💤 경고 ${sleep}</span>`;
 
-                // 3. 당월 교육점수 뱃지
+                // 4. 교육점수 뱃지 (badgeEdu)
                 const edu = Number(st.monthTotal || 0);
                 let badgeEdu = "";
                 if (edu >= 15) badgeEdu = `<span style="${bStyle} background:#6c5ce7; color:white;">💯 위험 ${edu}</span>`;
                 else if (edu >= 10) badgeEdu = `<span style="${bStyle} background:#a29bfe; color:white;">💯 경고 ${edu}</span>`;
 
-                // 4. 이름 옆 신호등 로직 (기존 동일)
+                // 5. 실시간 상태 신호등 (기존과 동일)
                 const cs = String(st.currentStatus);
                 let lampColor = "rgba(255,255,255,0.15)";
                 if (cs === "1") lampColor = "#2ecc71";
                 else if (cs === "3") lampColor = "#ff4757";
                 else if (cs === "3S") lampColor = "#f39c12";
                 else if (cs === "2") lampColor = "#f1c40f";
-
                 const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
 
-                // 💡 [개선] 카드 조립: 뱃지들을 상단 컨테이너 하나로 묶음
+                // 6. 카드 조립 (뱃지들을 하나의 컨테이너로 묶음)
                 gridHtml += `
                   <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
                        onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
@@ -1646,4 +1645,5 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
