@@ -54,36 +54,42 @@ return 0;
 }
 
 /** =========================
-* ✅ 이동 기록으로 출결 스케줄 공란 채우기 (복귀안함 대응 업데이트)
+* ✅ 이동 기록으로 출결 스케줄 공란 채우기 (화장실/정수기 제외 버전)
 * ========================= */
 function buildMoveMapFromItems_(items) {
-const map = {}; 
-const arr = Array.isArray(items) ? items : [];
-for (const it of arr) {
-const iso = String(it?.date || "").trim();
-if (!iso) continue;
+  const map = {}; 
+  const arr = Array.isArray(items) ? items : [];
+  
+  for (const it of arr) {
+    const reason = String(it?.reason || "").trim();
 
-const time = String(it?.time || "").trim();           
-const reason = String(it?.reason || "").trim();
+    // 💡 [수정] 화장실/정수기 사유는 출결표(Map) 생성에서 제외하여 상세 리스트에만 표시되게 함
+    if (reason === "화장실/정수기") continue;
 
-// 💡 [수정 포인트] 프론트엔드에서도 '복귀안함'을 8교시로 인식하게 합니다.
-const rpRaw = String(it?.returnPeriod || "").trim();
-let rp = parseInt(rpRaw, 10) || 0;
-if (rpRaw === "복귀안함") rp = 8; 
+    const iso = String(it?.date || "").trim();
+    if (!iso) continue;
 
-if (!reason || rp <= 0) continue;
+    const time = String(it?.time || "").trim();           
+    
+    // '복귀안함'을 8교시로 인식하는 로직 유지
+    const rpRaw = String(it?.returnPeriod || "").trim();
+    let rp = parseInt(rpRaw, 10) || 0;
+    if (rpRaw === "복귀안함") rp = 8; 
 
-const sp = inferStartPeriodByTime_(time); 
-const from = sp > 0 ? sp : Math.max(1, rp - 1);
-const to = rp;
-const start = (from <= to) ? from : Math.max(1, rp - 1);
+    if (!reason || rp <= 0) continue;
 
-map[iso] = map[iso] || {};
-for (let p = start; p <= to; p++) {
-map[iso][p] = reason;
-}
-}
-return map;
+    // 시간 기반 교시 추정 및 맵핑 로직
+    const sp = inferStartPeriodByTime_(time); 
+    const from = sp > 0 ? sp : Math.max(1, rp - 1);
+    const to = rp;
+    const start = (from <= to) ? from : Math.max(1, rp - 1);
+
+    map[iso] = map[iso] || {};
+    for (let p = start; p <= to; p++) {
+      map[iso][p] = reason;
+    }
+  }
+  return map;
 }
 
 const ADMIN_SESSION_KEY = "admin_session_v1";
@@ -1645,5 +1651,6 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
