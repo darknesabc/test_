@@ -430,8 +430,12 @@ async function loadMoveSummary(session) {
     const time = String(data.latestTime || "").trim();
     const reasonLine = String(data.latestText || "-").trim();
 
-    line.textContent = "최근 이동";
-    recent.textContent = (md && time) ? `${md} ${time} · ${reasonLine}` : "-";
+// 💡 [추가] 요약(Dashboard)에서도 화장실 기록은 노출하지 않으려면
+if (reasonLine.includes("화장실/정수기")) {
+  recent.textContent = "상세 페이지에서 확인 가능"; 
+} else {
+  recent.textContent = (md && time) ? `${md} ${time} · ${reasonLine}` : "-";
+}
 
     box.style.display = "";
   } catch (e) {
@@ -1269,6 +1273,7 @@ function escapeHtml_(s) {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[m]));
 }
+
 
 
 
