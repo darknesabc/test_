@@ -392,7 +392,7 @@ async function loadSleepSummary(session) {
 }
 
 /* =========================================================
-   ✅ 이동 요약 (대시보드 카드)
+   ✅ 이동 요약 (대시보드 카드) - 스타일 통일 버전
 ========================================================= */
 async function loadMoveSummary(session) {
   const loading = $("moveLoading");
@@ -429,13 +429,19 @@ async function loadMoveSummary(session) {
     const md = prettyMD_(data.latestDate);
     const time = String(data.latestTime || "").trim();
     const reasonLine = String(data.latestText || "-").trim();
+    const count = Number(data.count ?? 0); // 💡 백엔드에서 준 횟수 데이터 
 
-// 💡 [추가] 요약(Dashboard)에서도 화장실 기록은 노출하지 않으려면
-if (reasonLine.includes("화장실/정수기")) {
-  recent.textContent = "상세 페이지에서 확인 가능"; 
-} else {
-  recent.textContent = (md && time) ? `${md} ${time} · ${reasonLine}` : "-";
-}
+    // 1. 상단 라인: 다른 항목처럼 "최근 이동 N회" 표시
+    line.textContent = `최근 이동 ${count}회`; 
+
+    // 2. 하단 라인: 최신 기록 표시 (화장실/정수기는 텍스트 숨김 유지 또는 표시 선택)
+    if (reasonLine.includes("화장실/정수기")) {
+      // 💡 화장실 기록일 때도 "3/11 14:00 · 화장실/정수기"로 다 보여주고 싶다면 
+      // 아래 문구 대신 (md && time) ? `${md} ${time} · ${reasonLine}` : "-" 를 넣으세요.
+      recent.textContent = (md && time) ? `${md} ${time} · 확인 필요` : "최근 기록 없음";
+    } else {
+      recent.textContent = (md && time) ? `${md} ${time} · ${reasonLine}` : "-";
+    }
 
     box.style.display = "";
   } catch (e) {
@@ -1273,6 +1279,7 @@ function escapeHtml_(s) {
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   }[m]));
 }
+
 
 
 
