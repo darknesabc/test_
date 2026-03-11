@@ -479,13 +479,17 @@
       return `${m[1]}-${String(m[2]).padStart(2,"0")}-${String(m[3]).padStart(2,"0")}`;
     }
     function buildMoveMap(moveItems) {
-      const map = {};
-      for (const it of (moveItems || [])) {
-        const iso = normalizeMoveDateToIso(it.date);
-        const reason = String(it.reason ?? "").trim();
-        const rp = Number(it.returnPeriod ?? 0);
-        const time = String(it.time ?? "").trim();
-        if (!iso || !reason || !rp) continue;
+  const map = {};
+  for (const it of (moveItems || [])) {
+    const iso = normalizeMoveDateToIso(it.date);
+    const reason = String(it.reason ?? "").trim();
+
+    // 💡 [수정] 화장실/정수기 사유는 출결표 스케줄 칸 생성에서 제외
+    if (reason === "화장실/정수기") continue; 
+
+    const rp = Number(it.returnPeriod ?? 0);
+    const time = String(it.time ?? "").trim();
+    if (!iso || !reason || !rp) continue;
 
         map[iso] ||= {};
         const sp = inferStartPeriodByTime(time);
@@ -621,3 +625,4 @@
 </script>
 </body>
 </html>
+
