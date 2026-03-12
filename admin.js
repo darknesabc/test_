@@ -957,88 +957,75 @@ if (vulnWrapper) vulnWrapper.style.display = "none";
 }
 }
 
-async function loadDetail(kind) {
-const sess = getAdminSession();
-if (!sess?.adminToken) return;
-if (!window.__lastStudent) { detailResult.innerHTML = `<div style="color:#ff6b6b;">학생을 먼저 선택하세요.</div>`; return; }
+async function loadDetail(kind, days = 7) { // 💡 days 파라미터 추가 (기본값 7)
+  const sess = getAdminSession();
+  if (!sess?.adminToken) return;
+  if (!window.__lastStudent) { detailResult.innerHTML = `<div style="color:#ff6b6b;">학생을 먼저 선택하세요.</div>`; return; }
 
-const st = window.__lastStudent;
-const seat = st.seat || "";
-const studentId = st.studentId || "";
+  const st = window.__lastStudent;
+  const seat = st.seat || "";
+  const studentId = st.studentId || "";
 
-// ✅ 핵심: 생활 관련은 중간(lifeDetailContainer), 성적 관련은 기존(detailResult)에 표시
-const lifeContainer = $("lifeDetailContainer");
-const gradeContainer = $("detailResult");
+  const lifeContainer = $("lifeDetailContainer");
+  const gradeContainer = $("detailResult");
+  const isGrade = (kind === "grade_detail");
+  const targetEl = isGrade ? gradeContainer : (lifeContainer || gradeContainer);
 
-const isGrade = (kind === "grade_detail");
-const targetEl = isGrade ? gradeContainer : (lifeContainer || gradeContainer);
+  if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
+  if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
 
-// 다른 쪽 결과창이 열려있다면 깔끔하게 닫아줍니다
-if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
-if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
+  targetEl.innerHTML = "불러오는 중…";
 
-targetEl.innerHTML = "불러오는 중…";
+  try {
+    const token = await issueStudentToken_(seat, studentId);
+    
+    // 1. 출결 (기존 180일 고정 유지)
+    if (kind === "attendance") {
+      const [att, mv, edu] = await Promise.all([ 
+        apiPost("attendance", { token }), 
+        apiPost("move_detail", { token, days: 180 }),
+        apiPost("eduscore_detail", { token, days: 180 })
+      ]);
+      if (!att.ok) return showError(att, targetEl);
+      const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
+      targetEl.innerHTML = renderAttendanceDetail_(att, moveMap);
+      return;
+    }
 
-try {
-const token = await issueStudentToken_(seat, studentId);
-if (kind === "attendance") {
-// 💡 180일치 이동 & 교육점수 가져오기
-const [att, mv, edu] = await Promise.all([ 
-apiPost("attendance", { token }), 
-apiPost("move_detail", { token, days: 180 }),
-apiPost("eduscore_detail", { token, days: 180 })
-]);
-if (!att.ok) return showError(att, targetEl);
+    // 2. 취침 상세 (days 변수 적용)
+    if (kind === "sleep_detail") {
+      const data = await apiPost("sleep_detail", { token, days: days });
+      if (!data.ok) return showError(data, targetEl);
+      targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSleepDetail_(data);
+      return;
+    }
 
-const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
+    // 3. 이동 상세 (days 변수 적용)
+    if (kind === "move_detail") {
+      const data = await apiPost("move_detail", { token, days: days });
+      if (!data.ok) return showError(data, targetEl);
+      targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSimpleTable_(["날짜", "시간", "사유", "복귀교시"], (data.items || []).map(x => [x.date, x.time, x.reason, x.returnPeriod]));
+      return;
+    }
 
-// 💡 교육점수에서 '지각' 데이터만 추출해서 합성
-if (edu && edu.ok) {
-edu.items.forEach(it => {
-if (it.reason && it.reason.includes("지각")) {
-const iso = String(it.date || "").trim();
-let pNum = parseInt(it.period, 10) || 0;
-if (pNum === 0 && it.time) pNum = inferStartPeriodByTime_(it.time);
+    // 4. 교육점수 상세 (days 변수 적용)
+    if (kind === "eduscore_detail") {
+      const data = await apiPost("eduscore_detail", { token, days: days });
+      if (!data.ok) return showError(data, targetEl);
+      targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSimpleTable_(["날짜", "시간", "사유", "점수"], (data.items || []).map(x => [x.date, x.time, x.reason, x.score]));
+      return;
+    }
 
-if (iso && pNum > 0) {
-moveMap[iso] = moveMap[iso] || {};
-if (!moveMap[iso][pNum]) moveMap[iso][pNum] = it.reason;
-else if (!moveMap[iso][pNum].includes(it.reason)) moveMap[iso][pNum] += ` / ${it.reason}`;
-}
-}
-});
-}
-targetEl.innerHTML = renderAttendanceDetail_(att, moveMap);
-return;
-}
-if (kind === "sleep_detail") {
-const data = await apiPost("sleep_detail", { token, days: 7 });
-if (!data.ok) return showError(data, targetEl);
-targetEl.innerHTML = renderSleepDetail_(data);
-return;
-}
-if (kind === "move_detail") {
-const data = await apiPost("move_detail", { token, days: 7 });
-if (!data.ok) return showError(data, targetEl);
-targetEl.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "복귀교시"], (data.items || []).map(x => [x.date, x.time, x.reason, x.returnPeriod]));
-return;
-}
-if (kind === "eduscore_detail") {
-const data = await apiPost("eduscore_detail", { token, days: 7 });
-if (!data.ok) return showError(data, targetEl);
-targetEl.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "점수"], (data.items || []).map(x => [x.date, x.time, x.reason, x.score]));
-return;
-}
-if (kind === "grade_detail") {
-const summarySel = document.getElementById("gradeSummarySelect");
-const initialExam = summarySel ? String(summarySel.value || "").trim() : "";
-await loadAdminGradeDetailUI_(token, initialExam); // 내부적으로 $("detailResult")를 씁니다
-return;
-}
-targetEl.innerHTML = `<div style="color:#ff6b6b;">지원하지 않는 상세 종류</div>`;
-} catch (e) {
-targetEl.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e.message || "오류")}</div>`;
-}
+    // 5. 성적 상세
+    if (kind === "grade_detail") {
+      const summarySel = document.getElementById("gradeSummarySelect");
+      const initialExam = summarySel ? String(summarySel.value || "").trim() : "";
+      await loadAdminGradeDetailUI_(token, initialExam);
+      return;
+    }
+  } catch (e) {
+    targetEl.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e.message || "오류")}</div>`;
+  }
 }
 
 // showError 함수도 targetEl을 받도록 업데이트
@@ -1051,6 +1038,31 @@ function renderSimpleTable_(headers, rows) {
 const th = headers.map(h => `<th style="text-align:left; padding:8px; border-bottom:1px solid rgba(255,255,255,.08);">${escapeHtml(h)}</th>`).join("");
 const tr = rows.map(r => `<tr>${r.map(c => `<td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06);">${escapeHtml(c)}</td>`).join("")}</tr>`).join("");
 return `<div style="overflow:auto;"><table style="width:100%; border-collapse:collapse; font-size:14px;"><thead><tr>${th}</tr></thead><tbody>${tr || `<tr><td style="padding:10px; opacity:.8;" colspan="${headers.length}">데이터 없음</td></tr>`}</tbody></table></div>`;
+}
+
+/**
+ * ✅ 기간 선택 버튼 UI를 생성하는 함수
+ */
+function renderPeriodSelector_(kind, currentDays) {
+  const options = [7, 15, 30];
+  const buttons = options.map(d => `
+    <button onclick="loadDetail('${kind}', ${d})" 
+            style="padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;
+                   border: 1px solid ${currentDays === d ? '#3498db' : 'rgba(255,255,255,0.15)'};
+                   background: ${currentDays === d ? 'rgba(52, 152, 219, 0.2)' : 'rgba(255,255,255,0.03)'};
+                   color: ${currentDays === d ? '#3498db' : 'rgba(255,255,255,0.7)'};
+                   font-weight: ${currentDays === d ? '800' : 'normal'};
+                   transition: all 0.2s;">
+      ${d}일
+    </button>
+  `).join("");
+
+  return `
+    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 12px;">
+      <span style="font-size: 11px; opacity: 0.5;">조회 기간:</span>
+      ${buttons}
+    </div>
+  `;
 }
 
 // 💡 여기서부터 renderAttendanceDetail_ 함수 전체를 다시 채워 넣으세요!
@@ -1651,6 +1663,7 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
 
