@@ -96,6 +96,35 @@ const ADMIN_SESSION_KEY = "admin_session_v1";
 const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000; 
 const SUMMARY_CACHE_KEY = "admin_summary_cache_v1"; 
 
+/**
+ * ✅ 상세 데이터 전용 캐시 열쇠 생성 (학생+항목+기간 조합)
+ */
+function makeDetailCacheKey(seat, studentId, kind, days) {
+  return `detail|${seat}|${studentId}|${kind}|${days}`;
+}
+
+/**
+ * ✅ 보관함에서 데이터 꺼내기
+ */
+function getDetailCache(key) {
+  const now = Date.now();
+  const store = loadLocalCache_(); // 기존 보관함 함수 사용
+  const it = store[key];
+  // 유효기간(5분)이 지나지 않았을 때만 데이터 반환
+  if (it && it.expireAt > now) return it.data;
+  return null;
+}
+
+/**
+ * ✅ 보관함에 데이터 저장하기 (5분간 유지)
+ */
+function setDetailCache(key, data) {
+  const now = Date.now();
+  const store = loadLocalCache_();
+  store[key] = { expireAt: now + SUMMARY_CACHE_TTL_MS, data: data };
+  saveLocalCache_(store);
+}
+
 const $ = (id) => document.getElementById(id);
 
 function setAdminSession(s) { localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(s)); }
@@ -972,6 +1001,9 @@ window.loadDetail = async function(kind, days = 7) {
   const seat = st.seat || "";
   const studentId = st.studentId || "";
 
+  // 1️⃣ 캐시 열쇠 만들기
+  const cacheKey = makeDetailCacheKey(seat, studentId, kind, days);
+
   const lifeContainer = $("lifeDetailContainer");
   const gradeContainer = $("detailResult");
   const isGrade = (kind === "grade_detail");
@@ -980,11 +1012,21 @@ window.loadDetail = async function(kind, days = 7) {
   if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
   if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
 
+  // 2️⃣ 캐시 확인: 보관함에 똑같은 데이터가 있다면?
+  const cachedData = getDetailCache(cacheKey);
+  if (cachedData) {
+    console.log("캐시 데이터 사용:", cacheKey);
+    renderDetailView(kind, days, cachedData, targetEl); // 즉시 렌더링
+    return; // 함수 종료 (서버에 안 물어봄!)
+  }
+
+  // 3️⃣ 캐시에 없다면: 서버에 요청
   targetEl.innerHTML = "불러오는 중…";
 
   try {
     const token = await issueStudentToken_(seat, studentId);
     
+    // 출결은 주차 기반이라 기존 로직대로 처리
     if (kind === "attendance") {
       const [att, mv, edu] = await Promise.all([ 
         apiPost("attendance", { token }), 
@@ -997,33 +1039,16 @@ window.loadDetail = async function(kind, days = 7) {
       return;
     }
 
-    if (kind === "sleep_detail") {
-      const data = await apiPost("sleep_detail", { token, days: days });
-      if (!data.ok) return showError(data, targetEl);
-      targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSleepDetail_(data);
-      return;
-    }
+    // 그 외 항목(이동/취침/벌점) 처리
+    const data = await apiPost(kind, { token, days: days });
+    if (!data.ok) return showError(data, targetEl);
 
-    if (kind === "move_detail") {
-      const data = await apiPost("move_detail", { token, days: days });
-      if (!data.ok) return showError(data, targetEl);
-      targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSimpleTable_(["날짜", "시간", "사유", "복귀교시"], (data.items || []).map(x => [x.date, x.time, x.reason, x.returnPeriod]));
-      return;
-    }
+    // 4️⃣ 서버에서 받은 결과 보관함에 저장하기
+    setDetailCache(cacheKey, data);
+    
+    // 화면에 그리기
+    renderDetailView(kind, days, data, targetEl);
 
-    if (kind === "eduscore_detail") {
-      const data = await apiPost("eduscore_detail", { token, days: days });
-      if (!data.ok) return showError(data, targetEl);
-      targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSimpleTable_(["날짜", "시간", "사유", "점수"], (data.items || []).map(x => [x.date, x.time, x.reason, x.score]));
-      return;
-    }
-
-    if (kind === "grade_detail") {
-      const summarySel = document.getElementById("gradeSummarySelect");
-      const initialExam = summarySel ? String(summarySel.value || "").trim() : "";
-      await loadAdminGradeDetailUI_(token, initialExam);
-      return;
-    }
   } catch (e) {
     targetEl.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e.message || "오류")}</div>`;
   }
@@ -1039,6 +1064,19 @@ function renderSimpleTable_(headers, rows) {
 const th = headers.map(h => `<th style="text-align:left; padding:8px; border-bottom:1px solid rgba(255,255,255,.08);">${escapeHtml(h)}</th>`).join("");
 const tr = rows.map(r => `<tr>${r.map(c => `<td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06);">${escapeHtml(c)}</td>`).join("")}</tr>`).join("");
 return `<div style="overflow:auto;"><table style="width:100%; border-collapse:collapse; font-size:14px;"><thead><tr>${th}</tr></thead><tbody>${tr || `<tr><td style="padding:10px; opacity:.8;" colspan="${headers.length}">데이터 없음</td></tr>`}</tbody></table></div>`;
+}
+
+/**
+ * ✅ 데이터를 받아 화면에 실제로 그려주는 함수
+ */
+function renderDetailView(kind, days, data, targetEl) {
+  if (kind === "sleep_detail") {
+    targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSleepDetail_(data);
+  } else if (kind === "move_detail") {
+    targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSimpleTable_(["날짜", "시간", "사유", "복귀교시"], (data.items || []).map(x => [x.date, x.time, x.reason, x.returnPeriod]));
+  } else if (kind === "eduscore_detail") {
+    targetEl.innerHTML = renderPeriodSelector_(kind, days) + renderSimpleTable_(["날짜", "시간", "사유", "점수"], (data.items || []).map(x => [x.date, x.time, x.reason, x.score]));
+  }
 }
 
 /**
@@ -1664,6 +1702,7 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
 
