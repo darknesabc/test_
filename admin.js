@@ -987,7 +987,7 @@ if (vulnWrapper) vulnWrapper.style.display = "none";
 }
 
 /**
- * ✅ 전역으로 선언하여 버튼 클릭이 가능하게 수정
+ * ✅ 항목 및 기간 전환 시 모두 캐시를 사용하는 최종 함수
  */
 window.loadDetail = async function(kind, days = 7) {
   const sess = getAdminSession();
@@ -1001,7 +1001,7 @@ window.loadDetail = async function(kind, days = 7) {
   const seat = st.seat || "";
   const studentId = st.studentId || "";
 
-  // 1️⃣ 캐시 열쇠 만들기
+  // 1️⃣ 캐시 열쇠 생성 (항목(kind)이 포함되어 있어 항목 간 전환도 구별됨)
   const cacheKey = makeDetailCacheKey(seat, studentId, kind, days);
 
   const lifeContainer = $("lifeDetailContainer");
@@ -1009,24 +1009,25 @@ window.loadDetail = async function(kind, days = 7) {
   const isGrade = (kind === "grade_detail");
   const targetEl = isGrade ? gradeContainer : (lifeContainer || gradeContainer);
 
+  // 화면 정리
   if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
   if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
 
-  // 2️⃣ 캐시 확인: 보관함에 똑같은 데이터가 있다면?
+  // 2️⃣ 캐시 확인 (항목을 바꿨을 때 이미 본 적 있다면 즉시 출력)
   const cachedData = getDetailCache(cacheKey);
   if (cachedData) {
-    console.log("캐시 데이터 사용:", cacheKey);
-    renderDetailView(kind, days, cachedData, targetEl); // 즉시 렌더링
-    return; // 함수 종료 (서버에 안 물어봄!)
+    console.log(`[캐시 히트] ${kind} - ${days}일 데이터가 즉시 표시됩니다.`);
+    renderDetailView(kind, days, cachedData, targetEl);
+    return; // 서버 요청 안 함
   }
 
-  // 3️⃣ 캐시에 없다면: 서버에 요청
+  // 3️⃣ 캐시가 없을 때만 "불러오는 중" 표시 및 서버 요청
   targetEl.innerHTML = "불러오는 중…";
 
   try {
     const token = await issueStudentToken_(seat, studentId);
     
-    // 출결은 주차 기반이라 기존 로직대로 처리
+    // 출결(attendance)은 별도 로직이므로 기존대로 유지 (필요시 이것도 캐시 가능)
     if (kind === "attendance") {
       const [att, mv, edu] = await Promise.all([ 
         apiPost("attendance", { token }), 
@@ -1039,21 +1040,20 @@ window.loadDetail = async function(kind, days = 7) {
       return;
     }
 
-    // 그 외 항목(이동/취침/벌점) 처리
+    // 이동, 취침, 벌점 데이터 서버에서 가져오기
     const data = await apiPost(kind, { token, days: days });
     if (!data.ok) return showError(data, targetEl);
 
-    // 4️⃣ 서버에서 받은 결과 보관함에 저장하기
+    // 4️⃣ 보관함에 저장 (다음번에 이 항목으로 돌아오면 바로 꺼내기 위함)
     setDetailCache(cacheKey, data);
     
-    // 화면에 그리기
     renderDetailView(kind, days, data, targetEl);
 
   } catch (e) {
     targetEl.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e.message || "오류")}</div>`;
   }
 };
-
+  
 // showError 함수도 targetEl을 받도록 업데이트
 function showError(data, targetEl) { 
 const el = targetEl || $("detailResult");
@@ -1702,6 +1702,7 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
 
