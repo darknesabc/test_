@@ -550,96 +550,84 @@ if (!data.ok) throw new Error(data.error || "token 발급 실패");
 return data.token;
 }
 
+/**
+ * ✅ [개선] 학생 한 명의 모든 요약 데이터(성적 포함)를 한꺼번에 가져오는 함수
+ */
 async function loadSummariesForStudent_(seat, studentId) {
-const summary = {};
-const token = await issueStudentToken_(seat, studentId);
-const [att, slp, mv, edu] = await Promise.allSettled([
-apiPost("attendance_summary", { token }),
-apiPost("sleep_summary", { token }),
-apiPost("move_summary", { token }),
-apiPost("eduscore_summary", { token }),
-]);
+  const summary = {};
+  const token = await issueStudentToken_(seat, studentId);
+  
+  // 모든 요약 정보를 동시에(병렬) 요청
+  const [att, slp, mv, edu, exams, trend] = await Promise.allSettled([
+    apiPost("attendance_summary", { token }),
+    apiPost("sleep_summary", { token }),
+    apiPost("move_summary", { token }),
+    apiPost("eduscore_summary", { token }),
+    apiPost("grade_exams", { token }),
+    apiPost("grade_trend", { token })
+  ]);
 
-summary.attendance = (att.status === "fulfilled") ? att.value : { ok:false, error:String(att.reason || "") };
-summary.sleep      = (slp.status === "fulfilled") ? slp.value : { ok:false, error:String(slp.reason || "") };
-summary.move       = (mv.status === "fulfilled")  ? mv.value  : { ok:false, error:String(mv.reason || "") };
-summary.eduscore   = (edu.status === "fulfilled") ? edu.value : { ok:false, error:String(edu.reason || "") };
+  summary.attendance = (att.status === "fulfilled") ? att.value : { ok:false };
+  summary.sleep      = (slp.status === "fulfilled") ? slp.value : { ok:false };
+  summary.move       = (mv.status === "fulfilled")  ? mv.value  : { ok:false };
+  summary.eduscore   = (edu.status === "fulfilled") ? edu.value : { ok:false };
+  summary.gradeTrend = (trend.status === "fulfilled") ? trend.value : { ok:false };
 
-try {
-const exams = await apiPost("grade_exams", { token });
-const items = (exams && exams.ok && Array.isArray(exams.items)) ? exams.items : [];
-if (items.length) {
-const last = items[items.length - 1] || {};
-const lastExam = String(last.exam || "");
-const gs = await apiPost("grade_summary", { token, exam: lastExam });
-
-summary.grade = gs.ok ? {
-ok: true, exam: lastExam, sheetName: gs.sheetName || last.label || last.name || "", exams: items, data: gs, 
-} : { ok:false, error: gs.error || "grade_summary 실패", exams: items };
-} else {
-summary.grade = { ok:false, error:"시험 목록 없음", exams: [] };
-}
-} catch (e) {
-summary.grade = { ok:false, error: e?.message || "성적 오류", exams: [] };
-}
-return summary;
+  // 가장 최근 시험 성적 요약 처리
+  try {
+    if (exams.status === "fulfilled" && exams.value.ok && exams.value.items.length > 0) {
+      const examItems = exams.value.items;
+      const lastExam = examItems[examItems.length - 1].exam;
+      const gs = await apiPost("grade_summary", { token, exam: lastExam });
+      summary.grade = gs.ok ? { 
+        ok: true, exam: lastExam, data: gs, exams: examItems, 
+        sheetName: gs.sheetName || examItems[examItems.length-1].label || examItems[examItems.length-1].name
+      } : { ok: false, exams: examItems };
+    } else {
+      summary.grade = { ok: false, exams: [] };
+    }
+  } catch (e) {
+    summary.grade = { ok: false, error: e.message, exams: [] };
+  }
+  
+  return summary;
 }
 
 let __activeStudentKey = "";
 
 async function loadStudentDetail(st) {
-const sess = getAdminSession();
-if (!sess?.adminToken) return;
+  const sess = getAdminSession();
+  if (!sess?.adminToken) return;
 
-const seat = String(pick(st, ["seat","좌석"], "")).trim();
-const studentId = String(pick(st, ["studentId","학번"], "")).trim();
-const name = String(pick(st, ["name","studentName","이름"], "")).trim();
-const key = makeStudentKey(seat, studentId);
-__activeStudentKey = key;
+  const seat = String(pick(st, ["seat","좌석"], "")).trim();
+  const studentId = String(pick(st, ["studentId","학번"], "")).trim();
+  const name = String(pick(st, ["name","studentName","이름"], "")).trim();
+  const key = makeStudentKey(seat, studentId);
+  __activeStudentKey = key;
 
-detailSub.textContent = `${name} · ${seat} · ${studentId}`.trim();
-detailBody.innerHTML = "불러오는 중…";
-detailResult.innerHTML = "";
+  detailSub.textContent = `${name} · ${seat} · ${studentId}`.trim();
+  detailResult.innerHTML = "";
 
-try {
-const data = await apiPost("admin_student_detail", { adminToken: sess.adminToken, seat, studentId });
-if (!data.ok) { detailBody.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(data.error || "상세 조회 실패")}</div>`; return; }
+  // 💡 [하이브리드 핵심] 학생을 누른 순간, 이 학생의 15/30일치 상세 데이터도 몰래 부르기 시작!
+  prefetchStudentDetails(seat, studentId);
 
-data.summary = { __loading: true }; 
-renderStudentDetail(data);
+  // 1️⃣ 보관함(Cache) 확인 - 백그라운드 프리페치(엔진1) 덕분에 이미 있을 확률이 높음
+  const cached = getSummaryCache(key);
+  if (cached) {
+    console.log(`⚡ ${name} 학생 데이터를 캐시에서 즉시 로드합니다.`);
+    renderStudentDetail({ student: st, summary: cached }); 
+    return;
+  }
 
-const cached = getSummaryCache(key);
-if (cached) {
-data.summary = cached;
-renderStudentDetail(data);
-(async () => {
-try {
-const fresh = await loadSummariesForStudent_(seat, studentId);
-if (__activeStudentKey !== key) return;
-setSummaryCache(key, fresh || {});
-data.summary = fresh || {};
-renderStudentDetail(data);
-} catch (_) {}
-})();
-return; 
-}
-
-data.summary = { __loading: true };
-renderStudentDetail(data);
-try {
-const summary = await loadSummariesForStudent_(seat, studentId);
-if (__activeStudentKey !== key) return;
-setSummaryCache(key, summary || {});
-data.summary = summary || {};
-renderStudentDetail(data);
-} catch (_) {
-if (__activeStudentKey !== key) return;
-data.summary = {};
-renderStudentDetail(data);
-}
-} catch (e) {
-detailBody.innerHTML = `<div style="color:#ff6b6b;">네트워크 오류</div>`;
-}
+  // 2️⃣ 보관함에 없다면 (로그인 직후 너무 빨리 눌렀을 때만 실행됨)
+  detailBody.innerHTML = "데이터를 불러오는 중…";
+  try {
+    const summary = await loadSummariesForStudent_(seat, studentId);
+    setSummaryCache(key, summary);
+    renderStudentDetail({ student: st, summary: summary });
+  } catch (e) {
+    detailBody.innerHTML = `<div style="color:#ff6b6b;">로딩 오류</div>`;
+  }
 }
 
 function renderStudentDetail(data) {
@@ -1082,21 +1070,20 @@ function renderDetailView(kind, days, data, targetEl) {
 }
 
 /**
- * ✅ [엔진 1] 전체 학생의 요약 데이터를 순차적으로 로딩 (로그인 직후)
+ * ✅ [엔진] 로그인 직후 모든 학생 데이터를 0.5초 간격으로 조용히 가져옴
  */
 async function prefetchAllSummaries(items) {
-  console.log("🚀 전체 학생 요약 프리페칭 시작...");
+  console.log("🚀 전 학생 데이터 백그라운드 로딩 시작...");
   for (const st of items) {
     const key = makeStudentKey(st.seat, st.studentId);
-    if (getSummaryCache(key)) continue; // 이미 보관함에 있다면 건너뜀
+    if (getSummaryCache(key)) continue; // 이미 보관함에 있다면 통과
 
-    // 서버 부하 방지를 위해 0.6초 간격으로 하나씩 가져옴
-    await new Promise(res => setTimeout(res, 600)); 
+    await new Promise(res => setTimeout(res, 500)); // 서버 부하 방지 (0.5초 간격)
     
     loadSummariesForStudent_(st.seat, st.studentId).then(summary => {
       setSummaryCache(key, summary);
-      console.log(`✅ [요약 캐시완료] ${st.name}`);
-    }).catch(() => {}); // 에러나도 멈추지 않고 다음 학생 진행
+      console.log(`✅ ${st.name} 데이터 캐시 완료`);
+    }).catch(() => {});
   }
 }
 
@@ -1749,4 +1736,5 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
