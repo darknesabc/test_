@@ -987,7 +987,7 @@ if (vulnWrapper) vulnWrapper.style.display = "none";
 }
 
 /**
- * ✅ 항목 및 기간 전환 시 모두 캐시를 사용하는 최종 함수
+ * ✅ [최종] 항목/기간 전환 캐시 + 백그라운드 프리페칭 적용
  */
 window.loadDetail = async function(kind, days = 7) {
   const sess = getAdminSession();
@@ -1001,7 +1001,10 @@ window.loadDetail = async function(kind, days = 7) {
   const seat = st.seat || "";
   const studentId = st.studentId || "";
 
-  // 1️⃣ 캐시 열쇠 생성 (항목(kind)이 포함되어 있어 항목 간 전환도 구별됨)
+  // 1️⃣ 상세 페이지 진입 즉시, 이 학생의 다른 기간(15, 30일) 데이터 예약 로딩 (엔진 2 가동)
+  prefetchStudentDetails(seat, studentId);
+
+  // 2️⃣ 캐시 열쇠 생성
   const cacheKey = makeDetailCacheKey(seat, studentId, kind, days);
 
   const lifeContainer = $("lifeDetailContainer");
@@ -1013,21 +1016,21 @@ window.loadDetail = async function(kind, days = 7) {
   if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
   if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
 
-  // 2️⃣ 캐시 확인 (항목을 바꿨을 때 이미 본 적 있다면 즉시 출력)
+  // 3️⃣ 캐시 확인 (항목/기간 전환 시 이미 본 적 있다면 즉시 출력)
   const cachedData = getDetailCache(cacheKey);
   if (cachedData) {
-    console.log(`[캐시 히트] ${kind} - ${days}일 데이터가 즉시 표시됩니다.`);
+    console.log(`[캐시 히트] ${kind} - ${days}일 데이터 표시`);
     renderDetailView(kind, days, cachedData, targetEl);
-    return; // 서버 요청 안 함
+    return; 
   }
 
-  // 3️⃣ 캐시가 없을 때만 "불러오는 중" 표시 및 서버 요청
+  // 4️⃣ 캐시가 없을 때만 서버 요청
   targetEl.innerHTML = "불러오는 중…";
 
   try {
     const token = await issueStudentToken_(seat, studentId);
     
-    // 출결(attendance)은 별도 로직이므로 기존대로 유지 (필요시 이것도 캐시 가능)
+    // 출결(attendance)은 별도 로직
     if (kind === "attendance") {
       const [att, mv, edu] = await Promise.all([ 
         apiPost("attendance", { token }), 
@@ -1040,13 +1043,12 @@ window.loadDetail = async function(kind, days = 7) {
       return;
     }
 
-    // 이동, 취침, 벌점 데이터 서버에서 가져오기
+    // 이동, 취침, 벌점 데이터 가져오기
     const data = await apiPost(kind, { token, days: days });
     if (!data.ok) return showError(data, targetEl);
 
-    // 4️⃣ 보관함에 저장 (다음번에 이 항목으로 돌아오면 바로 꺼내기 위함)
+    // 보관함에 저장
     setDetailCache(cacheKey, data);
-    
     renderDetailView(kind, days, data, targetEl);
 
   } catch (e) {
@@ -1079,6 +1081,48 @@ function renderDetailView(kind, days, data, targetEl) {
   }
 }
 
+/**
+ * ✅ [엔진 1] 전체 학생의 요약 데이터를 순차적으로 로딩 (로그인 직후)
+ */
+async function prefetchAllSummaries(items) {
+  console.log("🚀 전체 학생 요약 프리페칭 시작...");
+  for (const st of items) {
+    const key = makeStudentKey(st.seat, st.studentId);
+    if (getSummaryCache(key)) continue; // 이미 보관함에 있다면 건너뜀
+
+    // 서버 부하 방지를 위해 0.6초 간격으로 하나씩 가져옴
+    await new Promise(res => setTimeout(res, 600)); 
+    
+    loadSummariesForStudent_(st.seat, st.studentId).then(summary => {
+      setSummaryCache(key, summary);
+      console.log(`✅ [요약 캐시완료] ${st.name}`);
+    }).catch(() => {}); // 에러나도 멈추지 않고 다음 학생 진행
+  }
+}
+
+/**
+ * ✅ [엔진 2] 선택된 학생의 15일/30일치 상세 데이터를 미리 로딩 (클릭 직후)
+ */
+async function prefetchStudentDetails(seat, studentId) {
+  const kinds = ["move_detail", "sleep_detail", "eduscore_detail"];
+  const periods = [15, 30]; // 7일은 이미 요청했을 것이므로 15, 30만 미리 가져옴
+  
+  try {
+    const token = await issueStudentToken_(seat, studentId);
+    for (const kind of kinds) {
+      for (const days of periods) {
+        const cacheKey = makeDetailCacheKey(seat, studentId, kind, days);
+        if (getDetailCache(cacheKey)) continue; // 이미 있으면 패스
+
+        await new Promise(res => setTimeout(res, 300)); // 0.3초 간격
+        apiPost(kind, { token, days: days }).then(data => {
+          if (data.ok) setDetailCache(cacheKey, data);
+        }).catch(() => {});
+      }
+    }
+  } catch (e) {}
+}
+  
 /**
  * ✅ 기간 선택 바 렌더링 (이동, 취침, 교육점수 전용)
  */
@@ -1670,6 +1714,9 @@ async function loadClassDashboard() {
         gridHtml += `</div>`;
         dashDiv.innerHTML = gridHtml;
 
+      // 💡 추가: 목록이 뜨자마자 백그라운드에서 전체 요약본 로딩 시작
+        prefetchAllSummaries(items);
+
         const dashHeader = document.getElementById("dashHeader");
         const dashContent = document.getElementById("dashContent");
         const dashToggleIcon = document.getElementById("dashToggleIcon");
@@ -1702,11 +1749,4 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
-
-
-
-
-
-
-
 
