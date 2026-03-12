@@ -1012,19 +1012,19 @@ targetEl.innerHTML = renderAttendanceDetail_(att, moveMap);
 return;
 }
 if (kind === "sleep_detail") {
-const data = await apiPost("sleep_detail", { token, days: 30 });
+const data = await apiPost("sleep_detail", { token, days: 7 });
 if (!data.ok) return showError(data, targetEl);
 targetEl.innerHTML = renderSleepDetail_(data);
 return;
 }
 if (kind === "move_detail") {
-const data = await apiPost("move_detail", { token, days: 30 });
+const data = await apiPost("move_detail", { token, days: 7 });
 if (!data.ok) return showError(data, targetEl);
 targetEl.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "복귀교시"], (data.items || []).map(x => [x.date, x.time, x.reason, x.returnPeriod]));
 return;
 }
 if (kind === "eduscore_detail") {
-const data = await apiPost("eduscore_detail", { token, days: 30 });
+const data = await apiPost("eduscore_detail", { token, days: 7 });
 if (!data.ok) return showError(data, targetEl);
 targetEl.innerHTML = renderSimpleTable_(["날짜", "시간", "사유", "점수"], (data.items || []).map(x => [x.date, x.time, x.reason, x.score]));
 return;
@@ -1651,6 +1651,7 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
 
