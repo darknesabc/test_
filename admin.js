@@ -1078,7 +1078,7 @@ async function prefetchAllSummaries(items) {
     const key = makeStudentKey(st.seat, st.studentId);
     if (getSummaryCache(key)) continue; // 이미 보관함에 있다면 통과
 
-    await new Promise(res => setTimeout(res, 500)); // 서버 부하 방지 (0.5초 간격)
+    await new Promise(res => setTimeout(res, 1000)); // 서버 부하 방지 (1초 간격)
     
     loadSummariesForStudent_(st.seat, st.studentId).then(summary => {
       setSummaryCache(key, summary);
@@ -1736,5 +1736,6 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
