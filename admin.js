@@ -1279,39 +1279,69 @@ window.__lastStudent = { seat: data?.student?.seat || "", studentId: data?.stude
 _origRender(data);
 };
 
+/**
+ * ✅ [개선] 서버에 물어보기 전에 보관함(Summary)에 있는 성적 데이터를 먼저 확인합니다.
+ */
 async function loadAdminGradeTrend(seat, studentId) {
-const canvas = $("adminGradeTrendChart");
-const loadingMsg = $("trendChartLoading");
-if (!canvas) return;
-try {
-const token = await issueStudentToken_(seat, studentId);
-const res = await apiPost("grade_trend", { token });
-if (!res.ok || !res.items || res.items.length === 0) { if (loadingMsg) loadingMsg.textContent = "표시할 성적 데이터가 부족합니다."; return; }
-if (loadingMsg) loadingMsg.style.display = "none";
-const ctx = canvas.getContext('2d');
-if (window.adminChart) window.adminChart.destroy(); 
-window.adminChart = new Chart(ctx, {
-type: 'line',
-data: {
-labels: res.items.map(it => it.label),
-datasets: [
-{ label: '국어(예상)', data: res.items.map(it => it.kor_pct), borderColor: '#3498db', tension: 0.3, fill: false },
-{ label: '수학(예상)', data: res.items.map(it => it.math_pct), borderColor: '#e74c3c', tension: 0.3, fill: false },
-{ label: '탐구1(예상)', data: res.items.map(it => it.tam1_pct), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
-{ label: '탐구2(예상)', data: res.items.map(it => it.tam2_pct), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
-{ label: '영어(등급)', data: res.items.map(it => it.eng_grade), borderColor: '#9b59b6', backgroundColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
-]
-},
-options: {
-responsive: true, maintainAspectRatio: false,
-scales: {
-y: { min: 0, max: 100, title: { display: true, text: '예상 백분위', color: 'rgba(255,255,255,0.5)' }, ticks: { color: 'rgba(255,255,255,0.5)' } },
-y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, title: { display: true, text: '영어 등급', color: '#9b59b6' }, ticks: { color: '#9b59b6', stepSize: 1 } },
-x: { ticks: { color: 'rgba(255,255,255,0.5)' } }
-},
-plugins: { legend: { display: false } } 
+  const canvas = $("adminGradeTrendChart");
+  const loadingMsg = $("trendChartLoading");
+  if (!canvas) return;
+
+  const key = makeStudentKey(seat, studentId);
+  const cachedSummary = getSummaryCache(key);
+
+  // 💡 1. 이미 요약본에 성적 그래프 데이터가 들어있다면 즉시 그립니다!
+  if (cachedSummary && cachedSummary.gradeTrend && cachedSummary.gradeTrend.items) {
+    console.log("📈 성적 그래프를 보관함에서 즉시 그립니다.");
+    if (loadingMsg) loadingMsg.style.display = "none";
+    renderTrendChart_(cachedSummary.gradeTrend.items);
+    return;
+  }
+
+  // 💡 2. 보관함에 없을 때만 서버에서 가져옵니다. (기존 로직)
+  try {
+    const token = await issueStudentToken_(seat, studentId);
+    const res = await apiPost("grade_trend", { token });
+    if (!res.ok || !res.items || res.items.length === 0) {
+      if (loadingMsg) loadingMsg.textContent = "데이터가 부족합니다.";
+      return;
+    }
+    if (loadingMsg) loadingMsg.style.display = "none";
+    renderTrendChart_(res.items);
+  } catch (e) {
+    if (loadingMsg) loadingMsg.textContent = "그래프 로드 오류";
+  }
 }
-});
+
+/**
+ * 💡 그래프를 실제 캔버스에 그려주는 내부 함수 (중복 코드 방지)
+ */
+function renderTrendChart_(items) {
+  const canvas = $("adminGradeTrendChart");
+  const ctx = canvas.getContext('2d');
+  if (window.adminChart) window.adminChart.destroy(); 
+  window.adminChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: items.map(it => it.label),
+      datasets: [
+        { label: '국어', data: items.map(it => it.kor_pct), borderColor: '#3498db', tension: 0.3, fill: false },
+        { label: '수학', data: items.map(it => it.math_pct), borderColor: '#e74c3c', tension: 0.3, fill: false },
+        { label: '탐구1', data: items.map(it => it.tam1_pct), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
+        { label: '탐구2', data: items.map(it => it.tam2_pct), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
+        { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 100 },
+        y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false } }
+      },
+      plugins: { legend: { display: false } } 
+    }
+  });
+}
 
 const filterBtns = document.querySelectorAll(".filter-btn");
 filterBtns.forEach(btn => {
@@ -1745,6 +1775,7 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
 
