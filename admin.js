@@ -1101,9 +1101,15 @@ async function prefetchAllSummaries(items) {
     await new Promise(res => setTimeout(res, 1000)); // 서버 부하 방지 (1초 간격)
     
     loadSummariesForStudent_(st.seat, st.studentId).then(summary => {
-      setSummaryCache(key, summary);
-      console.log(`✅ ${st.name} 데이터 캐시 완료`);
-    }).catch(() => {});
+  
+  setSummaryCache(key, summary); // 1. 데이터를 보관함에 넣습니다.
+  console.log(`✅ ${st.name} 데이터 캐시 완료`); // 2. 성공했다고 기록을 남깁니다.
+
+  // 💡 [여기에 3단계를 추가합니다!]
+  updateRiskNoticePanel(); 
+  // 💡 [추가 끝] 위 함수를 불러서 알림판을 새로 고침 하라는 뜻입니다.
+
+}).catch(() => {});
   }
 }
 
@@ -1675,6 +1681,7 @@ async function loadClassDashboard() {
         const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
 
         let gridHtml = `
+               <div id="riskNoticePanel" style="margin-bottom: 24px; display: none; animation: fadeIn 0.6s ease-out;"></div>
                <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
                  <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
                  <span id="dashToggleIcon" style="font-size:13px; opacity:0.8; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">🔼 접기</span>
@@ -1826,4 +1833,68 @@ window.forceRefreshStudent = async function() {
   alert(`${st.studentName} 학생의 데이터가 최신 상태로 업데이트되었습니다.`);
 };
 
+  /**
+ * ✅ [신규] 보관함 데이터를 분석하여 위험 학생 알림판을 업데이트합니다.
+ */
+window.updateRiskNoticePanel = function() {
+  const panel = document.getElementById("riskNoticePanel");
+  if (!panel) return;
+
+  const store = loadLocalCache_(); // 브라우저 보관함 열기
+  const risks = { penalty: [], attendance: [], sleep: [] };
+
+  // 1. 모든 캐시 데이터를 돌며 위험 학생 필터링
+  Object.keys(store).forEach(key => {
+    if (!store[key].summary) return;
+    const item = store[key].summary;
+    const name = item.student?.studentName || item.student?.name || "알 수 없음";
+    const id = item.student?.studentId || "";
+
+    // 🚩 기준 1: 이번 달 벌점 10점 이상
+    if (item.eduscore?.ok && item.eduscore.monthTotal >= 10) {
+      risks.penalty.push({ name, val: item.eduscore.monthTotal, id });
+    }
+    // 🚩 기준 2: 이번 주 결석 3회 이상
+    if (item.attendance?.ok && item.attendance.absent >= 3) {
+      risks.attendance.push({ name, val: item.attendance.absent, id });
+    }
+    // 🚩 기준 3: 최근 7일 취침 5회 이상
+    if (item.sleep?.ok && item.sleep.sleepTotal7d >= 5) {
+      risks.sleep.push({ name, val: item.sleep.sleepTotal7d, id });
+    }
+  });
+
+  // 2. 위험 학생이 없으면 표시 안 함
+  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+
+  // 3. 알림판 HTML 생성 (디자인)
+  let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+                <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상
+                </div>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">`;
+
+  const createTag = (color, label, list) => {
+    if (list.length === 0) return "";
+    return `<div style="background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 10px; border-left: 4px solid ${color}; flex-grow:1; min-width:200px;">
+              <b style="color:${color}; font-size:12px;">${label}</b><br>
+              <div style="margin-top:5px; font-size:13px; line-height:1.6;">
+                ${list.map(s => `<span style="cursor:pointer; color:#eee; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();">${escapeHtml(s.name)}(${s.val})</span>`).join(", ")}
+              </div>
+            </div>`;
+  };
+
+  html += createTag("#ff4757", "🔴 벌점 과다 (10점↑)", risks.penalty);
+  html += createTag("#ffa502", "📅 결석 주의 (3회↑)", risks.attendance);
+  html += createTag("#f1c40f", "💤 취침 주의 (5회↑)", risks.sleep);
+
+  html += `</div></div>`;
+  panel.innerHTML = html;
+  panel.style.display = "block";
+};
+
 }); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
+
