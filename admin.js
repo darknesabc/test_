@@ -1343,7 +1343,7 @@ function renderTrendChart_(items) {
     }
   });
 
-  // 필터 버튼(국어/수학/탐구 등 토글) 이벤트 연결
+  // ✅ 필터 버튼 이벤트를 함수가 끝날 때 여기에서 연결해줍니다.
   document.querySelectorAll(".filter-btn").forEach(btn => {
     btn.onclick = function() {
       if (!window.adminChart) return;
@@ -1353,21 +1353,6 @@ function renderTrendChart_(items) {
       else { window.adminChart.show(index); this.style.opacity = "1"; }
     };
   });
-}
-
-const filterBtns = document.querySelectorAll(".filter-btn");
-filterBtns.forEach(btn => {
-btn.onclick = function() {
-if (!window.adminChart) return;
-const index = parseInt(this.dataset.index);
-const isVisible = window.adminChart.isDatasetVisible(index);
-if (isVisible) { window.adminChart.hide(index); this.style.opacity = "0.3"; } 
-else { window.adminChart.show(index); this.style.opacity = "1"; }
-};
-});
-} catch (e) {
-if (loadingMsg) loadingMsg.textContent = "그래프 로드 중 오류가 발생했습니다.";
-}
 }
 
 /** ✅ 취약 영역 방사형 차트 (+ 행동영역 상세 분석 카드 추가) */
@@ -1787,10 +1772,3 @@ if (sess?.adminToken) {
 }
 
 }); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
-
-
-
-
-
-
-
