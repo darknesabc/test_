@@ -666,6 +666,7 @@ badgesHtml += `<span style="display:inline-flex; align-items:center; margin-left
 }
 }
 
+// --- renderStudentDetail 함수 내부 ---
 detailBody.innerHTML = `
      <div style="margin-bottom:10px;">
        <div style="display:flex; gap:8px; margin:2px 0; align-items:center;">
@@ -673,7 +674,17 @@ detailBody.innerHTML = `
          <div style="font-weight:600; display:flex; align-items:center; flex-wrap:wrap;">
            <span style="font-size:16px;">${escapeHtml(st.studentName || st.name || "-")}</span>
            ${badgesHtml}
-         </div>
+           
+           <button onclick="forceRefreshStudent()" title="이 학생 데이터 강제 새로고침"
+             style="margin-left:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); 
+                    color:rgba(255,255,255,0.4); cursor:pointer; font-size:14px; padding:2px 6px; 
+                    border-radius:6px; transition:all 0.2s;"
+             onmouseover="this.style.color='#3498db'; this.style.background='rgba(52,152,219,0.1)';"
+             onmouseout="this.style.color='rgba(255,255,255,0.4)'; this.style.background='rgba(255,255,255,0.05)';"
+             id="btnForceRefresh">
+             🔄
+           </button>
+           </div>
        </div>
        ${fmtKeyVal("좌석", st.seat || "-")}
        ${fmtKeyVal("학번", st.studentId || "-")}
@@ -1770,5 +1781,49 @@ async function loadClassDashboard() {
 if (sess?.adminToken) {
   loadClassDashboard(); 
 }
+
+  /**
+ * ✅ [신규] 특정 학생의 캐시를 강제로 비우고 서버에서 데이터를 새로 가져옵니다.
+ */
+window.forceRefreshStudent = async function() {
+  // 1. 현재 보고 있는 학생 정보가 있는지 확인
+  if (!window.__lastStudent) return;
+  
+  const st = window.__lastStudent;
+  const seat = String(st.seat || "").trim();
+  const studentId = String(st.studentId || "").trim();
+  const key = makeStudentKey(seat, studentId);
+  const btn = document.getElementById("btnForceRefresh");
+
+  // 2. 관리자에게 한 번 더 물어보기 (실수 방지)
+  if (!confirm(`${st.studentName} 학생의 모든 데이터를 서버에서 새로 가져올까요?`)) return;
+
+  // 3. 버튼 상태 변경 (진행 중임을 알림)
+  btn.style.pointerEvents = "none"; // 연속 클릭 방지
+  btn.innerText = "⏳";
+  btn.style.opacity = "0.5";
+
+  // 4. [핵심] 보관함(Cache)에서 이 학생의 모든 기록 삭제
+  clearSummaryCache(key); // 요약본 캐시 삭제
+  
+  // 상세 데이터 캐시(이동, 취침, 벌점 7/15/30일치)도 싹 비우기
+  const store = loadLocalCache_();
+  Object.keys(store).forEach(k => {
+    // 해당 학생의 정보가 포함된 모든 캐시 열쇠를 찾아 삭제
+    if (k.includes(`detail|${seat}|${studentId}`) || k === key) {
+      delete store[k];
+    }
+  });
+  saveLocalCache_(store);
+
+  console.log(`♻️ [강제새로고침] ${st.studentName} 학생 캐시 삭제 완료. 서버 요청을 시작합니다.`);
+
+  // 5. 데이터를 처음부터 다시 로드 (함수 재호출)
+  // 이제 캐시가 없으므로 시스템이 자동으로 서버(Apps Script)에 최신 데이터를 요청합니다.
+  await loadStudentDetail(st);
+  
+  // 6. 완료 알림
+  alert(`${st.studentName} 학생의 데이터가 최신 상태로 업데이트되었습니다.`);
+};
 
 }); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
