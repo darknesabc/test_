@@ -631,6 +631,8 @@ async function loadStudentDetail(st) {
     if (!data.ok) { detailBody.innerHTML = `<div style="color:#ff6b6b;">조회 실패</div>`; return; }
     
     const summary = await loadSummariesForStudent_(seat, studentId);
+    // 💡 [추가] 직접 클릭해서 가져올 때도 이름표를 꼭 달아줍니다.
+    summary.student = st;
     setSummaryCache(key, summary);
     data.summary = summary;
     renderStudentDetail(data);
@@ -1095,21 +1097,21 @@ function renderDetailView(kind, days, data, targetEl) {
 async function prefetchAllSummaries(items) {
   console.log("🚀 전 학생 데이터 백그라운드 로딩 시작...");
   for (const st of items) {
-    const key = makeStudentKey(st.seat, st.studentId);
-    if (getSummaryCache(key)) continue; // 이미 보관함에 있다면 통과
+    // 💡 [추가] 학번이 없거나 비어있으면 아예 서버에 묻지도 말고 넘어가세요!
+    const studentId = String(st.studentId || st.학번 || "").trim();
+    if (!studentId) continue; 
 
-    await new Promise(res => setTimeout(res, 1000)); // 서버 부하 방지 (1초 간격)
+    const key = makeStudentKey(st.seat, studentId);
+    if (getSummaryCache(key)) continue; 
+
+    await new Promise(res => setTimeout(res, 1000)); 
     
-    loadSummariesForStudent_(st.seat, st.studentId).then(summary => {
-  
-  setSummaryCache(key, summary); // 1. 데이터를 보관함에 넣습니다.
-  console.log(`✅ ${st.name} 데이터 캐시 완료`); // 2. 성공했다고 기록을 남깁니다.
-
-  // 💡 [여기에 3단계를 추가합니다!]
-  updateRiskNoticePanel(); 
-  // 💡 [추가 끝] 위 함수를 불러서 알림판을 새로 고침 하라는 뜻입니다.
-
-}).catch(() => {});
+    loadSummariesForStudent_(st.seat, studentId).then(summary => {
+      summary.student = st; // 이름표 달아주기
+      setSummaryCache(key, summary);
+      console.log(`✅ ${st.name} 데이터 캐시 완료`);
+      updateRiskNoticePanel(); 
+    }).catch(() => {});
   }
 }
 
@@ -1840,15 +1842,16 @@ window.updateRiskNoticePanel = function() {
   const panel = document.getElementById("riskNoticePanel");
   if (!panel) return;
 
-  const store = loadLocalCache_(); // 브라우저 보관함 열기
+  const store = loadLocalCache_();
   const risks = { penalty: [], attendance: [], sleep: [] };
 
   // 1. 모든 캐시 데이터를 돌며 위험 학생 필터링
   Object.keys(store).forEach(key => {
-    if (!store[key].summary) return;
     const item = store[key].summary;
-    const name = item.student?.studentName || item.student?.name || "알 수 없음";
-    const id = item.student?.studentId || "";
+    // 💡 [수정] 이름표(student)가 아예 없거나, 이름이 "알 수 없음"이면 분석 대상에서 제외!
+    if (!item || !item.student || !item.student.name || item.student.name === "알 수 없음") return;
+    const name = item.student.name;
+    const id = item.student.studentId;
 
     // 🚩 기준 1: 이번 달 벌점 10점 이상
     if (item.eduscore?.ok && item.eduscore.monthTotal >= 10) {
@@ -1859,7 +1862,7 @@ window.updateRiskNoticePanel = function() {
       risks.attendance.push({ name, val: item.attendance.absent, id });
     }
     // 🚩 기준 3: 최근 7일 취침 5회 이상
-    if (item.sleep?.ok && item.sleep.sleepTotal7d >= 5) {
+   if (item.sleep?.ok && item.sleep.sleepTotal7d >= 5) {
       risks.sleep.push({ name, val: item.sleep.sleepTotal7d, id });
     }
   });
@@ -1897,4 +1900,5 @@ window.updateRiskNoticePanel = function() {
 };
 
 }); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
+
 
