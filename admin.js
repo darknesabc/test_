@@ -1280,7 +1280,7 @@ _origRender(data);
 };
 
 /**
- * ✅ [개선] 서버에 물어보기 전에 보관함(Summary)에 있는 성적 데이터를 먼저 확인합니다.
+ * ✅ [최종 통합] 성적 그래프 그리기 (보관함 우선 조회 + 필터 연결)
  */
 async function loadAdminGradeTrend(seat, studentId) {
   const canvas = $("adminGradeTrendChart");
@@ -1290,15 +1290,15 @@ async function loadAdminGradeTrend(seat, studentId) {
   const key = makeStudentKey(seat, studentId);
   const cachedSummary = getSummaryCache(key);
 
-  // 💡 1. 이미 요약본에 성적 그래프 데이터가 들어있다면 즉시 그립니다!
+  // 1. 이미 보관함(Summary)에 성적 데이터가 있다면 즉시 그립니다.
   if (cachedSummary && cachedSummary.gradeTrend && cachedSummary.gradeTrend.items) {
-    console.log("📈 성적 그래프를 보관함에서 즉시 그립니다.");
+    console.log("📈 성적 그래프를 보관함에서 즉시 로드합니다.");
     if (loadingMsg) loadingMsg.style.display = "none";
     renderTrendChart_(cachedSummary.gradeTrend.items);
     return;
   }
 
-  // 💡 2. 보관함에 없을 때만 서버에서 가져옵니다. (기존 로직)
+  // 2. 보관함에 없다면 서버에서 새로 가져옵니다.
   try {
     const token = await issueStudentToken_(seat, studentId);
     const res = await apiPost("grade_trend", { token });
@@ -1314,12 +1314,13 @@ async function loadAdminGradeTrend(seat, studentId) {
 }
 
 /**
- * 💡 그래프를 실제 캔버스에 그려주는 내부 함수 (중복 코드 방지)
+ * 💡 그래프를 실제 캔버스에 그려주는 내부 함수
  */
 function renderTrendChart_(items) {
   const canvas = $("adminGradeTrendChart");
   const ctx = canvas.getContext('2d');
   if (window.adminChart) window.adminChart.destroy(); 
+
   window.adminChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1340,6 +1341,17 @@ function renderTrendChart_(items) {
       },
       plugins: { legend: { display: false } } 
     }
+  });
+
+  // 필터 버튼(국어/수학/탐구 등 토글) 이벤트 연결
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    btn.onclick = function() {
+      if (!window.adminChart) return;
+      const index = parseInt(this.dataset.index);
+      const isVisible = window.adminChart.isDatasetVisible(index);
+      if (isVisible) { window.adminChart.hide(index); this.style.opacity = "0.3"; } 
+      else { window.adminChart.show(index); this.style.opacity = "1"; }
+    };
   });
 }
 
@@ -1775,6 +1787,7 @@ if (sess?.adminToken) {
 }
 
 }); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
+
 
 
 
