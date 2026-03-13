@@ -1771,10 +1771,11 @@ async function loadClassDashboard() {
 }
    
 if (sess?.adminToken) {
-loadClassDashboard(); 
+  loadClassDashboard(); 
 }
 
-}); // 파일의 진짜 마지막 줄
+}); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
+
 
 
 
