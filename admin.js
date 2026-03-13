@@ -551,13 +551,13 @@ return data.token;
 }
 
 /**
- * ✅ [개선] 학생 한 명의 모든 요약 데이터(성적 포함)를 한꺼번에 가져오는 함수
+ * ✅ [완전판] 학생 한 명의 모든 요약 데이터(성적 포함)를 한꺼번에 가져오는 함수
  */
 async function loadSummariesForStudent_(seat, studentId) {
   const summary = {};
   const token = await issueStudentToken_(seat, studentId);
   
-  // 모든 요약 정보를 동시에(병렬) 요청
+  // 모든 요약 정보와 성적 그래프 데이터를 동시에 요청 (병렬 로딩)
   const [att, slp, mv, edu, exams, trend] = await Promise.allSettled([
     apiPost("attendance_summary", { token }),
     apiPost("sleep_summary", { token }),
@@ -579,8 +579,12 @@ async function loadSummariesForStudent_(seat, studentId) {
       const examItems = exams.value.items;
       const lastExam = examItems[examItems.length - 1].exam;
       const gs = await apiPost("grade_summary", { token, exam: lastExam });
+      
       summary.grade = gs.ok ? { 
-        ok: true, exam: lastExam, data: gs, exams: examItems, 
+        ok: true, 
+        exam: lastExam, 
+        data: gs, 
+        exams: examItems, 
         sheetName: gs.sheetName || examItems[examItems.length-1].label || examItems[examItems.length-1].name
       } : { ok: false, exams: examItems };
     } else {
@@ -608,25 +612,30 @@ async function loadStudentDetail(st) {
   detailSub.textContent = `${name} · ${seat} · ${studentId}`.trim();
   detailResult.innerHTML = "";
 
-  // 💡 [하이브리드 핵심] 학생을 누른 순간, 이 학생의 15/30일치 상세 데이터도 몰래 부르기 시작!
+  // 💡 상세 데이터 프리페치 엔진 가동
   prefetchStudentDetails(seat, studentId);
 
-  // 1️⃣ 보관함(Cache) 확인 - 백그라운드 프리페치(엔진1) 덕분에 이미 있을 확률이 높음
+  // 1️⃣ 보관함(Cache) 확인
   const cached = getSummaryCache(key);
   if (cached) {
     console.log(`⚡ ${name} 학생 데이터를 캐시에서 즉시 로드합니다.`);
+    // 💡 중요: render 함수에 보내는 형식을 { student, summary } 로 통일
     renderStudentDetail({ student: st, summary: cached }); 
     return;
   }
 
-  // 2️⃣ 보관함에 없다면 (로그인 직후 너무 빨리 눌렀을 때만 실행됨)
+  // 2️⃣ 보관함에 없을 때만 로딩 표시 후 호출
   detailBody.innerHTML = "데이터를 불러오는 중…";
   try {
+    const data = await apiPost("admin_student_detail", { adminToken: sess.adminToken, seat, studentId });
+    if (!data.ok) { detailBody.innerHTML = `<div style="color:#ff6b6b;">조회 실패</div>`; return; }
+    
     const summary = await loadSummariesForStudent_(seat, studentId);
     setSummaryCache(key, summary);
-    renderStudentDetail({ student: st, summary: summary });
+    data.summary = summary;
+    renderStudentDetail(data);
   } catch (e) {
-    detailBody.innerHTML = `<div style="color:#ff6b6b;">로딩 오류</div>`;
+    detailBody.innerHTML = `<div style="color:#ff6b6b;">네트워크 오류</div>`;
   }
 }
 
@@ -1736,6 +1745,7 @@ loadClassDashboard();
 }
 
 }); // 파일의 진짜 마지막 줄
+
 
 
 
