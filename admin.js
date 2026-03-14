@@ -1117,8 +1117,8 @@ document.addEventListener("DOMContentLoaded", () => {
         continue;
       }
 
-      // 대기 시간: 1.5초 (구글 할당량 제한 방지용)
-      await new Promise(res => setTimeout(res, 1500));
+      // 대기 시간: 1초 (구글 할당량 제한 방지용)
+      await new Promise(res => setTimeout(res, 1000));
 
       try {
         const summary = await loadSummariesForStudent_(st.seat, studentId);
