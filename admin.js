@@ -1093,79 +1093,64 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /**
- * ✅ [초고속 안정화 버전] 전 학생 데이터 백그라운드 로딩 엔진 (묶음 처리)
- * - 한 번에 3명씩 묶어서 동시에 가져와 로딩 속도를 3배 향상!
- */
-async function prefetchAllSummaries(items) {
-  console.log("🚀 전 학생 데이터 백그라운드 로딩 시작 (초고속 묶음 모드)...");
-  
-  const total = items.length;
-  let current = 0;
-  let errorCount = 0;
-  const dashHeader = document.querySelector("#dashHeader span");
-
-  // 💡 [핵심] 한 번에 가져올 학생 수 (구글 서버가 버티는 안전선: 2~3명)
-  const CHUNK_SIZE = 3; 
-
-  // 학생 목록을 3명씩 잘라서 루프를 돕니다.
-  for (let i = 0; i < total; i += CHUNK_SIZE) {
-    const chunk = items.slice(i, i + CHUNK_SIZE);
+   * ✅ [최종 안정화 버전] 전 학생 데이터 백그라운드 로딩 엔진
+   * - 구글 서버 부하를 방지하기 위해 속도를 조절하고 에러 처리를 강화함
+   */
+  async function prefetchAllSummaries(items) {
+    console.log("🚀 전 학생 데이터 백그라운드 로딩 시작...");
     
-    // 3명의 학생 데이터를 "동시에" 요청합니다.
-    const promises = chunk.map(async (st) => {
+    const total = items.length;
+    let current = 0;
+    let errorCount = 0; // 연속 에러 횟수 체크
+    const dashHeader = document.querySelector("#dashHeader span");
+
+    for (const st of items) {
+      current++;
       const studentId = String(st.studentId || st.학번 || "").trim();
-      if (!studentId) {
-        current++; return;
-      }
+      if (!studentId) continue;
 
       const key = makeStudentKey(st.seat, studentId);
       
       // 이미 데이터가 있다면 패스
       if (getSummaryCache(key)) {
-        current++; return;
+        if (dashHeader) dashHeader.innerHTML = `📊 현황 <span style="font-size:12px; color:#3498db;">(${current}/${total} 완료)</span>`;
+        continue;
       }
+
+      // 대기 시간: 1초 (구글 할당량 제한 방지용)
+      await new Promise(res => setTimeout(res, 1000));
 
       try {
         const summary = await loadSummariesForStudent_(st.seat, studentId);
         if (summary) {
           summary.student = st;
           setSummaryCache(key, summary);
-          current++;
-          console.log(`✅ [${current}/${total}] ${st.name} 완료`);
-          errorCount = 0; // 성공 시 에러 카운트 초기화
+          console.log(`✅ [${current}/${total}] ${st.name} 로드 완료`);
+          updateRiskNoticePanel();
+          errorCount = 0; // 성공하면 에러 카운트 초기화
         }
       } catch (e) {
-        current++;
         errorCount++;
-        console.warn(`⚠️ [${current}/${total}] ${st.name} 실패:`, e.message);
+        console.warn(`⚠️ [${current}/${total}] ${st.name} 로드 실패:`, e.message);
+        
+        // 연속으로 3번 이상 에러가 나면 서버가 과부화된 것이므로 잠시 더 쉼
+        if (errorCount >= 3) {
+          console.log("⏳ 연속 에러 발생으로 10초간 정지합니다...");
+          await new Promise(res => setTimeout(res, 10000));
+          errorCount = 0;
+        }
       }
-    });
 
-    // 💡 3명의 데이터가 모두 도착할 때까지 한 번만 기다립니다.
-    await Promise.allSettled(promises);
-    updateRiskNoticePanel(); // 3명 끝날 때마다 알림판 갱신
+      if (dashHeader) {
+        dashHeader.innerHTML = `📊 현황 <span style="font-size:12px; color:#f1c40f;">(${current}/${total} 로딩 중...)</span>`;
+      }
+    }
 
     if (dashHeader) {
-      dashHeader.innerHTML = `📊 현황 <span style="font-size:12px; color:#f1c40f;">(${current}/${total} 로딩 중...)</span>`;
-    }
-
-    // 💡 다음 3명을 부르기 전에 서버에 1.5초 휴식을 줍니다. (안정성 확보)
-    if (errorCount >= 3) {
-      console.log("⏳ 구글 서버 과부하 조짐! 8초간 숨 고르기...");
-      await new Promise(res => setTimeout(res, 8000));
-      errorCount = 0;
-    } else {
-      await new Promise(res => setTimeout(res, 1500)); 
+      const role = getAdminSession()?.role === "super" ? "학원 전체" : "오늘의 우리 반";
+      dashHeader.innerHTML = `📊 ${role} 현황 <span style="font-size:12px; color:#2ecc71;">(모든 데이터 로드 완료)</span>`;
     }
   }
-
-  // 모든 작업 완료
-  if (dashHeader) {
-    const role = getAdminSession()?.role === "super" ? "학원 전체" : "오늘의 우리 반";
-    dashHeader.innerHTML = `📊 ${role} 현황 <span style="font-size:12px; color:#2ecc71;">(모든 데이터 로드 완료 ⚡)</span>`;
-  }
-  console.log("🏁 모든 데이터 로딩이 초고속으로 완료되었습니다!");
-}
 
   /**
    * ✅ [엔진 2] 선택된 학생의 15일/30일치 상세 데이터를 미리 로딩 (클릭 직후)
