@@ -1092,50 +1092,59 @@ function renderDetailView(kind, days, data, targetEl) {
 }
 
 /**
- * ✅ [엔진] 로그인 직후 모든 학생 데이터를 0.5초 간격으로 조용히 가져옴
+ * ✅ [안정화 버전] 전 학생 데이터 백그라운드 로딩 엔진
+ * - 진행률 표시, 에러 발생 시 자동 건너뛰기 로직 포함
  */
 async function prefetchAllSummaries(items) {
   console.log("🚀 전 학생 데이터 백그라운드 로딩 시작...");
+  
+  const total = items.length;
+  let current = 0;
+  // 진행률을 표시할 헤더 찾기
+  const dashHeader = document.querySelector("#dashHeader span"); 
+
   for (const st of items) {
-    // 💡 [추가] 학번이 없거나 비어있으면 아예 서버에 묻지도 말고 넘어가세요!
+    current++;
     const studentId = String(st.studentId || st.학번 || "").trim();
-    if (!studentId) continue; 
+    
+    // 1. 학번 없는 줄 건너뛰기
+    if (!studentId) continue;
 
     const key = makeStudentKey(st.seat, studentId);
-    if (getSummaryCache(key)) continue; 
-
-    await new Promise(res => setTimeout(res, 1000)); 
     
-    loadSummariesForStudent_(st.seat, studentId).then(summary => {
-      summary.student = st; // 이름표 달아주기
-      setSummaryCache(key, summary);
-      console.log(`✅ ${st.name} 데이터 캐시 완료`);
-      updateRiskNoticePanel(); 
-    }).catch(() => {});
-  }
-}
-
-/**
- * ✅ [엔진 2] 선택된 학생의 15일/30일치 상세 데이터를 미리 로딩 (클릭 직후)
- */
-async function prefetchStudentDetails(seat, studentId) {
-  const kinds = ["move_detail", "sleep_detail", "eduscore_detail"];
-  const periods = [15, 30]; // 7일은 이미 요청했을 것이므로 15, 30만 미리 가져옴
-  
-  try {
-    const token = await issueStudentToken_(seat, studentId);
-    for (const kind of kinds) {
-      for (const days of periods) {
-        const cacheKey = makeDetailCacheKey(seat, studentId, kind, days);
-        if (getDetailCache(cacheKey)) continue; // 이미 있으면 패스
-
-        await new Promise(res => setTimeout(res, 300)); // 0.3초 간격
-        apiPost(kind, { token, days: days }).then(data => {
-          if (data.ok) setDetailCache(cacheKey, data);
-        }).catch(() => {});
-      }
+    // 2. 이미 보관함에 있다면 진행률만 업데이트하고 패스 (중복 작업 방지)
+    if (getSummaryCache(key)) {
+      if (dashHeader) dashHeader.innerHTML = `📊 현황 <span style="font-size:12px; color:#3498db;">(${current}/${total} 완료)</span>`;
+      continue;
     }
-  } catch (e) {}
+
+    // 3. 서버 부하 방지 (1.2초 간격)
+    await new Promise(res => setTimeout(res, 1200));
+
+    // 4. 데이터 가져오기 시도
+    try {
+      const summary = await loadSummariesForStudent_(st.seat, studentId);
+      if (summary) {
+        summary.student = st; // 이름표 달아주기
+        setSummaryCache(key, summary);
+        console.log(`✅ [${current}/${total}] ${st.name} 완료`);
+        updateRiskNoticePanel(); // 알림판 갱신
+      }
+    } catch (e) {
+      console.warn(`⚠️ [${current}/${total}] ${st.name} 실패:`, e.message);
+    }
+
+    // 5. 실시간 진행 상황 업데이트
+    if (dashHeader) {
+      dashHeader.innerHTML = `📊 현황 <span style="font-size:12px; color:#f1c40f;">(${current}/${total} 로딩 중...)</span>`;
+    }
+  }
+
+  // 6. 종료 시 문구 변경
+  if (dashHeader) {
+    dashHeader.innerHTML = `📊 오늘의 우리 반 현황 <span style="font-size:12px; color:#2ecc71;">(로딩 완료)</span>`;
+  }
+  console.log("🏁 모든 데이터 로딩이 끝났습니다.");
 }
   
 /**
