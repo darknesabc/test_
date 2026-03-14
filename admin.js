@@ -1092,59 +1092,63 @@ function renderDetailView(kind, days, data, targetEl) {
 }
 
 /**
- * ✅ [안정화 버전] 전 학생 데이터 백그라운드 로딩 엔진
- * - 진행률 표시, 에러 발생 시 자동 건너뛰기 로직 포함
+ * ✅ [최종 안정화 버전] 전 학생 데이터 백그라운드 로딩 엔진
+ * - 구글 서버 부하를 방지하기 위해 속도를 조절하고 에러 처리를 강화함
  */
 async function prefetchAllSummaries(items) {
   console.log("🚀 전 학생 데이터 백그라운드 로딩 시작...");
   
   const total = items.length;
   let current = 0;
-  // 진행률을 표시할 헤더 찾기
-  const dashHeader = document.querySelector("#dashHeader span"); 
+  let errorCount = 0; // 연속 에러 횟수 체크
+  const dashHeader = document.querySelector("#dashHeader span");
 
   for (const st of items) {
     current++;
     const studentId = String(st.studentId || st.학번 || "").trim();
-    
-    // 1. 학번 없는 줄 건너뛰기
     if (!studentId) continue;
 
     const key = makeStudentKey(st.seat, studentId);
     
-    // 2. 이미 보관함에 있다면 진행률만 업데이트하고 패스 (중복 작업 방지)
+    // 이미 데이터가 있다면 패스
     if (getSummaryCache(key)) {
       if (dashHeader) dashHeader.innerHTML = `📊 현황 <span style="font-size:12px; color:#3498db;">(${current}/${total} 완료)</span>`;
       continue;
     }
 
-    // 3. 서버 부하 방지 (1.2초 간격)
-    await new Promise(res => setTimeout(res, 1200));
+    // 대기 시간: 2.5초 (구글 할당량 제한 방지용)
+    await new Promise(res => setTimeout(res, 2500));
 
-    // 4. 데이터 가져오기 시도
     try {
       const summary = await loadSummariesForStudent_(st.seat, studentId);
       if (summary) {
-        summary.student = st; // 이름표 달아주기
+        summary.student = st;
         setSummaryCache(key, summary);
-        console.log(`✅ [${current}/${total}] ${st.name} 완료`);
-        updateRiskNoticePanel(); // 알림판 갱신
+        console.log(`✅ [${current}/${total}] ${st.name} 로드 완료`);
+        updateRiskNoticePanel();
+        errorCount = 0; // 성공하면 에러 카운트 초기화
       }
     } catch (e) {
-      console.warn(`⚠️ [${current}/${total}] ${st.name} 실패:`, e.message);
+      errorCount++;
+      console.warn(`⚠️ [${current}/${total}] ${st.name} 로드 실패:`, e.message);
+      
+      // 연속으로 3번 이상 에러가 나면 서버가 과부화된 것이므로 잠시 더 쉼
+      if (errorCount >= 3) {
+        console.log("⏳ 연속 에러 발생으로 10초간 정지합니다...");
+        await new Promise(res => setTimeout(res, 10000));
+        errorCount = 0;
+      }
     }
 
-    // 5. 실시간 진행 상황 업데이트
     if (dashHeader) {
       dashHeader.innerHTML = `📊 현황 <span style="font-size:12px; color:#f1c40f;">(${current}/${total} 로딩 중...)</span>`;
     }
   }
 
-  // 6. 종료 시 문구 변경
   if (dashHeader) {
-    dashHeader.innerHTML = `📊 오늘의 우리 반 현황 <span style="font-size:12px; color:#2ecc71;">(로딩 완료)</span>`;
+    const role = getAdminSession()?.role === "super" ? "학원 전체" : "오늘의 우리 반";
+    dashHeader.innerHTML = `📊 ${role} 현황 <span style="font-size:12px; color:#2ecc71;">(모든 데이터 로드 완료)</span>`;
   }
-  console.log("🏁 모든 데이터 로딩이 끝났습니다.");
 }
   
 /**
