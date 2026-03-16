@@ -1760,13 +1760,31 @@ document.addEventListener("DOMContentLoaded", () => {
                   if (edu >= 15) badgeEdu = `<span style="${bStyle} background:#6c5ce7; color:white;">💯 위험 ${edu}</span>`;
                   else if (edu >= 10) badgeEdu = `<span style="${bStyle} background:#a29bfe; color:white;">💯 경고 ${edu}</span>`;
 
-                  // 5. 실시간 상태 신호등 (기존과 동일)
-                  const cs = String(st.currentStatus);
-                  let lampColor = "rgba(255,255,255,0.15)";
-                  if (cs === "1" || cs === "3S") {lampColor = "#2ecc71";}
-                  else if (cs === "3") lampColor = "#ff4757";
-                  else if (cs === "2") lampColor = "#f1c40f";
-                  const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
+                  // 5. 실시간 상태 신호등 (수정 버전)
+const cs = String(st.currentStatus);
+const reason = String(st.currentReason || "").trim(); // 현재 이동 사유 가져오기
+let lampColor = "rgba(255,255,255,0.15)";
+
+if (cs === "1") {
+  lampColor = "#2ecc71"; // 정상 출석 -> 초록색
+} 
+else if (cs === "3S") {
+  // 💡 상태가 3S(이동)일 때, 사유가 '화장실/정수기'인 경우만 초록색으로!
+  if (reason === "화장실/정수기") {
+    lampColor = "#2ecc71"; 
+  } else {
+    // 그 외 수업 이동 등은 원래대로 주황색 표시
+    lampColor = "#f39c12"; 
+  }
+} 
+else if (cs === "3") {
+  lampColor = "#ff4757"; // 무단 결석 -> 빨간색
+} 
+else if (cs === "2") {
+  lampColor = "#f1c40f"; // 지각 -> 노란색
+}
+
+const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
 
                   // 6. 카드 조립 (뱃지들을 하나의 컨테이너로 묶음)
                   gridHtml += `
