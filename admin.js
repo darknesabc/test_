@@ -1763,9 +1763,8 @@ document.addEventListener("DOMContentLoaded", () => {
                   // 5. 실시간 상태 신호등 (기존과 동일)
                   const cs = String(st.currentStatus);
                   let lampColor = "rgba(255,255,255,0.15)";
-                  if (cs === "1") lampColor = "#2ecc71";
+                  if (cs === "1" || cs === "3S") {lampColor = "#2ecc71";}
                   else if (cs === "3") lampColor = "#ff4757";
-                  else if (cs === "3S") lampColor = "#f39c12";
                   else if (cs === "2") lampColor = "#f1c40f";
                   const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
 
