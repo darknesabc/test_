@@ -5,7 +5,7 @@
 // ✅ 여기에 Apps Script Web App URL(…/exec) 넣기
 const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_oNES0soDEyWz0N0suAsuZU35QJOSypO2LFC-Z2dpbDyoD/exec";
 
-// ⭐️ [신규 추가] 성적 그래프 전환을 위한 전역 변수
+// ✅ 성적 그래프 및 상태 관리를 위한 전역 변수
 let currentTrendItems = []; 
 let currentMode = 'pct';
 
@@ -834,27 +834,12 @@ async function loadSummariesForStudent_(seat, studentId) {
           <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
         </section>
 
-        <section class="card" style="padding:14px; margin:0;">
+        // --- 성적 요약 카드 섹션 ---
+<section class="card" style="padding:14px; margin:0;">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
     <div style="display:flex; align-items:center; gap:10px;">
       <div class="card-title" style="font-size:15px; margin:0;">📊 성적 요약</div>
       ${grd && Array.isArray(grd.exams) && grd.exams.length ? `
-        <select id="gradeSummarySelect" class="select" style="min-width:140px; font-size:13px; padding:4px 8px;">
-          ${grd.exams.map(it => {
-            const ex = String(it.exam || "");
-            const label = String(it.label || it.name || ex || "");
-            const sel = (ex === String(grd.exam || "")) ? "selected" : "";
-            return `<option value="${escapeHtml(ex)}" ${sel}>${escapeHtml(label)}</option>`;
-          }).join("")}
-        </select>
-      ` : ``}
-    </div>
-    <button class="btn btn-ghost btn-mini" id="btnGradeDetail" style="padding:6px 10px;">상세</button>
-  </div><section class="card" style="padding:14px; margin:0;">
-  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-    <div style="display:flex; align-items:center; gap:10px;">
-      <div class="card-title" style="font-size:15px; margin:0;">📊 성적 요약</div>
-      ${grd && Array.isArray(grd.exams) ? `
         <select id="gradeSummarySelect" class="select" style="min-width:140px; font-size:13px; padding:4px 8px;">
           ${!grd.ok ? `<option value="" selected disabled>시험을 선택하세요</option>` : ''}
           ${grd.exams.map(it => {
@@ -866,20 +851,22 @@ async function loadSummariesForStudent_(seat, studentId) {
         </select>
       ` : ``}
     </div>
+    <button class="btn btn-ghost btn-mini" id="btnGradeDetail" style="padding:6px 10px;">상세</button>
   </div>
   
   <div class="card-sub" style="margin-top:10px;">
     <div id="gradeSummaryLabel" style="margin-bottom:8px; font-weight:600; color:rgba(255,255,255,0.8);">
       ${grd && grd.ok ? `(${escapeHtml(grd.sheetName || "")})` : ""}
     </div>
+
     <div id="gradeSummaryTable">
       ${grd && grd.ok 
         ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {})) 
         : `
           <div style="text-align:center; padding:30px 10px; color:rgba(255,255,255,0.5); border:1px dashed rgba(255,255,255,0.1); border-radius:12px;">
             <div style="font-size:20px; margin-bottom:8px;">💡</div>
-            이 시험(또는 최신 시험)은 아직 데이터가 없습니다.<br>
-            상단 드롭다운에서 성적을 확인하고 싶은 월을 <b style="color:#3498db;">선택하세요</b>.
+            이 시험은 아직 성적 데이터가 없습니다.<br>
+            상단 드롭다운에서 성적을 <b style="color:#3498db;">선택하세요</b>.
           </div>
         `}
     </div>
