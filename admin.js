@@ -813,7 +813,7 @@ async function loadSummariesForStudent_(seat, studentId) {
           <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
         </section>
 
-        // --- 성적 요약 카드 섹션 ---
+        
 <section class="card" style="padding:14px; margin:0;">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
     <div style="display:flex; align-items:center; gap:10px;">
