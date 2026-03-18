@@ -1651,6 +1651,7 @@ function renderTrendChart_(items) {
   }
   }
   });
+  };
 
   // [전체 (누적)] 토글 버튼
   const allBtn = document.createElement("button");
@@ -2009,4 +2010,4 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
     panel.style.display = "block";
   };
 
-}; // 💡 핵심: 반드시 }); 로 끝나야 합니다!
+}); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
