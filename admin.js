@@ -1591,19 +1591,99 @@ function renderTrendChart_(items) {
       if (elements.length === 0) return; 
 
       const idx = elements[0].index;
-      const item = data[idx];
+      const item = data[idx]; 
 
-      // 💡 [추가] 0점인 단원들을 모두 찾습니다.
-      const zeroScoreItems = data.filter(d => Number(d.score) === 0);
+      // 🎯 [분리] 기존의 상세 카드 렌더링 로직을 함수로 묶습니다.
+      const renderDetailCard = (targetItem, targetIdx) => {
+        if (!targetItem || !targetItem.details || Object.keys(targetItem.details).length === 0) {
+          detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 행동영역 데이터가 없습니다.</div>`;
+          detailCard.style.display = "block";
+          return;
+        }
 
-      // 💡 [핵심] 클릭한 단원이 0점이고, 0점인 단원이 여러 개일 경우 선택 메뉴 표시
-      if (Number(item.score) === 0 && zeroScoreItems.length > 1) {
-        renderZeroSelectionMenu(zeroScoreItems);
-        return;
+        let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
+        html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[targetIdx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
+        html += `🔍 [${escapeHtml(targetItem.area)}] 세부 영역 분석</div>`;
+
+        for (const [beh, stats] of Object.entries(targetItem.details)) {
+          if (!beh || beh === "기타") continue;
+          const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
+
+          let color = "#2ecc71"; 
+          if (pct < 50) color = "#e74c3c"; 
+          else if (pct < 80) color = "#f1c40f"; 
+
+          html += `
+             <div style="margin-bottom: 12px;">
+               <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; font-weight: 600;">
+                 <span style="opacity:0.9;">${escapeHtml(beh)}</span>
+                 <span style="color:${color};">${pct}% <span style="opacity:0.6; font-size:11px; margin-left:4px;">(${stats.o}/${stats.n})</span></span>
+               </div>
+               <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
+                 <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 6px; transition: width 0.5s ease-out;"></div>
+               </div>
+             </div>
+          `;
+        }
+        html += `</div>`;
+
+        detailCard.innerHTML = html;
+        detailCard.style.display = "block";
+
+        setTimeout(() => {
+          detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+      };
+
+      // 🎯 [신규] 0점인 데이터들이 여러 개 겹쳐있는지 확인
+      const zeroItems = [];
+      data.forEach((d, i) => {
+        if (d.score === 0 || d.score === 0.0) {
+          zeroItems.push({ item: d, index: i });
+        }
+      });
+
+      // 클릭한 항목이 0점이고, 0점인 항목이 2개 이상일 때 -> 사용자 선택 UI 제공
+      if (item.score === 0 && zeroItems.length > 1) {
+        let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
+        html += `<div style="font-size: 14px; font-weight: 800; margin-bottom: 12px; color: #fff; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
+        html += `🎯 여러 단원의 성취도가 0%로 겹쳐있습니다.<br>상세 분석을 확인할 단원을 선택하세요.</div>`;
+        html += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+
+        // 겹친 0% 항목들을 버튼으로 생성
+        zeroItems.forEach(z => {
+          const btnColor = pointColors[z.index] || '#3498db';
+          html += `<button class="zero-select-btn" data-idx="${z.index}" style="padding: 6px 12px; background: transparent; border: 1px solid ${btnColor}; border-radius: 6px; color: ${btnColor}; font-weight:bold; cursor: pointer; transition: background 0.2s;">
+            ${escapeHtml(z.item.area)}
+          </button>`;
+        });
+
+        html += `</div></div>`;
+        detailCard.innerHTML = html;
+        detailCard.style.display = "block";
+
+        // 생성된 버튼들에 이벤트 연결
+        const btns = detailCard.querySelectorAll('.zero-select-btn');
+        btns.forEach(btn => {
+          btn.addEventListener('click', function() {
+            const selectedIdx = parseInt(this.getAttribute('data-idx'));
+            // 버튼 클릭 시 최종 선택한 단원의 상세 카드 렌더링
+            renderDetailCard(data[selectedIdx], selectedIdx); 
+          });
+          // 간단한 Hover 효과
+          btn.addEventListener('mouseover', function() { this.style.background = 'rgba(255,255,255,0.1)'; });
+          btn.addEventListener('mouseout', function() { this.style.background = 'transparent'; });
+        });
+
+        setTimeout(() => {
+          detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 100);
+
+        return; // 선택 화면을 띄웠으므로 이벤트 종료
       }
 
-      // 0점이 아니거나 0점이 하나뿐이면 기존 로직 실행
-      renderDetailView(item, idx);
+      // 0점이 아니거나, 0점인 항목이 1개뿐이라면 기존처럼 바로 상세 화면 표시
+      renderDetailCard(item, idx);
     },
     plugins: { 
       legend: { display: false },
@@ -1621,97 +1701,6 @@ function renderTrendChart_(items) {
     }
   }
 });
-
-/**
- * 💡 [신규] 0점 단원이 여러 개일 때 보여줄 선택 메뉴
- */
-function renderZeroSelectionMenu(zeroItems) {
-  let html = `
-    <div style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; text-align:center;">
-      <div style="font-weight:800; margin-bottom:14px; color:#fff;">📍 0점인 단원이 여러 개입니다.<br><span style="font-size:12px; opacity:0.7; font-weight:normal;">분석할 단원을 선택해주세요.</span></div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-  `;
-
-  zeroItems.forEach(it => {
-    // data 배열에서 이 단원의 원래 인덱스를 찾음
-    const originalIdx = data.findIndex(d => d.area === it.area);
-    const color = pointColors[originalIdx] || '#3498db';
-    
-    html += `
-      <button onclick='renderDetailViewByIndex(${originalIdx})' 
-        style="background:rgba(255,255,255,0.05); border:1px solid ${color}; color:#fff; padding:10px; border-radius:8px; cursor:pointer; font-size:12px; transition:all 0.2s;"
-        onmouseover="this.style.background='${color}22'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">
-        ${escapeHtml(it.area)}
-      </button>
-    `;
-  });
-
-  html += `</div></div>`;
-  detailCard.innerHTML = html;
-  detailCard.style.display = "block";
-}
-
-/**
- * 💡 [신규] 인덱스로 상세 뷰 호출 (버튼 클릭용)
- */
-window.renderDetailViewByIndex = function(idx) {
-  const item = data[idx];
-  renderDetailView(item, idx);
-};
-
-/**
- * 💡 [기존 유지] 상세 분석 카드 렌더링 함수
- */
-function renderDetailView(item, idx) {
-  if (!item || !item.details || Object.keys(item.details).length === 0) {
-    detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 행동영역 데이터가 없습니다.</div>`;
-    detailCard.style.display = "block";
-    return;
-  }
-
-  let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
-  html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[idx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
-  html += `🔍 [${escapeHtml(item.area)}] 세부 영역 분석</div>`;
-
-  for (const [beh, stats] of Object.entries(item.details)) {
-    if (!beh || beh === "기타") continue;
-    const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
-    let color = "#2ecc71"; 
-    if (pct < 50) color = "#e74c3c"; 
-    else if (pct < 80) color = "#f1c40f"; 
-
-    html += `
-      <div style="margin-bottom: 12px;">
-        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; font-weight: 600;">
-          <span style="opacity:0.9;">${escapeHtml(beh)}</span>
-          <span style="color:${color};">${pct}% <span style="opacity:0.6; font-size:11px; margin-left:4px;">(${stats.o}/${stats.n})</span></span>
-        </div>
-        <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
-          <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 6px; transition: width 0.5s ease-out;"></div>
-        </div>
-      </div>
-    `;
-  }
-  html += `</div>`;
-  detailCard.innerHTML = html;
-  detailCard.style.display = "block";
-  setTimeout(() => { detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
-}
-    plugins: { 
-      legend: { display: false },
-      tooltip: { 
-        callbacks: {
-          label: function(context) {
-            const item = data[context.dataIndex];
-            // 💡 툴팁에는 3%가 아닌 실제 0% 점수를 표시
-            return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항) - 클릭하여 상세분석`;
-          }
-        }
-      }
-    }
-  }
-});
-  };
 
   // [전체 (누적)] 토글 버튼
   const allBtn = document.createElement("button");
