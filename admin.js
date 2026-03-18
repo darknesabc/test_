@@ -835,21 +835,36 @@ document.addEventListener("DOMContentLoaded", () => {
       ` : ``}
     </div>
     <button class="btn btn-ghost btn-mini" id="btnGradeDetail" style="padding:6px 10px;">상세</button>
+  </div><section class="card" style="padding:14px; margin:0;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="card-title" style="font-size:15px; margin:0;">📊 성적 요약</div>
+      ${grd && Array.isArray(grd.exams) ? `
+        <select id="gradeSummarySelect" class="select" style="min-width:140px; font-size:13px; padding:4px 8px;">
+          ${!grd.ok ? `<option value="" selected disabled>시험을 선택하세요</option>` : ''}
+          ${grd.exams.map(it => {
+            const ex = String(it.exam || "");
+            const label = String(it.label || it.name || ex || "");
+            const sel = (ex === String(grd.exam || "")) ? "selected" : "";
+            return `<option value="${escapeHtml(ex)}" ${sel}>${escapeHtml(label)}</option>`;
+          }).join("")}
+        </select>
+      ` : ``}
+    </div>
   </div>
   
   <div class="card-sub" style="margin-top:10px;">
     <div id="gradeSummaryLabel" style="margin-bottom:8px; font-weight:600; color:rgba(255,255,255,0.8);">
       ${grd && grd.ok ? `(${escapeHtml(grd.sheetName || "")})` : ""}
     </div>
-
     <div id="gradeSummaryTable">
       ${grd && grd.ok 
         ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {})) 
         : `
           <div style="text-align:center; padding:30px 10px; color:rgba(255,255,255,0.5); border:1px dashed rgba(255,255,255,0.1); border-radius:12px;">
             <div style="font-size:20px; margin-bottom:8px;">💡</div>
-            이 시험은 아직 성적 데이터가 없습니다.<br>
-            상단 드롭다운에서 다른 시험을 <b style="color:#3498db;">선택하세요</b>.
+            이 시험(또는 최신 시험)은 아직 데이터가 없습니다.<br>
+            상단 드롭다운에서 성적을 확인하고 싶은 월을 <b style="color:#3498db;">선택하세요</b>.
           </div>
         `}
     </div>
