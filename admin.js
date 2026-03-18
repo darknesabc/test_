@@ -562,7 +562,6 @@ async function loadSummariesForStudent_(seat, studentId) {
   const summary = {};
   const token = await issueStudentToken_(seat, studentId);
   
-  // 1. 모든 기초 요약 정보와 시험 목록을 한꺼번에 요청 (병렬 로딩)
   const [att, slp, mv, edu, examsResult, trend] = await Promise.allSettled([
     apiPost("attendance_summary", { token }),
     apiPost("sleep_summary", { token }),
@@ -572,46 +571,26 @@ async function loadSummariesForStudent_(seat, studentId) {
     apiPost("grade_trend", { token })
   ]);
 
-  // 기초 데이터 결과 매핑
   summary.attendance = (att.status === "fulfilled") ? att.value : { ok:false };
   summary.sleep      = (slp.status === "fulfilled") ? slp.value : { ok:false };
   summary.move       = (mv.status === "fulfilled")  ? mv.value  : { ok:false };
   summary.eduscore   = (edu.status === "fulfilled") ? edu.value : { ok:false };
   summary.gradeTrend = (trend.status === "fulfilled") ? trend.value : { ok:false };
 
-  // 2. 💡 [핵심 변경] 성적 데이터 자동 탐색 로직
+  // 💡 성적 데이터 자동 탐색 엔진 (최신순으로 뒤져서 데이터 있는 달을 찾음)
   if (examsResult.status === "fulfilled" && examsResult.value.ok) {
-    const examItems = examsResult.value.items; // [3월, 4월] 등의 목록
+    const examItems = examsResult.value.items;
     let foundGrade = null;
 
-    // 뒤에서부터(최신순) 거꾸로 돌면서 데이터가 있는 시험을 찾습니다.
     for (let i = examItems.length - 1; i >= 0; i--) {
-      const examKey = examItems[i].exam;
-      // 해당 월의 요약 데이터를 요청해봅니다.
-      const gs = await apiPost("grade_summary", { token, exam: examKey });
-
+      const gs = await apiPost("grade_summary", { token, exam: examItems[i].exam });
       if (gs.ok) {
-        // 데이터를 찾았다면 보관하고 반복문을 종료(break)합니다.
-        foundGrade = { 
-          ok: true, 
-          exam: examKey, 
-          data: gs, 
-          exams: examItems, 
-          sheetName: gs.sheetName 
-        };
+        foundGrade = { ok: true, exam: examItems[i].exam, data: gs, exams: examItems, sheetName: gs.sheetName };
         break; 
       }
     }
-
-    // 3. 만약 하나도 못 찾았다면(모든 시트가 비었다면), 가장 마지막 시트를 기준으로 '데이터 없음' 표시
-    if (!foundGrade && examItems.length > 0) {
-      const lastEx = examItems[examItems.length - 1];
-      summary.grade = { ok: false, exam: lastEx.exam, exams: examItems };
-    } else {
-      summary.grade = foundGrade;
-    }
-  } else {
-    summary.grade = { ok: false, exams: [] };
+    // 데이터가 하나도 없으면 드롭다운이라도 보이게 설정
+    summary.grade = foundGrade || { ok: false, exam: examItems[examItems.length-1].exam, exams: examItems };
   }
   
   return summary;
