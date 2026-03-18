@@ -841,10 +841,17 @@ document.addEventListener("DOMContentLoaded", () => {
     <div id="gradeSummaryLabel" style="margin-bottom:8px; font-weight:600; color:rgba(255,255,255,0.8);">
       ${grd && grd.ok ? `(${escapeHtml(grd.sheetName || "")})` : ""}
     </div>
+
     <div id="gradeSummaryTable">
       ${grd && grd.ok 
         ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {})) 
-        : `<div style="opacity:0.6; padding:10px 0;">데이터가 없습니다. 상단에서 월을 선택하세요.</div>`}
+        : `
+          <div style="text-align:center; padding:30px 10px; color:rgba(255,255,255,0.5); border:1px dashed rgba(255,255,255,0.1); border-radius:12px;">
+            <div style="font-size:20px; margin-bottom:8px;">💡</div>
+            이 시험은 아직 성적 데이터가 없습니다.<br>
+            상단 드롭다운에서 다른 시험을 <b style="color:#3498db;">선택하세요</b>.
+          </div>
+        `}
     </div>
   </div>
 </section>
