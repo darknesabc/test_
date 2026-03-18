@@ -1390,16 +1390,32 @@ async function loadSummariesForStudent_(seat, studentId) {
   }
 
   /**
-   * 💡 그래프를 실제 캔버스에 그려주는 내부 함수
-   */
-  function renderTrendChart_(items) {
-  currentTrendItems = items; 
+ * 📈 [최종 통합 버전] 그래프 렌더링 + 모드 전환 + 과목 필터링
+ */
+function renderTrendChart_(items) {
+  currentTrendItems = items; // 데이터 전역 저장
   const canvas = $("adminGradeTrendChart");
   const ctx = canvas.getContext('2d');
   if (window.adminChart) window.adminChart.destroy(); 
 
+  // 1️⃣ [UI 업데이트] 백분위/원점수 버튼 활성화 스타일 적용
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    if (btn.dataset.mode === currentMode) {
+      btn.style.background = "#3498db";
+      btn.style.color = "white";
+      btn.style.fontWeight = "bold";
+      btn.classList.add("active");
+    } else {
+      btn.style.background = "transparent";
+      btn.style.color = "rgba(255,255,255,0.5)";
+      btn.style.fontWeight = "normal";
+      btn.classList.remove("active");
+    }
+  });
+
   const suffix = currentMode === 'pct' ? '_pct' : '_raw';
   
+  // 2️⃣ [차트 생성]
   window.adminChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -1415,20 +1431,40 @@ async function loadSummariesForStudent_(seat, studentId) {
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
-        y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+        y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } },
         y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
       },
-      plugins: { 
-        legend: { display: false } // ✅ 차트 내부 범례 숨기기 (이 코드가 핵심!)
-      }
+      plugins: { legend: { display: false } } 
     }
   });
 
-  // 버튼 이벤트 다시 연결
+  // 3️⃣ [이벤트 연결] 모드 전환 버튼 (백분위 <-> 원점수)
   document.querySelectorAll(".mode-btn").forEach(btn => {
     btn.onclick = function() {
       currentMode = this.dataset.mode;
-      renderTrendChart_(currentTrendItems);
+      renderTrendChart_(currentTrendItems); // 자신의 상태를 포함해 다시 그리기
+    };
+  });
+
+  // 4️⃣ [이벤트 연결] 과목 필터 버튼 (표시/미표시)
+  document.querySelectorAll(".filter-btn").forEach(btn => {
+    // 다시 그려질 때 버튼의 투명도를 차트 가시성 상태와 동기화
+    const index = parseInt(btn.dataset.index);
+    const isVisible = window.adminChart.isDatasetVisible(index);
+    btn.style.opacity = isVisible ? "1" : "0.3";
+
+    btn.onclick = function() {
+      if (!window.adminChart) return;
+      const idx = parseInt(this.dataset.index);
+      const visible = window.adminChart.isDatasetVisible(idx);
+      
+      if (visible) {
+        window.adminChart.hide(idx);
+        this.style.opacity = "0.3";
+      } else {
+        window.adminChart.show(idx);
+        this.style.opacity = "1";
+      }
     };
   });
 }
