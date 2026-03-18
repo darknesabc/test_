@@ -820,31 +820,34 @@ document.addEventListener("DOMContentLoaded", () => {
         </section>
 
         <section class="card" style="padding:14px; margin:0;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <div style="display:flex; align-items:center; gap:10px;">
-              <div class="card-title" style="font-size:15px; margin:0;">📊 성적 요약</div>
-              ${grd && Array.isArray(grd.exams) && grd.exams.length ? `
-                <select id="gradeSummarySelect" class="select" style="min-width:140px; font-size:13px; padding:4px 8px;">
-                  ${grd.exams.map(it => {
-                    const ex = String(it.exam || "");
-                    const label = String(it.label || it.name || ex || "");
-                    const sel = (ex === String(grd.exam || "")) ? "selected" : "";
-                    return `<option value="${escapeHtml(ex)}" ${sel}>${escapeHtml(label)}</option>`;
-                  }).join("")}
-                </select>
-              ` : ``}
-            </div>
-            <button class="btn btn-ghost btn-mini" id="btnGradeDetail" style="padding:6px 10px;">상세</button>
-          </div>
-          <div class="card-sub" style="margin-top:10px;">
-            ${grd && grd.ok ? `
-              <div id="gradeSummaryLabel" style="margin-bottom:8px; font-weight:600; color:rgba(255,255,255,0.8);">(${escapeHtml(grd.sheetName || "")})</div>
-              <div id="gradeSummaryTable">
-                ${renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {}))}
-              </div>
-            ` : (loading ? "불러오는 중…" : "데이터 없음")}
-          </div>
-        </section>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div class="card-title" style="font-size:15px; margin:0;">📊 성적 요약</div>
+      ${grd && Array.isArray(grd.exams) && grd.exams.length ? `
+        <select id="gradeSummarySelect" class="select" style="min-width:140px; font-size:13px; padding:4px 8px;">
+          ${grd.exams.map(it => {
+            const ex = String(it.exam || "");
+            const label = String(it.label || it.name || ex || "");
+            const sel = (ex === String(grd.exam || "")) ? "selected" : "";
+            return `<option value="${escapeHtml(ex)}" ${sel}>${escapeHtml(label)}</option>`;
+          }).join("")}
+        </select>
+      ` : ``}
+    </div>
+    <button class="btn btn-ghost btn-mini" id="btnGradeDetail" style="padding:6px 10px;">상세</button>
+  </div>
+  
+  <div class="card-sub" style="margin-top:10px;">
+    <div id="gradeSummaryLabel" style="margin-bottom:8px; font-weight:600; color:rgba(255,255,255,0.8);">
+      ${grd && grd.ok ? `(${escapeHtml(grd.sheetName || "")})` : ""}
+    </div>
+    <div id="gradeSummaryTable">
+      ${grd && grd.ok 
+        ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {})) 
+        : `<div style="opacity:0.6; padding:10px 0;">데이터가 없습니다. 상단에서 월을 선택하세요.</div>`}
+    </div>
+  </div>
+</section>
 
       </div>
     `;
