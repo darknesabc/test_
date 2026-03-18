@@ -556,51 +556,66 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /**
-   * ✅ [완전판] 학생 한 명의 모든 요약 데이터(성적 포함)를 한꺼번에 가져오는 함수
-   */
-  async function loadSummariesForStudent_(seat, studentId) {
-    const summary = {};
-    const token = await issueStudentToken_(seat, studentId);
-    
-    // 모든 요약 정보와 성적 그래프 데이터를 동시에 요청 (병렬 로딩)
-    const [att, slp, mv, edu, exams, trend] = await Promise.allSettled([
-      apiPost("attendance_summary", { token }),
-      apiPost("sleep_summary", { token }),
-      apiPost("move_summary", { token }),
-      apiPost("eduscore_summary", { token }),
-      apiPost("grade_exams", { token }),
-      apiPost("grade_trend", { token })
-    ]);
+ * ✅ [수정본] 데이터가 있는 최신 성적을 자동으로 찾아주는 로딩 엔진
+ */
+async function loadSummariesForStudent_(seat, studentId) {
+  const summary = {};
+  const token = await issueStudentToken_(seat, studentId);
+  
+  // 1. 모든 기초 요약 정보와 시험 목록을 한꺼번에 요청 (병렬 로딩)
+  const [att, slp, mv, edu, examsResult, trend] = await Promise.allSettled([
+    apiPost("attendance_summary", { token }),
+    apiPost("sleep_summary", { token }),
+    apiPost("move_summary", { token }),
+    apiPost("eduscore_summary", { token }),
+    apiPost("grade_exams", { token }),
+    apiPost("grade_trend", { token })
+  ]);
 
-    summary.attendance = (att.status === "fulfilled") ? att.value : { ok:false };
-    summary.sleep      = (slp.status === "fulfilled") ? slp.value : { ok:false };
-    summary.move       = (mv.status === "fulfilled")  ? mv.value  : { ok:false };
-    summary.eduscore   = (edu.status === "fulfilled") ? edu.value : { ok:false };
-    summary.gradeTrend = (trend.status === "fulfilled") ? trend.value : { ok:false };
+  // 기초 데이터 결과 매핑
+  summary.attendance = (att.status === "fulfilled") ? att.value : { ok:false };
+  summary.sleep      = (slp.status === "fulfilled") ? slp.value : { ok:false };
+  summary.move       = (mv.status === "fulfilled")  ? mv.value  : { ok:false };
+  summary.eduscore   = (edu.status === "fulfilled") ? edu.value : { ok:false };
+  summary.gradeTrend = (trend.status === "fulfilled") ? trend.value : { ok:false };
 
-    // 가장 최근 시험 성적 요약 처리
-    try {
-      if (exams.status === "fulfilled" && exams.value.ok && exams.value.items.length > 0) {
-        const examItems = exams.value.items;
-        const lastExam = examItems[examItems.length - 1].exam;
-        const gs = await apiPost("grade_summary", { token, exam: lastExam });
-        
-        summary.grade = gs.ok ? { 
+  // 2. 💡 [핵심 변경] 성적 데이터 자동 탐색 로직
+  if (examsResult.status === "fulfilled" && examsResult.value.ok) {
+    const examItems = examsResult.value.items; // [3월, 4월] 등의 목록
+    let foundGrade = null;
+
+    // 뒤에서부터(최신순) 거꾸로 돌면서 데이터가 있는 시험을 찾습니다.
+    for (let i = examItems.length - 1; i >= 0; i--) {
+      const examKey = examItems[i].exam;
+      // 해당 월의 요약 데이터를 요청해봅니다.
+      const gs = await apiPost("grade_summary", { token, exam: examKey });
+
+      if (gs.ok) {
+        // 데이터를 찾았다면 보관하고 반복문을 종료(break)합니다.
+        foundGrade = { 
           ok: true, 
-          exam: lastExam, 
+          exam: examKey, 
           data: gs, 
           exams: examItems, 
-          sheetName: gs.sheetName || examItems[examItems.length-1].label || examItems[examItems.length-1].name
-        } : { ok: false, exams: examItems };
-      } else {
-        summary.grade = { ok: false, exams: [] };
+          sheetName: gs.sheetName 
+        };
+        break; 
       }
-    } catch (e) {
-      summary.grade = { ok: false, error: e.message, exams: [] };
     }
-    
-    return summary;
+
+    // 3. 만약 하나도 못 찾았다면(모든 시트가 비었다면), 가장 마지막 시트를 기준으로 '데이터 없음' 표시
+    if (!foundGrade && examItems.length > 0) {
+      const lastEx = examItems[examItems.length - 1];
+      summary.grade = { ok: false, exam: lastEx.exam, exams: examItems };
+    } else {
+      summary.grade = foundGrade;
+    }
+  } else {
+    summary.grade = { ok: false, exams: [] };
   }
+  
+  return summary;
+}
 
   let __activeStudentKey = "";
 
