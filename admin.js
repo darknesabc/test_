@@ -1701,6 +1701,7 @@ function renderTrendChart_(items) {
     }
   }
 });
+  })
 
   // [전체 (누적)] 토글 버튼
   const allBtn = document.createElement("button");
