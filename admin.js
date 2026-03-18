@@ -1393,50 +1393,45 @@ async function loadSummariesForStudent_(seat, studentId) {
    * 💡 그래프를 실제 캔버스에 그려주는 내부 함수
    */
   function renderTrendChart_(items) {
-  currentTrendItems = items; // 데이터 저장
+  currentTrendItems = items; 
   const canvas = $("adminGradeTrendChart");
   const ctx = canvas.getContext('2d');
   if (window.adminChart) window.adminChart.destroy(); 
 
-  // 선택된 모드에 따라 데이터 필드 결정
   const suffix = currentMode === 'pct' ? '_pct' : '_raw';
-  const yMax = currentMode === 'pct' ? 100 : 100; // 원점수 만점이 다를 경우 조정 필요
-
+  
   window.adminChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: items.map(it => it.label),
       datasets: [
-        { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db' },
-        { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c' },
-        { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71' },
-        { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f' },
-        { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', yAxisID: 'y_eng' }
+        { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', tension: 0.3, fill: false },
+        { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
+        { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
+        { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
+        { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
       ]
     },
     options: {
+      responsive: true, maintainAspectRatio: false,
       scales: {
-        y: { min: 0, max: yMax, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수' } },
-        y_eng: { position: 'right', min: 1, max: 9, reverse: true }
+        y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+        y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
+      },
+      plugins: { 
+        legend: { display: false } // ✅ 차트 내부 범례 숨기기 (이 코드가 핵심!)
       }
     }
   });
-}
 
-// 모드 전환 버튼 이벤트 연결
-document.querySelectorAll(".mode-btn").forEach(btn => {
-  btn.onclick = function() {
-    document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
-    this.classList.add("active");
-    currentMode = this.dataset.mode;
-    
-    // 버튼 색상 변경 및 그래프 다시 그리기
-    document.querySelectorAll(".mode-btn").forEach(b => b.style.background = "rgba(255,255,255,0.1)");
-    this.style.background = "#3498db";
-    
-    renderTrendChart_(currentTrendItems);
-  };
-});
+  // 버튼 이벤트 다시 연결
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    btn.onclick = function() {
+      currentMode = this.dataset.mode;
+      renderTrendChart_(currentTrendItems);
+    };
+  });
+}
 
   /** ✅ 취약 영역 방사형 차트 (+ 행동영역 상세 분석 카드 추가) */
   function renderVulnerabilityChart(unitsBySubject, token) {
