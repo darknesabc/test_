@@ -818,7 +818,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <div style="display:flex; align-items:center; gap:10px;">
               <div class="card-title" style="font-size:15px; margin:0;">📊 성적 요약</div>
-              ${grd && grd.ok && Array.isArray(grd.exams) && grd.exams.length ? `
+              ${grd && Array.isArray(grd.exams) && grd.exams.length ? `
                 <select id="gradeSummarySelect" class="select" style="min-width:140px; font-size:13px; padding:4px 8px;">
                   ${grd.exams.map(it => {
                     const ex = String(it.exam || "");
