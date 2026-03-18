@@ -1556,41 +1556,30 @@ function renderTrendChart_(items) {
   window.vulnChart = new Chart(ctx, {
   type: 'radar',
   data: {
-    // 💡 [개선 1] 단원명이 길면 두 줄로 나누어 차트를 가리지 않게 함
-    labels: data.map(d => {
-      const area = d.area || "";
-      return area.length > 8 ? [area.substring(0, Math.ceil(area.length / 2)), area.substring(Math.ceil(area.length / 2))] : area;
-    }),
+    labels: data.map(d => d.area),
     datasets: [{
       label: `${currentSubject} 성취도(%)`,
-      // 💡 [핵심] 0점인 경우 시각적으로만 3% 위치에 표시하여 중앙 겹침 방지
-      data: data.map(d => (Number(d.score) === 0 ? 3 : d.score)), 
-      backgroundColor: isAccumulatedMode ? 'rgba(231, 76, 60, 0.12)' : 'rgba(52, 152, 219, 0.12)', 
-      borderColor: 'rgba(255, 255, 255, 0.2)',
+      data: data.map(d => d.score),
+      backgroundColor: isAccumulatedMode ? 'rgba(231, 76, 60, 0.15)' : 'rgba(52, 152, 219, 0.15)', 
+      borderColor: 'rgba(255, 255, 255, 0.3)',
       pointBackgroundColor: pointColors,
       pointBorderColor: pointColors,
-      pointRadius: 4,
-      pointHoverRadius: 7, 
-      borderWidth: 1.5
+      pointRadius: 5,
+      pointHoverRadius: 8,
+      borderWidth: 2
     }]
   },
   options: {
-    // 💡 [개선 2] 마우스가 정확히 '점' 위에 올라갔을 때만 반응 (정신 사나움 방지)
-    interaction: {
-      mode: 'nearest',
-      intersect: true 
-    },
     responsive: true,
     maintainAspectRatio: false,
     scales: {
       r: {
-        min: 0, max: 100,
-        grid: { color: 'rgba(255,255,255,0.08)' },
-        angleLines: { color: 'rgba(255,255,255,0.08)' },
-        pointLabels: {
-          padding: 20, // 💡 글자와 차트 사이 간격 확보
-          color: 'rgba(255,255,255,0.7)',
-          font: { size: 11, weight: '600' }
+        min: 0, max: 100, beginAtZero: true,
+        grid: { color: 'rgba(255,255,255,0.15)' },
+        angleLines: { color: 'rgba(255,255,255,0.15)' },
+        pointLabels: { 
+          color: (context) => pointColors[context.index] || 'rgba(255,255,255,0.85)', 
+          font: { size: 12, weight: 'bold' } 
         },
         ticks: { display: false, stepSize: 20 }
       }
@@ -1600,39 +1589,114 @@ function renderTrendChart_(items) {
     },
     onClick: (e, elements) => {
       if (elements.length === 0) return; 
+
       const idx = elements[0].index;
       const item = data[idx];
 
-      if (!item || !item.details || Object.keys(item.details).length === 0) {
-        detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 데이터가 없습니다.</div>`;
-        detailCard.style.display = "block";
+      // 💡 [추가] 0점인 단원들을 모두 찾습니다.
+      const zeroScoreItems = data.filter(d => Number(d.score) === 0);
+
+      // 💡 [핵심] 클릭한 단원이 0점이고, 0점인 단원이 여러 개일 경우 선택 메뉴 표시
+      if (Number(item.score) === 0 && zeroScoreItems.length > 1) {
+        renderZeroSelectionMenu(zeroScoreItems);
         return;
       }
 
-      // --- (기존 상세 분석 카드 렌더링 로직 유지) ---
-      let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px;">`;
-      html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[idx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">🔍 [${escapeHtml(item.area)}] 세부 영역 분석</div>`;
-      
-      for (const [beh, stats] of Object.entries(item.details)) {
-        if (!beh || beh === "기타") continue;
-        const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
-        let color = pct < 50 ? "#e74c3c" : (pct < 80 ? "#f1c40f" : "#2ecc71");
-        html += `
-          <div style="margin-bottom: 12px;">
-            <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; font-weight: 600;">
-              <span style="opacity:0.9;">${escapeHtml(beh)}</span>
-              <span style="color:${color};">${pct}% <span style="opacity:0.6; font-size:11px; margin-left:4px;">(${stats.o}/${stats.n})</span></span>
-            </div>
-            <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
-              <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 6px;"></div>
-            </div>
-          </div>`;
-      }
-      html += `</div>`;
-      detailCard.innerHTML = html;
-      detailCard.style.display = "block";
-      setTimeout(() => detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+      // 0점이 아니거나 0점이 하나뿐이면 기존 로직 실행
+      renderDetailView(item, idx);
     },
+    plugins: { 
+      legend: { display: false },
+      tooltip: { 
+        callbacks: {
+          label: function(context) {
+            const item = data[context.dataIndex];
+            if (item && item.n !== undefined) {
+              return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항) - 클릭하여 상세분석`;
+            }
+            return ` 성취도: ${item.score}%`;
+          }
+        }
+      }
+    }
+  }
+});
+
+/**
+ * 💡 [신규] 0점 단원이 여러 개일 때 보여줄 선택 메뉴
+ */
+function renderZeroSelectionMenu(zeroItems) {
+  let html = `
+    <div style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; text-align:center;">
+      <div style="font-weight:800; margin-bottom:14px; color:#fff;">📍 0점인 단원이 여러 개입니다.<br><span style="font-size:12px; opacity:0.7; font-weight:normal;">분석할 단원을 선택해주세요.</span></div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+  `;
+
+  zeroItems.forEach(it => {
+    // data 배열에서 이 단원의 원래 인덱스를 찾음
+    const originalIdx = data.findIndex(d => d.area === it.area);
+    const color = pointColors[originalIdx] || '#3498db';
+    
+    html += `
+      <button onclick='renderDetailViewByIndex(${originalIdx})' 
+        style="background:rgba(255,255,255,0.05); border:1px solid ${color}; color:#fff; padding:10px; border-radius:8px; cursor:pointer; font-size:12px; transition:all 0.2s;"
+        onmouseover="this.style.background='${color}22'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">
+        ${escapeHtml(it.area)}
+      </button>
+    `;
+  });
+
+  html += `</div></div>`;
+  detailCard.innerHTML = html;
+  detailCard.style.display = "block";
+}
+
+/**
+ * 💡 [신규] 인덱스로 상세 뷰 호출 (버튼 클릭용)
+ */
+window.renderDetailViewByIndex = function(idx) {
+  const item = data[idx];
+  renderDetailView(item, idx);
+};
+
+/**
+ * 💡 [기존 유지] 상세 분석 카드 렌더링 함수
+ */
+function renderDetailView(item, idx) {
+  if (!item || !item.details || Object.keys(item.details).length === 0) {
+    detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 행동영역 데이터가 없습니다.</div>`;
+    detailCard.style.display = "block";
+    return;
+  }
+
+  let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
+  html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[idx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
+  html += `🔍 [${escapeHtml(item.area)}] 세부 영역 분석</div>`;
+
+  for (const [beh, stats] of Object.entries(item.details)) {
+    if (!beh || beh === "기타") continue;
+    const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
+    let color = "#2ecc71"; 
+    if (pct < 50) color = "#e74c3c"; 
+    else if (pct < 80) color = "#f1c40f"; 
+
+    html += `
+      <div style="margin-bottom: 12px;">
+        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; font-weight: 600;">
+          <span style="opacity:0.9;">${escapeHtml(beh)}</span>
+          <span style="color:${color};">${pct}% <span style="opacity:0.6; font-size:11px; margin-left:4px;">(${stats.o}/${stats.n})</span></span>
+        </div>
+        <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
+          <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 6px; transition: width 0.5s ease-out;"></div>
+        </div>
+      </div>
+    `;
+  }
+  html += `</div>`;
+  detailCard.innerHTML = html;
+  detailCard.style.display = "block";
+  setTimeout(() => { detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
+}
     plugins: { 
       legend: { display: false },
       tooltip: { 
