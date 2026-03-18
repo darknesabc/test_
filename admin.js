@@ -5,6 +5,10 @@
 // ✅ 여기에 Apps Script Web App URL(…/exec) 넣기
 const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_oNES0soDEyWz0N0suAsuZU35QJOSypO2LFC-Z2dpbDyoD/exec";
 
+// ⭐️ [신규 추가] 성적 그래프 전환을 위한 전역 변수
+let currentTrendItems = []; 
+let currentMode = 'pct';
+
 // 💡 [여기에 추가!] 주차 선택 시 테이블을 전환해주는 전역 함수
 window.switchWeekTable = function(idx) {
   document.querySelectorAll('.attendance-week-block').forEach(el => {
@@ -802,6 +806,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <section class="card" style="padding:14px; margin:0;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이 (백분위/등급)</div>
+            <button class="btn btn-mini mode-btn" data-mode="raw" style="background:rgba(255,255,255,0.1);">원점수</button>
             <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
               <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
               <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
@@ -1373,43 +1378,50 @@ document.addEventListener("DOMContentLoaded", () => {
    * 💡 그래프를 실제 캔버스에 그려주는 내부 함수
    */
   function renderTrendChart_(items) {
-    const canvas = $("adminGradeTrendChart");
-    const ctx = canvas.getContext('2d');
-    if (window.adminChart) window.adminChart.destroy(); 
+  currentTrendItems = items; // 데이터 저장
+  const canvas = $("adminGradeTrendChart");
+  const ctx = canvas.getContext('2d');
+  if (window.adminChart) window.adminChart.destroy(); 
 
-    window.adminChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: items.map(it => it.label),
-        datasets: [
-          { label: '국어', data: items.map(it => it.kor_pct), borderColor: '#3498db', tension: 0.3, fill: false },
-          { label: '수학', data: items.map(it => it.math_pct), borderColor: '#e74c3c', tension: 0.3, fill: false },
-          { label: '탐구1', data: items.map(it => it.tam1_pct), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
-          { label: '탐구2', data: items.map(it => it.tam2_pct), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
-          { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        scales: {
-          y: { min: 0, max: 100 },
-          y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false } }
-        },
-        plugins: { legend: { display: false } } 
+  // 선택된 모드에 따라 데이터 필드 결정
+  const suffix = currentMode === 'pct' ? '_pct' : '_raw';
+  const yMax = currentMode === 'pct' ? 100 : 100; // 원점수 만점이 다를 경우 조정 필요
+
+  window.adminChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: items.map(it => it.label),
+      datasets: [
+        { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db' },
+        { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c' },
+        { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71' },
+        { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f' },
+        { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', yAxisID: 'y_eng' }
+      ]
+    },
+    options: {
+      scales: {
+        y: { min: 0, max: yMax, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수' } },
+        y_eng: { position: 'right', min: 1, max: 9, reverse: true }
       }
-    });
+    }
+  });
+}
 
-    // ✅ 필터 버튼 이벤트를 함수가 끝날 때 여기에서 연결해줍니다.
-    document.querySelectorAll(".filter-btn").forEach(btn => {
-      btn.onclick = function() {
-        if (!window.adminChart) return;
-        const index = parseInt(this.dataset.index);
-        const isVisible = window.adminChart.isDatasetVisible(index);
-        if (isVisible) { window.adminChart.hide(index); this.style.opacity = "0.3"; } 
-        else { window.adminChart.show(index); this.style.opacity = "1"; }
-      };
-    });
-  }
+// 모드 전환 버튼 이벤트 연결
+document.querySelectorAll(".mode-btn").forEach(btn => {
+  btn.onclick = function() {
+    document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
+    this.classList.add("active");
+    currentMode = this.dataset.mode;
+    
+    // 버튼 색상 변경 및 그래프 다시 그리기
+    document.querySelectorAll(".mode-btn").forEach(b => b.style.background = "rgba(255,255,255,0.1)");
+    this.style.background = "#3498db";
+    
+    renderTrendChart_(currentTrendItems);
+  };
+});
 
   /** ✅ 취약 영역 방사형 차트 (+ 행동영역 상세 분석 카드 추가) */
   function renderVulnerabilityChart(unitsBySubject, token) {
