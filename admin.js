@@ -1559,8 +1559,7 @@ function renderTrendChart_(items) {
   labels: data.map(d => d.area),
   datasets: [{
   label: `${currentSubject} 성취도(%)`,
-  // 💡 [수정 포인트 1] 0점일 경우 겹침 방지를 위해 시각적으로만 3% 위치로 밀어냅니다.
-  data: data.map(d => d.score === 0 ? 3 : d.score), 
+  data: data.map(d => d.score),
   backgroundColor: isAccumulatedMode ? 'rgba(231, 76, 60, 0.15)' : 'rgba(52, 152, 219, 0.15)', 
   borderColor: 'rgba(255, 255, 255, 0.3)',
   pointBackgroundColor: pointColors,
@@ -1571,8 +1570,6 @@ function renderTrendChart_(items) {
   }]
   },
   options: {
-  // 💡 [수정 포인트 2] 점에 정확히 안 닿아도 해당 방향 축 근처만 클릭하면 인식되게 넓혀줍니다.
-  interaction: { mode: 'nearest', intersect: false }, 
   responsive: true,
   maintainAspectRatio: false,
   scales: {
@@ -1587,32 +1584,41 @@ function renderTrendChart_(items) {
   ticks: { display: false, stepSize: 20 }
   }
   },
+  // 🎯 [신규] 차트에 이벤트 연결
   onHover: (e, elements) => {
+  // 마우스 올렸을 때 클릭 가능(Pointer) 커서로 변경
   e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
   },
   onClick: (e, elements) => {
+  // 빈 공간 클릭 무시
   if (elements.length === 0) return; 
 
-  const idx = elements[0].index;
-  const item = data[idx]; // 실제 원본 데이터(0%가 보존된 데이터)를 그대로 사용!
+  // 탐구 과목도 클릭되도록 제한 해제! 
 
+  const idx = elements[0].index;
+  const item = data[idx]; // 클릭한 단원의 데이터
+
+  // 행동영역 데이터가 없으면 안내 메시지
   if (!item || !item.details || Object.keys(item.details).length === 0) {
   detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 행동영역 데이터가 없습니다.</div>`;
   detailCard.style.display = "block";
   return;
   }
 
+  // 상세 카드 UI 만들기
   let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
   html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[idx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
   html += `🔍 [${escapeHtml(item.area)}] 세부 영역 분석</div>`;
 
+  // 행동영역별 진행률 바 그리기
   for (const [beh, stats] of Object.entries(item.details)) {
   if (!beh || beh === "기타") continue;
   const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
 
-  let color = "#2ecc71"; 
-  if (pct < 50) color = "#e74c3c"; 
-  else if (pct < 80) color = "#f1c40f"; 
+  // 점수별 색상 구분 (안전=초록, 주의=노랑, 취약=빨강)
+  let color = "#2ecc71"; // 80% 이상 초록
+  if (pct < 50) color = "#e74c3c"; // 50% 미만 빨강
+  else if (pct < 80) color = "#f1c40f"; // 그 사이 노랑
 
   html += `
                  <div style="margin-bottom: 12px;">
@@ -1628,9 +1634,11 @@ function renderTrendChart_(items) {
   }
   html += `</div>`;
 
+  // 화면에 띄우기
   detailCard.innerHTML = html;
   detailCard.style.display = "block";
 
+  // 클릭 후 카드가 잘 보이도록 살짝 스크롤
   setTimeout(() => {
   detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, 100);
@@ -1640,7 +1648,7 @@ function renderTrendChart_(items) {
   tooltip: { 
   callbacks: {
   label: function(context) {
-  const item = data[context.dataIndex]; // 여기서도 원본 데이터를 참조
+  const item = data[context.dataIndex];
   if (item && item.n !== undefined) {
   return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항) - 클릭하여 상세분석`;
   }
