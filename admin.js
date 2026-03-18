@@ -1047,6 +1047,13 @@ async function loadSummariesForStudent_(seat, studentId) {
     if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
     if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
 
+    // 💡 [수정 포인트] 성적 상세인 경우, 기존의 전용 렌더링 함수를 호출하고 즉시 리턴
+    if (kind === "grade_detail") {
+       const token = await issueStudentToken_(seat, studentId);
+       loadAdminGradeDetailUI_(token); 
+       return; 
+    }
+
     // 3️⃣ 캐시 확인 (항목/기간 전환 시 이미 본 적 있다면 즉시 출력)
     const cachedData = getDetailCache(cacheKey);
     if (cachedData) {
