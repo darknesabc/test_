@@ -198,23 +198,7 @@ function buildGradeTableRows_(data) {
   ];
 }
 
-function renderGradeTableHtml_(rows, top30Cutoffs, selectedClass) {
-  // 💡 [추가] 상위 30% 데이터가 있으면 테이블에 행 추가
-  if (top30Cutoffs && top30Cutoffs.overall) {
-    const fmt30 = (subj, type) => {
-      try {
-        const data = type === 'overall' ? top30Cutoffs.overall[subj] : top30Cutoffs.classes[selectedClass]?.[subj];
-        return data ? `${data.raw}점 (${data.pct}%)` : "-";
-      } catch(e) { return "-"; }
-    };
-    
-    rows.push({ label: "전체 Top 30%", kor: fmt30("국어", "overall"), math: fmt30("수학", "overall"), eng: fmt30("영어", "overall"), hist: fmt30("한국사", "overall"), tam1: fmt30("탐구1", "overall"), tam2: fmt30("탐구2", "overall") });
-    
-    if (selectedClass && top30Cutoffs.classes && top30Cutoffs.classes[selectedClass]) {
-      rows.push({ label: `${escapeHtml(selectedClass)} Top 30%`, kor: fmt30("국어", "class"), math: fmt30("수학", "class"), eng: fmt30("영어", "class"), hist: fmt30("한국사", "class"), tam1: fmt30("탐구1", "class"), tam2: fmt30("탐구2", "class") });
-    }
-  }
-
+function renderGradeTableHtml_(rows) {
   return `
     <div style="margin-top:10px; overflow:auto;">
       <table style="width:100%; border-collapse:collapse; font-size:13px;">
@@ -869,7 +853,7 @@ async function loadSummariesForStudent_(seat, studentId) {
 
     <div id="gradeSummaryTable">
       ${grd && grd.ok 
-        ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {}), grd.top30Cutoffs || grd.data?.top30Cutoffs, st.teacher) 
+        ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {})) 
         : `
           <div style="text-align:center; padding:30px 10px; color:rgba(255,255,255,0.5); border:1px dashed rgba(255,255,255,0.1); border-radius:12px;">
             <div style="font-size:20px; margin-bottom:8px;">💡</div>
@@ -931,8 +915,7 @@ async function loadSummariesForStudent_(seat, studentId) {
           const gs2 = await apiPost("grade_summary", { token: token2, exam });
           if (!gs2.ok) throw new Error(gs2.error || "grade_summary 실패");
           if (labelHost) labelHost.innerHTML = `(${escapeHtml(gs2.sheetName || "")})`;
-          // (3) 드롭다운 변경 시 테이블 렌더링 부분
-          if (tableHost) tableHost.innerHTML = renderGradeTableHtml_(buildGradeTableRows_(gs2), gs2.top30Cutoffs, st.teacher);
+          if (tableHost) tableHost.innerHTML = renderGradeTableHtml_(buildGradeTableRows_(gs2));
         } catch (e) {
           const tableHost = $("gradeSummaryTable");
           if (tableHost) tableHost.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e?.message || "성적 조회 오류")}</div>`;
@@ -1489,8 +1472,9 @@ function renderTrendChart_(items, top30Cutoffs, studentClass) {
     subjects.forEach(subj => {
       // 1. 전체 Top 30% (얇은 파선)
       if (currentTop30.overall && currentTop30.overall[subj.key]) {
-        const val = currentTop30.overall[subj.key][targetKey];
-        if (val) {
+        let val = currentTop30.overall[subj.key][targetKey];
+        if (val === "-" || val === undefined) val = null; // 💡 문자열 에러 방어 코드
+        if (val !== null) {
           datasets.push({
             label: `${subj.key} 전체 Top30%`, data: items.map(() => val),
             borderColor: subj.color, tension: 0, borderDash: [2, 4], borderWidth: 1, fill: false, pointRadius: 0, yAxisID: subj.isEng ? 'y_eng' : 'y'
@@ -1499,8 +1483,9 @@ function renderTrendChart_(items, top30Cutoffs, studentClass) {
       }
       // 2. 선택된 학반 Top 30% (두꺼운 점선, 삼각형 마커)
       if (selectedCutoffClass && currentTop30.classes && currentTop30.classes[selectedCutoffClass] && currentTop30.classes[selectedCutoffClass][subj.key]) {
-        const val = currentTop30.classes[selectedCutoffClass][subj.key][targetKey];
-        if (val) {
+        let val = currentTop30.classes[selectedCutoffClass][subj.key][targetKey];
+        if (val === "-" || val === undefined) val = null; // 💡 문자열 에러 방어 코드
+        if (val !== null) {
           datasets.push({
             label: `${subj.key} [${selectedCutoffClass}] Top30%`, data: items.map(() => val),
             borderColor: subj.color, tension: 0, borderDash: [5, 5], borderWidth: 2, fill: false, pointStyle: 'triangle', pointRadius: 3, yAxisID: subj.isEng ? 'y_eng' : 'y'
