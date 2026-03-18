@@ -798,20 +798,29 @@ async function loadSummariesForStudent_(seat, studentId) {
       <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
         
         <section class="card" style="padding:14px; margin:0;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이 (백분위/등급)</div>
-            <button class="btn btn-mini mode-btn" data-mode="raw" style="background:rgba(255,255,255,0.1);">원점수</button>
-            <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
-              <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
-              <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
-              <button class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
-              <button class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
-              <button class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
-            </div>
-          </div>
-          <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
-          <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
-        </section>
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이</div>
+      <div id="chartModeToggle" style="display:flex; gap:4px; background:rgba(255,255,255,0.05); padding:2px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
+        <button class="btn btn-mini mode-btn active" data-mode="pct" 
+          style="background:#3498db; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">백분위</button>
+        <button class="btn btn-mini mode-btn" data-mode="raw" 
+          style="background:transparent; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5);">원점수</button>
+      </div>
+    </div>
+    
+    <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
+      <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
+      <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
+      <button class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
+      <button class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
+      <button class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
+    </div>
+  </div>
+  
+  <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
+  <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
+</section>
 
         
 <section class="card" style="padding:14px; margin:0;">
