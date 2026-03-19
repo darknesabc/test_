@@ -8,8 +8,8 @@ const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_
 // ✅ 성적 그래프 및 상태 관리를 위한 전역 변수
 let currentTrendItems = []; 
 let currentMode = 'pct';
-let showTop30 = true; // 💡 새로 추가된 상위 30% 표시 상태 변수 (기본값 ON)
-let showClassTop30 = false;     // 💡 반별 상위 30% 표시 상태 (기본 OFF)
+let showTop30 = false;         // 처음엔 꺼짐 상태
+let showClassTop30 = false;    // 처음엔 꺼짐 상태
 
 // 💡 [여기에 추가!] 주차 선택 시 테이블을 전환해주는 전역 함수
 window.switchWeekTable = function(idx) {
@@ -800,34 +800,36 @@ async function loadSummariesForStudent_(seat, studentId) {
       <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 14px;">
         
         <section class="card" style="padding:14px; margin:0;">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-    <div style="display:flex; align-items:center; gap:12px;">
-      <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이</div>
-      <div id="chartModeToggle" style="display:flex; gap:4px; background:rgba(255,255,255,0.05); padding:2px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
-      <button class="btn btn-mini mode-btn active" data-mode="pct" 
-        style="background:#3498db; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">백분위</button>
-      <button class="btn btn-mini mode-btn" data-mode="raw" 
-        style="background:transparent; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5);">원점수</button>
-    </div>
-    
-    <div style="display:flex; gap:4px; margin-left:8px;">
-      <button id="btnToggleTop30" class="btn btn-mini" style="background:#e67e22; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">전체 상위 30% ON</button>
-      <button id="btnToggleClassTop30" class="btn btn-mini" style="background:transparent; border:1px solid rgba(255,255,255,0.3); padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold;">반별 상위 30% OFF</button>
-    </div>
-    
-    <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
-      <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
-      <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
-      <button class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
-      <button class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
-      <button class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
-    </div>
-  </div>
-  
-  <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
-  <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
-</section>
+          <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;">
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <div class="card-title" style="font-size:15px; margin:0; white-space:nowrap;">📈 성적 추이</div>
+                
+                <div id="chartModeToggle" style="display:flex; gap:4px; background:rgba(255,255,255,0.05); padding:2px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
+                  <button class="btn btn-mini mode-btn active" data-mode="pct" style="background:#3498db; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">백분위</button>
+                  <button class="btn btn-mini mode-btn" data-mode="raw" style="background:transparent; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5);">원점수</button>
+                </div>
 
+                <div style="display:flex; gap:6px;">
+                  <button id="btnToggleTop30" class="btn btn-mini" style="background:transparent; border:1px solid rgba(255,255,255,0.3); padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold;">전체 상위 30% OFF</button>
+                  <button id="btnToggleClassTop30" class="btn btn-mini" style="background:transparent; border:1px solid rgba(255,255,255,0.3); padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold;">반별 상위 30% OFF</button>
+                </div>
+              </div>
+            </div>
+
+            <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
+              <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
+              <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
+              <button class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
+              <button class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
+              <button class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
+            </div>
+          </div>
+          
+          <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
+          <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
+        </section>
         
 <section class="card" style="padding:14px; margin:0;">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
