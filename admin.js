@@ -1436,11 +1436,11 @@ function renderTrendChart_(items) {
         { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 },
         
         // --- 상위 30% 컷오프 (Index 5~8) ---
-        // 투명도를 주고(rgba), borderDash를 설정하여 점선으로 만듭니다. pointRadius: 0으로 점은 숨깁니다.
-        { label: '국어 상위30%', data: items.map(it => it['cutoff_kor' + suffix]), borderColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false },
-        { label: '수학 상위30%', data: items.map(it => it['cutoff_math' + suffix]), borderColor: 'rgba(231, 76, 60, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false },
-        { label: '탐구1 상위30%', data: items.map(it => it['cutoff_tam1' + suffix]), borderColor: 'rgba(46, 204, 113, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false },
-        { label: '탐구2 상위30%', data: items.map(it => it['cutoff_tam2' + suffix]), borderColor: 'rgba(241, 196, 15, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false }
+        // 데이터가 1개(3월)뿐일 때도 보이도록 pointRadius와 pointStyle을 추가합니다.
+        { label: '국어 상위30%', data: items.map(it => it['cutoff_kor' + suffix]), borderColor: 'rgba(52, 152, 219, 0.5)', backgroundColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false },
+        { label: '수학 상위30%', data: items.map(it => it['cutoff_math' + suffix]), borderColor: 'rgba(231, 76, 60, 0.5)', backgroundColor: 'rgba(231, 76, 60, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false },
+        { label: '탐구1 상위30%', data: items.map(it => it['cutoff_tam1' + suffix]), borderColor: 'rgba(46, 204, 113, 0.5)', backgroundColor: 'rgba(46, 204, 113, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false },
+        { label: '탐구2 상위30%', data: items.map(it => it['cutoff_tam2' + suffix]), borderColor: 'rgba(241, 196, 15, 0.5)', backgroundColor: 'rgba(241, 196, 15, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false }
       ]
     },
     options: {
