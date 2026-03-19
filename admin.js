@@ -9,6 +9,7 @@ const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_
 let currentTrendItems = []; 
 let currentMode = 'pct';
 let showTop30 = true; // 💡 새로 추가된 상위 30% 표시 상태 변수 (기본값 ON)
+let showClassTop30 = false;     // 💡 반별 상위 30% 표시 상태 (기본 OFF)
 
 // 💡 [여기에 추가!] 주차 선택 시 테이블을 전환해주는 전역 함수
 window.switchWeekTable = function(idx) {
@@ -809,7 +810,9 @@ async function loadSummariesForStudent_(seat, studentId) {
         style="background:transparent; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5);">원점수</button>
     </div>
     
-    <button id="btnToggleTop30" class="btn btn-mini" style="margin-left:8px; background:#e67e22; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">상위 30% ON</button>
+    <div style="display:flex; gap:4px; margin-left:8px;">
+      <button id="btnToggleTop30" class="btn btn-mini" style="background:#e67e22; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">전체 상위 30% ON</button>
+      <button id="btnToggleClassTop30" class="btn btn-mini" style="background:transparent; border:1px solid rgba(255,255,255,0.3); padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold;">반별 상위 30% OFF</button>
     </div>
     
     <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
@@ -1399,8 +1402,8 @@ async function loadSummariesForStudent_(seat, studentId) {
     }
   }
 
-  /**
- * 📈 [최종 통합 버전] 그래프 렌더링 + 모드 전환 + 과목 필터링 + 상위30% 토글
+/**
+ * 📈 [최종 통합 버전] 그래프 렌더링 + 전체 상위30% & 반별 상위30% 토글
  */
 function renderTrendChart_(items) {
   currentTrendItems = items; 
@@ -1408,7 +1411,7 @@ function renderTrendChart_(items) {
   const ctx = canvas.getContext('2d');
   if (window.adminChart) window.adminChart.destroy(); 
 
-  // 1️⃣ [UI 업데이트] 백분위/원점수 버튼 활성화
+  // 1️⃣ 모드 업데이트
   document.querySelectorAll(".mode-btn").forEach(btn => {
     if (btn.dataset.mode === currentMode) {
       btn.style.background = "#3498db";
@@ -1424,26 +1427,32 @@ function renderTrendChart_(items) {
   });
 
   const suffix = currentMode === 'pct' ? '_pct' : '_raw';
+  const myClassName = items.length > 0 && items[items.length - 1].my_class ? `(${items[items.length - 1].my_class})` : '';
   
-  // 2️⃣ [차트 생성]
+  // 2️⃣ 차트 생성
   window.adminChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: items.map(it => it.label),
       datasets: [
-        // --- 학생 성적 (Index 0~4) ---
+        // --- [0~4] 학생 본인 성적 ---
         { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', tension: 0.3, fill: false },
         { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
         { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, fill: false },
         { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, fill: false },
         { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 },
         
-        // --- 상위 30% 컷오프 (Index 5~8) ---
-        // 💡 hidden: !showTop30 속성을 추가하여 토글 상태에 따라 기본 노출 여부를 결정합니다.
-        { label: '국어 상위30%', data: items.map(it => it['cutoff_kor' + suffix]), borderColor: 'rgba(52, 152, 219, 0.5)', backgroundColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
-        { label: '수학 상위30%', data: items.map(it => it['cutoff_math' + suffix]), borderColor: 'rgba(231, 76, 60, 0.5)', backgroundColor: 'rgba(231, 76, 60, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
-        { label: '탐구1 상위30%', data: items.map(it => it['cutoff_tam1' + suffix]), borderColor: 'rgba(46, 204, 113, 0.5)', backgroundColor: 'rgba(46, 204, 113, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
-        { label: '탐구2 상위30%', data: items.map(it => it['cutoff_tam2' + suffix]), borderColor: 'rgba(241, 196, 15, 0.5)', backgroundColor: 'rgba(241, 196, 15, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 }
+        // --- [5~8] 전체 상위 30% 컷오프 ---
+        { label: '국어 전체 상위30%', data: items.map(it => it['cutoff_kor' + suffix]), borderColor: 'rgba(52, 152, 219, 0.4)', backgroundColor: 'rgba(52, 152, 219, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
+        { label: '수학 전체 상위30%', data: items.map(it => it['cutoff_math' + suffix]), borderColor: 'rgba(231, 76, 60, 0.4)', backgroundColor: 'rgba(231, 76, 60, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
+        { label: '탐구1 전체 상위30%', data: items.map(it => it['cutoff_tam1' + suffix]), borderColor: 'rgba(46, 204, 113, 0.4)', backgroundColor: 'rgba(46, 204, 113, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
+        { label: '탐구2 전체 상위30%', data: items.map(it => it['cutoff_tam2' + suffix]), borderColor: 'rgba(241, 196, 15, 0.4)', backgroundColor: 'rgba(241, 196, 15, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
+
+        // --- [9~12] 반별 상위 30% 컷오프 --- (세모 모양의 촘촘한 점선)
+        { label: `국어 반별 상위30%`, data: items.map(it => it['class_cutoff_kor' + suffix]), borderColor: 'rgba(52, 152, 219, 0.8)', backgroundColor: 'rgba(52, 152, 219, 0.8)', borderWidth: 2, borderDash: [2, 3], pointRadius: 5, pointStyle: 'triangle', tension: 0.3, fill: false, hidden: !showClassTop30 },
+        { label: `수학 반별 상위30%`, data: items.map(it => it['class_cutoff_math' + suffix]), borderColor: 'rgba(231, 76, 60, 0.8)', backgroundColor: 'rgba(231, 76, 60, 0.8)', borderWidth: 2, borderDash: [2, 3], pointRadius: 5, pointStyle: 'triangle', tension: 0.3, fill: false, hidden: !showClassTop30 },
+        { label: `탐구1 반별 상위30%`, data: items.map(it => it['class_cutoff_tam1' + suffix]), borderColor: 'rgba(46, 204, 113, 0.8)', backgroundColor: 'rgba(46, 204, 113, 0.8)', borderWidth: 2, borderDash: [2, 3], pointRadius: 5, pointStyle: 'triangle', tension: 0.3, fill: false, hidden: !showClassTop30 },
+        { label: `탐구2 반별 상위30%`, data: items.map(it => it['class_cutoff_tam2' + suffix]), borderColor: 'rgba(241, 196, 15, 0.8)', backgroundColor: 'rgba(241, 196, 15, 0.8)', borderWidth: 2, borderDash: [2, 3], pointRadius: 5, pointStyle: 'triangle', tension: 0.3, fill: false, hidden: !showClassTop30 }
       ]
     },
     options: {
@@ -1456,7 +1465,7 @@ function renderTrendChart_(items) {
     }
   });
 
-  // 3️⃣ [이벤트 연결] 모드 전환 버튼
+  // 3️⃣ 버튼 이벤트 연결: 모드 전환
   document.querySelectorAll(".mode-btn").forEach(btn => {
     btn.onclick = function() {
       currentMode = this.dataset.mode;
@@ -1464,7 +1473,7 @@ function renderTrendChart_(items) {
     };
   });
 
-  // 4️⃣ [이벤트 연결] 과목 필터 버튼
+  // 4️⃣ 버튼 이벤트 연결: 과목 뱃지 필터
   document.querySelectorAll(".filter-btn").forEach(btn => {
     const index = parseInt(btn.dataset.index);
     const isVisible = window.adminChart.isDatasetVisible(index);
@@ -1477,45 +1486,67 @@ function renderTrendChart_(items) {
       
       if (visible) {
         window.adminChart.hide(idx);
-        if (idx < 4) window.adminChart.hide(idx + 5); 
+        if (idx < 4) {
+            window.adminChart.hide(idx + 5); // 전체 30% 숨김
+            window.adminChart.hide(idx + 9); // 반별 30% 숨김
+        }
         this.style.opacity = "0.3";
       } else {
         window.adminChart.show(idx);
-        // 💡 과목을 켤 때, '상위30%가 ON 상태'일 때만 점선도 켜지도록 연동
-        if (idx < 4 && showTop30) window.adminChart.show(idx + 5); 
+        if (idx < 4) {
+            if (showTop30) window.adminChart.show(idx + 5); 
+            if (showClassTop30) window.adminChart.show(idx + 9); 
+        }
         this.style.opacity = "1";
       }
     };
   });
 
-  // 5️⃣ [이벤트 연결] 상위 30% 토글 버튼
+  // 5️⃣ 버튼 이벤트 연결: 토글 버튼들
   const top30Btn = document.getElementById("btnToggleTop30");
+  const classTop30Btn = document.getElementById("btnToggleClassTop30");
+
   if (top30Btn) {
-    // 렌더링 시 현재 상태에 맞춰 버튼 스타일 지정
     top30Btn.style.background = showTop30 ? "#e67e22" : "transparent";
     top30Btn.style.color = showTop30 ? "white" : "rgba(255,255,255,0.5)";
     top30Btn.style.border = showTop30 ? "none" : "1px solid rgba(255,255,255,0.3)";
-    top30Btn.textContent = showTop30 ? "상위 30% ON" : "상위 30% OFF";
+    top30Btn.textContent = showTop30 ? "전체 상위 30% ON" : "전체 상위 30% OFF";
 
     top30Btn.onclick = function() {
-      showTop30 = !showTop30; // 상태 반전
-      
-      // 버튼 디자인 변경
+      showTop30 = !showTop30;
       this.style.background = showTop30 ? "#e67e22" : "transparent";
       this.style.color = showTop30 ? "white" : "rgba(255,255,255,0.5)";
       this.style.border = showTop30 ? "none" : "1px solid rgba(255,255,255,0.3)";
-      this.textContent = showTop30 ? "상위 30% ON" : "상위 30% OFF";
+      this.textContent = showTop30 ? "전체 상위 30% ON" : "전체 상위 30% OFF";
 
       if (!window.adminChart) return;
-      
-      // 차트의 컷오프 점선(Index 5~8) 가시성 업데이트
       for (let i = 0; i < 4; i++) {
-        const isSubjVisible = window.adminChart.isDatasetVisible(i); // 학생 과목이 켜져 있는지 확인
-        if (showTop30 && isSubjVisible) {
-          window.adminChart.show(i + 5); // 학생 과목도 켜져 있고, 토글도 켰으면 선 표시
-        } else {
-          window.adminChart.hide(i + 5); // 끄기
-        }
+        const isSubjVisible = window.adminChart.isDatasetVisible(i);
+        if (showTop30 && isSubjVisible) window.adminChart.show(i + 5);
+        else window.adminChart.hide(i + 5);
+      }
+      window.adminChart.update();
+    };
+  }
+
+  if (classTop30Btn) {
+    classTop30Btn.style.background = showClassTop30 ? "#27ae60" : "transparent";
+    classTop30Btn.style.color = showClassTop30 ? "white" : "rgba(255,255,255,0.5)";
+    classTop30Btn.style.border = showClassTop30 ? "none" : "1px solid rgba(255,255,255,0.3)";
+    classTop30Btn.textContent = showClassTop30 ? `반별${myClassName} 상위 30% ON` : `반별${myClassName} 상위 30% OFF`;
+
+    classTop30Btn.onclick = function() {
+      showClassTop30 = !showClassTop30;
+      this.style.background = showClassTop30 ? "#27ae60" : "transparent";
+      this.style.color = showClassTop30 ? "white" : "rgba(255,255,255,0.5)";
+      this.style.border = showClassTop30 ? "none" : "1px solid rgba(255,255,255,0.3)";
+      this.textContent = showClassTop30 ? `반별${myClassName} 상위 30% ON` : `반별${myClassName} 상위 30% OFF`;
+
+      if (!window.adminChart) return;
+      for (let i = 0; i < 4; i++) {
+        const isSubjVisible = window.adminChart.isDatasetVisible(i);
+        if (showClassTop30 && isSubjVisible) window.adminChart.show(i + 9);
+        else window.adminChart.hide(i + 9);
       }
       window.adminChart.update();
     };
