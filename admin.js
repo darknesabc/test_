@@ -1534,9 +1534,15 @@ function renderTrendChart_(items) {
       btn.className = "btn btn-mini";
       const isOn = activeClasses.has(className);
       
+      // 💡 [크기 고정] 반별 버튼들도 너비 고정 적용
+      btn.style.boxSizing = "border-box";
+      btn.style.minWidth = "110px"; 
+      btn.style.textAlign = "center";
+      
       btn.style.background = isOn ? "#27ae60" : "transparent";
       btn.style.color = isOn ? "white" : "rgba(255,255,255,0.5)";
-      btn.style.border = isOn ? "none" : "1px solid rgba(255,255,255,0.3)";
+      // 💡 [테두리 고정] ON일 때도 1px 테두리 유지
+      btn.style.border = isOn ? "1px solid #27ae60" : "1px solid rgba(255,255,255,0.3)";
       btn.style.padding = "4px 10px";
       btn.style.fontSize = "11px";
       btn.style.borderRadius = "6px";
@@ -1555,7 +1561,7 @@ function renderTrendChart_(items) {
           activeClasses.add(className); // 켜기
           this.style.background = "#27ae60";
           this.style.color = "white";
-          this.style.border = "none";
+          this.style.border = "1px solid #27ae60"; // 💡 ON일 때도 테두리 유지
           this.textContent = `${className} 30% ON`;
         }
 
@@ -1565,7 +1571,6 @@ function renderTrendChart_(items) {
         window.adminChart.data.datasets.forEach((ds, dsIdx) => {
           if (ds.classGroup === className) {
             const isSubjVisible = window.adminChart.isDatasetVisible(ds.subjIndex);
-            // 해당 반이 켜져있고, 과목 자체(국/수/영)도 켜져 있을 때만 점선 표시
             if (activeClasses.has(className) && isSubjVisible) window.adminChart.show(dsIdx);
             else window.adminChart.hide(dsIdx);
           }
@@ -1622,16 +1627,22 @@ function renderTrendChart_(items) {
   // 전체 상위 30% 토글
   const top30Btn = document.getElementById("btnToggleTop30");
   if (top30Btn) {
+    // 💡 [크기 고정] 텍스트나 테두리 변화에 흔들리지 않도록 너비 고정
+    top30Btn.style.boxSizing = "border-box";
+    top30Btn.style.minWidth = "115px"; 
+    top30Btn.style.textAlign = "center";
+    
     top30Btn.style.background = showTop30 ? "#e67e22" : "transparent";
     top30Btn.style.color = showTop30 ? "white" : "rgba(255,255,255,0.5)";
-    top30Btn.style.border = showTop30 ? "none" : "1px solid rgba(255,255,255,0.3)";
+    // 💡 [테두리 고정] ON일 때도 테두리를 줘서 너비 축소 방지
+    top30Btn.style.border = showTop30 ? "1px solid #e67e22" : "1px solid rgba(255,255,255,0.3)";
     top30Btn.textContent = showTop30 ? "전체 상위 30% ON" : "전체 상위 30% OFF";
 
     top30Btn.onclick = function() {
       showTop30 = !showTop30;
       this.style.background = showTop30 ? "#e67e22" : "transparent";
       this.style.color = showTop30 ? "white" : "rgba(255,255,255,0.5)";
-      this.style.border = showTop30 ? "none" : "1px solid rgba(255,255,255,0.3)";
+      this.style.border = showTop30 ? "1px solid #e67e22" : "1px solid rgba(255,255,255,0.3)";
       this.textContent = showTop30 ? "전체 상위 30% ON" : "전체 상위 30% OFF";
 
       if (!window.adminChart) return;
