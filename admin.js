@@ -1483,7 +1483,7 @@ function renderTrendChart_(items) {
     { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
     { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, fill: false },
     { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, fill: false },
-    { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 },
+    { label: '영어', data: items.map(it => currentMode === 'pct' ? it.eng_grade : it.eng_raw), borderColor: '#9b59b6', tension: 0.3, yAxisID: currentMode === 'pct' ? 'y_eng' : 'y', fill: false, pointStyle: 'rectRot', pointRadius: 6 },
     
     // --- [5~8] 전체 상위 30% 컷오프 ---
     { label: '국어 전체 30%', data: items.map(it => it['cutoff_kor' + suffix]), borderColor: 'rgba(52, 152, 219, 0.4)', backgroundColor: 'rgba(52, 152, 219, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
@@ -1512,8 +1512,7 @@ function renderTrendChart_(items) {
       responsive: true, maintainAspectRatio: false,
       scales: {
         y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } },
-        y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
-      },
+        y_eng: { display: currentMode === 'pct', position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
       plugins: { 
         legend: { display: false },
         tooltip: { // 여러 선이 겹칠 때 구별하기 쉽게 툴팁 라벨에 소속을 표시
