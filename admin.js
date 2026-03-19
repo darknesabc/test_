@@ -1397,7 +1397,7 @@ async function loadSummariesForStudent_(seat, studentId) {
   }
 
   /**
- * 📈 [최종 통합 버전] 그래프 렌더링 + 모드 전환 + 과목 필터링
+ * 📈 [최종 통합 버전] 그래프 렌더링 + 상위 30% 컷오프 점선 추가
  */
 function renderTrendChart_(items) {
   currentTrendItems = items; // 데이터 전역 저장
@@ -1422,17 +1422,25 @@ function renderTrendChart_(items) {
 
   const suffix = currentMode === 'pct' ? '_pct' : '_raw';
   
-  // 2️⃣ [차트 생성]
+  // 2️⃣ [차트 생성] 학생 성적(0~4) + 상위30% 컷오프(5~8)
   window.adminChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: items.map(it => it.label),
       datasets: [
+        // --- 학생 성적 (Index 0~4) ---
         { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', tension: 0.3, fill: false },
         { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
-        { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
-        { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
-        { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
+        { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, fill: false },
+        { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, fill: false },
+        { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 },
+        
+        // --- 상위 30% 컷오프 (Index 5~8) ---
+        // 투명도를 주고(rgba), borderDash를 설정하여 점선으로 만듭니다. pointRadius: 0으로 점은 숨깁니다.
+        { label: '국어 상위30%', data: items.map(it => it['cutoff_kor' + suffix]), borderColor: 'rgba(52, 152, 219, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false },
+        { label: '수학 상위30%', data: items.map(it => it['cutoff_math' + suffix]), borderColor: 'rgba(231, 76, 60, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false },
+        { label: '탐구1 상위30%', data: items.map(it => it['cutoff_tam1' + suffix]), borderColor: 'rgba(46, 204, 113, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false },
+        { label: '탐구2 상위30%', data: items.map(it => it['cutoff_tam2' + suffix]), borderColor: 'rgba(241, 196, 15, 0.5)', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, tension: 0.3, fill: false }
       ]
     },
     options: {
@@ -1453,9 +1461,8 @@ function renderTrendChart_(items) {
     };
   });
 
-  // 4️⃣ [이벤트 연결] 과목 필터 버튼 (표시/미표시)
+  // 4️⃣ [이벤트 연결] 과목 필터 버튼 (표시/미표시 연동)
   document.querySelectorAll(".filter-btn").forEach(btn => {
-    // 다시 그려질 때 버튼의 투명도를 차트 가시성 상태와 동기화
     const index = parseInt(btn.dataset.index);
     const isVisible = window.adminChart.isDatasetVisible(index);
     btn.style.opacity = isVisible ? "1" : "0.3";
@@ -1466,10 +1473,12 @@ function renderTrendChart_(items) {
       const visible = window.adminChart.isDatasetVisible(idx);
       
       if (visible) {
-        window.adminChart.hide(idx);
+        window.adminChart.hide(idx); // 학생 성적 숨김
+        if (idx < 4) window.adminChart.hide(idx + 5); // 컷오프 선도 같이 숨김 (영어 제외)
         this.style.opacity = "0.3";
       } else {
-        window.adminChart.show(idx);
+        window.adminChart.show(idx); // 학생 성적 표시
+        if (idx < 4) window.adminChart.show(idx + 5); // 컷오프 선도 같이 표시
         this.style.opacity = "1";
       }
     };
