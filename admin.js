@@ -762,7 +762,7 @@ async function loadSummariesForStudent_(seat, studentId) {
               return `
                 <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px dashed rgba(255,255,255,0.1);">
                   <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="font-weight: 800; color: ${wColor};">이번 주 출석률</span>
+                    <span style="font-weight: 800; color: ${wColor};">최근 7일 출석률</span>
                     <span style="font-weight: 900; color: ${wColor}; font-size: 15px;">${wRate}%</span>
                   </div>
                   <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 8px;">
@@ -819,7 +819,7 @@ async function loadSummariesForStudent_(seat, studentId) {
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">🚨 교육점수 요약</div><button class="btn btn-ghost btn-mini" id="btnEduDetail" style="padding:6px 10px;">상세</button></div>
           <div class="card-sub">
             ${edu && edu.ok ? `
-              이번달 누적점수: <b>${edu.monthTotal ?? 0}</b><br>
+              전체 누적점수: <b>${edu.monthTotal ?? 0}</b><br>
               최근 항목: <b>${escapeHtml(edu.latestText || "-")}</b><br>
               ${escapeHtml(edu.latestDateTime || "")}
             ` : (loading ? "불러오는 중…" : "데이터 없음")}
@@ -2172,8 +2172,8 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
     alert(`${st.studentName} 학생의 데이터가 최신 상태로 업데이트되었습니다.`);
   };
 
-    /**
-   * ✅ [신규] 보관함 데이터를 분석하여 위험 학생 알림판을 업데이트합니다.
+   /**
+   * ✅ 보관함 데이터를 분석하여 위험 학생 알림판을 업데이트합니다.
    */
   window.updateRiskNoticePanel = function() {
     const panel = document.getElementById("riskNoticePanel");
@@ -2185,32 +2185,29 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
     // 1. 모든 캐시 데이터를 돌며 위험 학생 필터링
     Object.keys(store).forEach(key => {
       const item = store[key].summary;
-      // 💡 [수정] 이름표(student)가 아예 없거나, 이름이 "알 수 없음"이면 분석 대상에서 제외!
       if (!item || !item.student || !item.student.name || item.student.name === "알 수 없음") return;
       const name = item.student.name;
       const id = item.student.studentId;
 
-      // 🚩 기준 1: 이번 달 벌점 10점 이상
+      // 🚩 기준 1: 전체 누적 벌점 10점 이상 (백엔드에서 전체 누적으로 들어옴)
       if (item.eduscore?.ok && item.eduscore.monthTotal >= 10) {
         risks.penalty.push({ name, val: item.eduscore.monthTotal, id });
       }
-      // 🚩 기준 2: 이번 주 결석 3회 이상
+      // 🚩 기준 2: 최근 7일(일요일 제외) 결석 3회 이상
       if (item.attendance?.ok && item.attendance.absent >= 3) {
         risks.attendance.push({ name, val: item.attendance.absent, id });
       }
       // 🚩 기준 3: 최근 7일 취침 5회 이상
-     if (item.sleep?.ok && item.sleep.sleepTotal7d >= 5) {
+      if (item.sleep?.ok && item.sleep.sleepTotal7d >= 5) {
         risks.sleep.push({ name, val: item.sleep.sleepTotal7d, id });
       }
     });
 
-    // 2. 위험 학생이 없으면 표시 안 함
     if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0) {
       panel.style.display = "none";
       return;
     }
 
-    // 3. 알림판 HTML 생성 (디자인)
     let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
                   <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; gap:8px;">
                     <span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상
@@ -2227,9 +2224,10 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
               </div>`;
     };
 
-    html += createTag("#ff4757", "🔴 벌점 과다 (10점↑)", risks.penalty);
-    html += createTag("#ffa502", "📅 결석 주의 (3회↑)", risks.attendance);
-    html += createTag("#f1c40f", "💤 취침 주의 (5회↑)", risks.sleep);
+    // 💡 [수정] 화면에 보여지는 텍스트 수정
+    html += createTag("#ff4757", "🔴 누적 벌점 주의 (10점↑)", risks.penalty);
+    html += createTag("#ffa502", "📅 최근 결석 주의 (3회↑)", risks.attendance);
+    html += createTag("#f1c40f", "💤 최근 취침 주의 (5회↑)", risks.sleep);
 
     html += `</div></div>`;
     panel.innerHTML = html;
