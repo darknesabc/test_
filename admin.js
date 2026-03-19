@@ -8,6 +8,7 @@ const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_
 // ✅ 성적 그래프 및 상태 관리를 위한 전역 변수
 let currentTrendItems = []; 
 let currentMode = 'pct';
+let currentTop30Cutoffs = null; // 👈 [추가] 상위 30% 컷오프 데이터를 보관할 바구니
 
 // 💡 [여기에 추가!] 주차 선택 시 테이블을 전환해주는 전역 함수
 window.switchWeekTable = function(idx) {
@@ -1366,38 +1367,44 @@ async function loadSummariesForStudent_(seat, studentId) {
    * ✅ [최종 통합] 성적 그래프 그리기 (보관함 우선 조회 + 필터 연결)
    */
   async function loadAdminGradeTrend(seat, studentId) {
-    const canvas = $("adminGradeTrendChart");
-    const loadingMsg = $("trendChartLoading");
-    if (!canvas) return;
+  const canvas = $("adminGradeTrendChart");
+  const loadingMsg = $("trendChartLoading");
+  if (!canvas) return;
 
-    const key = makeStudentKey(seat, studentId);
-    const cachedSummary = getSummaryCache(key);
+  const key = makeStudentKey(seat, studentId);
+  const cachedSummary = getSummaryCache(key);
 
-    // 1. 이미 보관함(Summary)에 성적 데이터가 있다면 즉시 그립니다.
-    if (cachedSummary && cachedSummary.gradeTrend && cachedSummary.gradeTrend.items) {
-      console.log("📈 성적 그래프를 보관함에서 즉시 로드합니다.");
-      if (loadingMsg) loadingMsg.style.display = "none";
-      renderTrendChart_(cachedSummary.gradeTrend.items);
-      return;
-    }
-
-    // 2. 보관함에 없다면 서버에서 새로 가져옵니다.
-    try {
-      const token = await issueStudentToken_(seat, studentId);
-      const res = await apiPost("grade_trend", { token });
-      if (!res.ok || !res.items || res.items.length === 0) {
-        if (loadingMsg) loadingMsg.textContent = "데이터가 부족합니다.";
-        return;
-      }
-      if (loadingMsg) loadingMsg.style.display = "none";
-      renderTrendChart_(res.items);
-    } catch (e) {
-      if (loadingMsg) loadingMsg.textContent = "그래프 로드 오류";
-    }
+  // 1. 이미 보관함(Summary)에 성적 데이터가 있다면 즉시 그립니다.
+  if (cachedSummary && cachedSummary.gradeTrend && cachedSummary.gradeTrend.items) {
+    console.log("📈 성적 그래프를 보관함에서 즉시 로드합니다.");
+    if (loadingMsg) loadingMsg.style.display = "none";
+    
+    // 👈 [추가] 캐시에서 컷오프 데이터 꺼내기
+    currentTop30Cutoffs = cachedSummary.gradeTrend.top30Cutoffs || null; 
+    renderTrendChart_(cachedSummary.gradeTrend.items);
+    return;
   }
 
-  /**
- * 📈 [최종 통합 버전] 그래프 렌더링 + 모드 전환 + 과목 필터링
+  // 2. 보관함에 없다면 서버에서 새로 가져옵니다.
+  try {
+    const token = await issueStudentToken_(seat, studentId);
+    const res = await apiPost("grade_trend", { token });
+    if (!res.ok || !res.items || res.items.length === 0) {
+      if (loadingMsg) loadingMsg.textContent = "데이터가 부족합니다.";
+      return;
+    }
+    if (loadingMsg) loadingMsg.style.display = "none";
+    
+    // 👈 [추가] 서버에서 받은 컷오프 데이터 담기
+    currentTop30Cutoffs = res.top30Cutoffs || null; 
+    renderTrendChart_(res.items);
+  } catch (e) {
+    if (loadingMsg) loadingMsg.textContent = "그래프 로드 오류";
+  }
+}
+
+ /**
+ * 📈 [최종 통합 버전] 그래프 렌더링 + 상위 30% 가로선 및 목표 영역 추가
  */
 function renderTrendChart_(items) {
   currentTrendItems = items; // 데이터 전역 저장
@@ -1420,58 +1427,116 @@ function renderTrendChart_(items) {
     }
   });
 
-  const suffix = currentMode === 'pct' ? '_pct' : '_raw';
-  
-  // 2️⃣ [차트 생성]
+  // 2️⃣ [컷오프 점수 계산] 현재 선택된 과목 중 첫 번째 과목을 기준으로 삼음
+  let activeSubject = "국어"; // 기본값
+  const activeFilters = document.querySelectorAll(".filter-btn");
+  for (let btn of activeFilters) {
+    if (btn.style.opacity !== "0.3") { // 눈에 보이는 첫 번째 과목 찾기
+      activeSubject = btn.textContent;
+      break;
+    }
+  }
+
+  const suffix = currentMode === 'pct' ? '_pct' : ''; // 원점수는 키에 _raw가 없음 (백엔드 코드 기준 '국어', '국어_pct')
+  let cutoffValue = null;
+  if (currentTop30Cutoffs && currentTop30Cutoffs.overall) {
+    cutoffValue = currentTop30Cutoffs.overall[activeSubject + suffix];
+  }
+
+  // 3️⃣ [데이터셋 설정]
+  const dataSuffix = currentMode === 'pct' ? '_pct' : '_raw';
+  const datasets = [
+    { label: '국어', data: items.map(it => it['kor' + dataSuffix]), borderColor: '#3498db', tension: 0.3, fill: false },
+    { label: '수학', data: items.map(it => it['math' + dataSuffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
+    { label: '탐구1', data: items.map(it => it['tam1' + dataSuffix]), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
+    { label: '탐구2', data: items.map(it => it['tam2' + dataSuffix]), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
+    { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
+  ];
+
+  // 💡 [목표 영역 추가] 컷오프 점수부터 100점까지 연한 파란색 배경 깔기
+  if (cutoffValue && activeSubject !== "영어") {
+    datasets.unshift({ // 맨 뒤에 깔리도록 배열의 맨 앞에 추가
+      label: '상위 30% 목표',
+      data: items.map(() => (currentMode === 'pct' ? 100 : 100)), // 차트 상단 천장
+      fill: { target: { value: cutoffValue } }, // 컷오프 점수까지만 색칠
+      backgroundColor: 'rgba(52, 152, 219, 0.08)', // 아주 연한 파란색
+      borderColor: 'transparent',
+      pointRadius: 0
+    });
+  }
+
+  // 4️⃣ [차트 생성]
   window.adminChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: items.map(it => it.label),
-      datasets: [
-        { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', tension: 0.3, fill: false },
-        { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
-        { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
-        { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
-        { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
-      ]
+      datasets: datasets
     },
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
-        y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } },
+        y: { 
+          min: 0, 
+          max: currentMode === 'pct' ? 100 : undefined, 
+          ticks: { color: 'rgba(255,255,255,0.6)' }, 
+          grid: { color: 'rgba(255,255,255,0.1)' }, 
+          title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } 
+        },
         y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
       },
-      plugins: { legend: { display: false } } 
+      plugins: { 
+        legend: { display: false },
+        // 💡 [가로선 그리기 마법] 차트가 그려진 후 캔버스에 직접 선과 글씨를 그림
+        afterDraw: (chart) => {
+          if (cutoffValue && activeSubject !== "영어") {
+            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+            const yPos = y.getPixelForValue(cutoffValue); // 점수 높이 계산
+
+            ctx.save();
+            ctx.setLineDash([5, 5]); // 점선 스타일
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(left, yPos);
+            ctx.lineTo(right, yPos);
+            ctx.stroke();
+
+            // 글씨 쓰기
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText(`${activeSubject} 상위 30% (${cutoffValue}${currentMode === 'pct' ? '%' : '점'})`, left + 8, yPos - 8);
+            ctx.restore();
+          }
+        }
+      } 
     }
   });
 
-  // 3️⃣ [이벤트 연결] 모드 전환 버튼 (백분위 <-> 원점수)
+  // 5️⃣ [이벤트 연결] 모드 전환 버튼 (백분위 <-> 원점수)
   document.querySelectorAll(".mode-btn").forEach(btn => {
     btn.onclick = function() {
       currentMode = this.dataset.mode;
-      renderTrendChart_(currentTrendItems); // 자신의 상태를 포함해 다시 그리기
+      renderTrendChart_(currentTrendItems); // 다시 그리기 (알아서 컷오프 점수 바뀜)
     };
   });
 
-  // 4️⃣ [이벤트 연결] 과목 필터 버튼 (표시/미표시)
+  // 6️⃣ [이벤트 연결] 과목 필터 버튼 (클릭 시 해당 과목 컷오프로 변경)
   document.querySelectorAll(".filter-btn").forEach(btn => {
-    // 다시 그려질 때 버튼의 투명도를 차트 가시성 상태와 동기화
+    // 버튼 초기 스타일 동기화
     const index = parseInt(btn.dataset.index);
-    const isVisible = window.adminChart.isDatasetVisible(index);
-    btn.style.opacity = isVisible ? "1" : "0.3";
-
+    // 첫 번째 데이터셋이 '상위 30% 영역'일 수 있으므로 실제 과목 인덱스는 보정이 필요할 수 있으나, 
+    // 로직을 단순화하기 위해 버튼 투명도만 토글하고 차트를 완전히 새로 그림
+    
     btn.onclick = function() {
-      if (!window.adminChart) return;
-      const idx = parseInt(this.dataset.index);
-      const visible = window.adminChart.isDatasetVisible(idx);
-      
-      if (visible) {
-        window.adminChart.hide(idx);
-        this.style.opacity = "0.3";
-      } else {
-        window.adminChart.show(idx);
+      // 버튼 켜고 끄기 시각 효과
+      if (this.style.opacity === "0.3") {
         this.style.opacity = "1";
+      } else {
+        this.style.opacity = "0.3";
       }
+      
+      // 어떤 과목이 켜졌는지에 따라 기준선이 달라져야 하므로 차트를 아예 새로 그림
+      renderTrendChart_(currentTrendItems); 
     };
   });
 }
