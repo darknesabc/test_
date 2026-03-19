@@ -1485,7 +1485,6 @@ function renderTrendChart_(items, top30Cutoffs, studentClass) {
     },
     plugins: [alwaysShowLabelsPlugin]
   });
-}
 
     // 3️⃣ 버튼 이벤트 (모드 전환)
     document.querySelectorAll(".mode-btn").forEach(btn => {
