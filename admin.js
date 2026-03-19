@@ -1513,6 +1513,7 @@ function renderTrendChart_(items) {
       scales: {
         y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } },
         y_eng: { display: currentMode === 'pct', position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
+      }, // 💡 여기에 닫는 괄호와 콤마(},)를 반드시 넣어주세요!
       plugins: { 
         legend: { display: false },
         tooltip: { // 여러 선이 겹칠 때 구별하기 쉽게 툴팁 라벨에 소속을 표시
