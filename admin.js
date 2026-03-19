@@ -8,7 +8,8 @@ const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_
 // ✅ 성적 그래프 및 상태 관리를 위한 전역 변수
 let currentTrendItems = []; 
 let currentMode = 'pct';
-let currentTop30Cutoffs = null; // 👈 [추가] 상위 30% 컷오프 데이터를 보관할 바구니
+let currentTop30 = null;         // 💡 [추가] 컷오프 데이터 저장용
+let selectedCutoffClass = "";    // 💡 [추가] 현재 선택된 학반 저장용
 
 // 💡 [여기에 추가!] 주차 선택 시 테이블을 전환해주는 전역 함수
 window.switchWeekTable = function(idx) {
@@ -803,11 +804,13 @@ async function loadSummariesForStudent_(seat, studentId) {
     <div style="display:flex; align-items:center; gap:12px;">
       <div class="card-title" style="font-size:15px; margin:0;">📈 성적 추이</div>
       <div id="chartModeToggle" style="display:flex; gap:4px; background:rgba(255,255,255,0.05); padding:2px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
-        <button class="btn btn-mini mode-btn active" data-mode="pct" 
-          style="background:#3498db; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">백분위</button>
-        <button class="btn btn-mini mode-btn" data-mode="raw" 
-          style="background:transparent; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5);">원점수</button>
+        <button class="btn btn-mini mode-btn active" data-mode="pct" ...>백분위</button>
+        <button class="btn btn-mini mode-btn" data-mode="raw" ...>원점수</button>
       </div>
+      
+      <select id="classCutoffSelect" style="margin-left:8px; padding:4px 8px; font-size:12px; border-radius:6px; background:rgba(255,255,255,0.05); color:white; border:1px solid rgba(255,255,255,0.2); outline:none;">
+        <option value="">전체 Top 30%만 보기</option>
+      </select>
     </div>
     
     <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
@@ -1367,180 +1370,221 @@ async function loadSummariesForStudent_(seat, studentId) {
    * ✅ [최종 통합] 성적 그래프 그리기 (보관함 우선 조회 + 필터 연결)
    */
   async function loadAdminGradeTrend(seat, studentId) {
-  const canvas = $("adminGradeTrendChart");
-  const loadingMsg = $("trendChartLoading");
-  if (!canvas) return;
+    const canvas = $("adminGradeTrendChart");
+    const loadingMsg = $("trendChartLoading");
+    if (!canvas) return;
 
-  const key = makeStudentKey(seat, studentId);
-  const cachedSummary = getSummaryCache(key);
+    const key = makeStudentKey(seat, studentId);
+    const cachedSummary = getSummaryCache(key);
 
-  // 1. 이미 보관함(Summary)에 성적 데이터가 있다면 즉시 그립니다.
-  if (cachedSummary && cachedSummary.gradeTrend && cachedSummary.gradeTrend.items) {
-    console.log("📈 성적 그래프를 보관함에서 즉시 로드합니다.");
-    if (loadingMsg) loadingMsg.style.display = "none";
-    
-    // 👈 [추가] 캐시에서 컷오프 데이터 꺼내기
-    currentTop30Cutoffs = cachedSummary.gradeTrend.top30Cutoffs || null; 
-    renderTrendChart_(cachedSummary.gradeTrend.items);
-    return;
-  }
+    // 💡 [수정] 멈춤 에러의 원인이었던 선생님(학반) 정보를 안전하게 전역 변수에서 가져옵니다.
+    const teacherName = window.__lastStudent ? window.__lastStudent.teacher : "";
 
-  // 2. 보관함에 없다면 서버에서 새로 가져옵니다.
-  try {
-    const token = await issueStudentToken_(seat, studentId);
-    const res = await apiPost("grade_trend", { token });
-    if (!res.ok || !res.items || res.items.length === 0) {
-      if (loadingMsg) loadingMsg.textContent = "데이터가 부족합니다.";
+    // 1. 이미 보관함(Summary)에 성적 데이터가 있다면 즉시 그립니다.
+    if (cachedSummary && cachedSummary.gradeTrend && cachedSummary.gradeTrend.items) {
+      if (loadingMsg) loadingMsg.style.display = "none";
+      renderTrendChart_(cachedSummary.gradeTrend.items, cachedSummary.gradeTrend.top30Cutoffs, teacherName);
       return;
     }
-    if (loadingMsg) loadingMsg.style.display = "none";
-    
-    // 👈 [추가] 서버에서 받은 컷오프 데이터 담기
-    currentTop30Cutoffs = res.top30Cutoffs || null; 
-    renderTrendChart_(res.items);
-  } catch (e) {
-    if (loadingMsg) loadingMsg.textContent = "그래프 로드 오류";
-  }
-}
 
- /**
- * 📈 [최종 통합 버전] 그래프 렌더링 + 상위 30% 가로선 및 목표 영역 추가
- */
-function renderTrendChart_(items) {
-  currentTrendItems = items; // 데이터 전역 저장
-  const canvas = $("adminGradeTrendChart");
-  const ctx = canvas.getContext('2d');
-  if (window.adminChart) window.adminChart.destroy(); 
-
-  // 1️⃣ [UI 업데이트] 백분위/원점수 버튼 활성화 스타일 적용
-  document.querySelectorAll(".mode-btn").forEach(btn => {
-    if (btn.dataset.mode === currentMode) {
-      btn.style.background = "#3498db";
-      btn.style.color = "white";
-      btn.style.fontWeight = "bold";
-      btn.classList.add("active");
-    } else {
-      btn.style.background = "transparent";
-      btn.style.color = "rgba(255,255,255,0.5)";
-      btn.style.fontWeight = "normal";
-      btn.classList.remove("active");
-    }
-  });
-
-  // 2️⃣ [컷오프 점수 계산] 현재 선택된 과목 중 첫 번째 과목을 기준으로 삼음
-  let activeSubject = "국어"; // 기본값
-  const activeFilters = document.querySelectorAll(".filter-btn");
-  for (let btn of activeFilters) {
-    if (btn.style.opacity !== "0.3") { // 눈에 보이는 첫 번째 과목 찾기
-      activeSubject = btn.textContent;
-      break;
+    // 2. 보관함에 없다면 서버에서 새로 가져옵니다.
+    try {
+      const token = await issueStudentToken_(seat, studentId);
+      const res = await apiPost("grade_trend", { token });
+      if (!res.ok || !res.items || res.items.length === 0) {
+        if (loadingMsg) loadingMsg.textContent = "데이터가 부족합니다.";
+        return;
+      }
+      if (loadingMsg) loadingMsg.style.display = "none";
+      renderTrendChart_(res.items, res.top30Cutoffs, teacherName);
+    } catch (e) {
+      if (loadingMsg) loadingMsg.textContent = "그래프 로드 오류";
     }
   }
 
-  const suffix = currentMode === 'pct' ? '_pct' : ''; // 원점수는 키에 _raw가 없음 (백엔드 코드 기준 '국어', '국어_pct')
-  let cutoffValue = null;
-  if (currentTop30Cutoffs && currentTop30Cutoffs.overall) {
-    cutoffValue = currentTop30Cutoffs.overall[activeSubject + suffix];
-  }
+  /**
+   * 📈 [최종 통합 버전] 그래프 렌더링 + 항상 텍스트 표시 플러그인 + 동적 토글
+   */
+  function renderTrendChart_(items, top30Cutoffs, studentClass) {
+    currentTrendItems = items; 
+    if (top30Cutoffs) currentTop30 = top30Cutoffs; 
+    if (studentClass !== undefined) selectedCutoffClass = studentClass;
 
-  // 3️⃣ [데이터셋 설정]
-  const dataSuffix = currentMode === 'pct' ? '_pct' : '_raw';
-  const datasets = [
-    { label: '국어', data: items.map(it => it['kor' + dataSuffix]), borderColor: '#3498db', tension: 0.3, fill: false },
-    { label: '수학', data: items.map(it => it['math' + dataSuffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
-    { label: '탐구1', data: items.map(it => it['tam1' + dataSuffix]), borderColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
-    { label: '탐구2', data: items.map(it => it['tam2' + dataSuffix]), borderColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
-    { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'rectRot', pointRadius: 6 }
-  ];
+    const canvas = $("adminGradeTrendChart");
+    const ctx = canvas.getContext('2d');
+    if (window.adminChart) window.adminChart.destroy(); 
 
-  // 💡 [목표 영역 추가] 컷오프 점수부터 100점까지 연한 파란색 배경 깔기
-  if (cutoffValue && activeSubject !== "영어") {
-    datasets.unshift({ // 맨 뒤에 깔리도록 배열의 맨 앞에 추가
-      label: '상위 30% 목표',
-      data: items.map(() => (currentMode === 'pct' ? 100 : 100)), // 차트 상단 천장
-      fill: { target: { value: cutoffValue } }, // 컷오프 점수까지만 색칠
-      backgroundColor: 'rgba(52, 152, 219, 0.08)', // 아주 연한 파란색
-      borderColor: 'transparent',
-      pointRadius: 0
+    // 💡 학반 선택 드롭다운 세팅
+    const classSelect = $("classCutoffSelect");
+    if (classSelect && currentTop30 && currentTop30.classes) {
+      if (top30Cutoffs) { // 데이터가 갱신되었을 때만 옵션 새로 생성
+        classSelect.innerHTML = '<option value="">전체 Top 30%만 보기</option>';
+        Object.keys(currentTop30.classes).forEach(cName => {
+          const opt = document.createElement("option");
+          opt.value = cName;
+          opt.text = `${cName} Top 30% 표시`;
+          classSelect.appendChild(opt);
+        });
+      }
+      if (Array.from(classSelect.options).some(o => o.value === selectedCutoffClass)) {
+        classSelect.value = selectedCutoffClass;
+      } else {
+        classSelect.value = "";
+        selectedCutoffClass = "";
+      }
+      classSelect.onchange = function() {
+        selectedCutoffClass = this.value;
+        renderTrendChart_(currentTrendItems); // 반 변경 시 차트 재렌더링
+      };
+    }
+
+    // 1️⃣ 백분위/원점수 버튼 활성화 스타일
+    document.querySelectorAll(".mode-btn").forEach(btn => {
+      if (btn.dataset.mode === currentMode) {
+        btn.style.background = "#3498db"; btn.style.color = "white"; btn.style.fontWeight = "bold"; btn.classList.add("active");
+      } else {
+        btn.style.background = "transparent"; btn.style.color = "rgba(255,255,255,0.5)"; btn.style.fontWeight = "normal"; btn.classList.remove("active");
+      }
     });
-  }
 
-  // 4️⃣ [차트 생성]
-  window.adminChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: items.map(it => it.label),
-      datasets: datasets
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: {
-        y: { 
-          min: 0, 
-          max: currentMode === 'pct' ? 100 : undefined, 
-          ticks: { color: 'rgba(255,255,255,0.6)' }, 
-          grid: { color: 'rgba(255,255,255,0.1)' }, 
-          title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } 
-        },
-        y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
-      },
-      plugins: { 
-        legend: { display: false },
-        // 💡 [가로선 그리기 마법] 차트가 그려진 후 캔버스에 직접 선과 글씨를 그림
-        afterDraw: (chart) => {
-          if (cutoffValue && activeSubject !== "영어") {
-            const { ctx, chartArea: { left, right }, scales: { y } } = chart;
-            const yPos = y.getPixelForValue(cutoffValue); // 점수 높이 계산
+    const suffix = currentMode === 'pct' ? '_pct' : '_raw';
+    const targetKey = currentMode === 'pct' ? 'pct' : 'raw'; 
+    
+    // 내 성적 데이터셋 (기본)
+    const datasets = [
+      { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', backgroundColor: '#3498db', tension: 0.3, fill: false },
+      { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', backgroundColor: '#e74c3c', tension: 0.3, fill: false },
+      { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', backgroundColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
+      { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', backgroundColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
+      { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', backgroundColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'circle', pointRadius: 5 }
+    ];
 
-            ctx.save();
-            ctx.setLineDash([5, 5]); // 점선 스타일
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(left, yPos);
-            ctx.lineTo(right, yPos);
-            ctx.stroke();
+    // 💡 Top 30% 컷오프 데이터셋 추가 (눈에 잘 띄게 수정)
+    if (currentTop30) {
+      const subjects = [
+        { key: "국어", color: "#3498db" }, { key: "수학", color: "#e74c3c" },
+        { key: "탐구1", color: "#2ecc71" }, { key: "탐구2", color: "#f1c40f" },
+        { key: "영어", color: "#9b59b6", isEng: true }
+      ];
 
-            // 글씨 쓰기
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.font = 'bold 11px sans-serif';
-            ctx.fillText(`${activeSubject} 상위 30% (${cutoffValue}${currentMode === 'pct' ? '%' : '점'})`, left + 8, yPos - 8);
-            ctx.restore();
+      subjects.forEach(subj => {
+        // 1. 전체 Top 30% (얇은 점선, 네모 포인트)
+        if (currentTop30.overall && currentTop30.overall[subj.key]) {
+          let val = currentTop30.overall[subj.key][targetKey];
+          if (val === "-" || val === undefined) val = null; 
+          if (val !== null) {
+            datasets.push({
+              label: `${subj.key} 전체 Top30%`, data: items.map(() => val),
+              borderColor: subj.color, backgroundColor: subj.color, tension: 0, borderDash: [3, 3], borderWidth: 1.5, fill: false, pointStyle: 'rectRot', pointRadius: 5, yAxisID: subj.isEng ? 'y_eng' : 'y'
+            });
           }
         }
-      } 
+        // 2. 선택된 학반 Top 30% (두꺼운 점선, 세모 포인트)
+        if (selectedCutoffClass && currentTop30.classes && currentTop30.classes[selectedCutoffClass] && currentTop30.classes[selectedCutoffClass][subj.key]) {
+          let val = currentTop30.classes[selectedCutoffClass][subj.key][targetKey];
+          if (val === "-" || val === undefined) val = null; 
+          if (val !== null) {
+            datasets.push({
+              label: `${subj.key} [${selectedCutoffClass}] Top30%`, data: items.map(() => val),
+              borderColor: subj.color, backgroundColor: subj.color, tension: 0, borderDash: [6, 6], borderWidth: 2, fill: false, pointStyle: 'triangle', pointRadius: 6, yAxisID: subj.isEng ? 'y_eng' : 'y'
+            });
+          }
+        }
+      });
     }
-  });
 
-  // 5️⃣ [이벤트 연결] 모드 전환 버튼 (백분위 <-> 원점수)
-  document.querySelectorAll(".mode-btn").forEach(btn => {
-    btn.onclick = function() {
-      currentMode = this.dataset.mode;
-      renderTrendChart_(currentTrendItems); // 다시 그리기 (알아서 컷오프 점수 바뀜)
-    };
-  });
-
-  // 6️⃣ [이벤트 연결] 과목 필터 버튼 (클릭 시 해당 과목 컷오프로 변경)
-  document.querySelectorAll(".filter-btn").forEach(btn => {
-    // 버튼 초기 스타일 동기화
-    const index = parseInt(btn.dataset.index);
-    // 첫 번째 데이터셋이 '상위 30% 영역'일 수 있으므로 실제 과목 인덱스는 보정이 필요할 수 있으나, 
-    // 로직을 단순화하기 위해 버튼 투명도만 토글하고 차트를 완전히 새로 그림
-    
-    btn.onclick = function() {
-      // 버튼 켜고 끄기 시각 효과
-      if (this.style.opacity === "0.3") {
-        this.style.opacity = "1";
-      } else {
-        this.style.opacity = "0.3";
+    // 🎯 [특수 플러그인] 차트 위에 점수를 항상 텍스트로 써주는 마법
+    const alwaysShowLabelsPlugin = {
+      id: 'alwaysShowLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx } = chart;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        
+        chart.data.datasets.forEach((dataset, i) => {
+          const meta = chart.getDatasetMeta(i);
+          if (meta.hidden) return; // 숨겨진 과목은 패스
+          
+          const isTop30 = dataset.label.includes("Top30%");
+          // 내 점수는 크게, Top30% 기준점은 살짝 작게
+          ctx.font = isTop30 ? 'bold 11px Noto Sans KR' : '900 13px Noto Sans KR';
+          ctx.fillStyle = dataset.borderColor; 
+          
+          meta.data.forEach((element, index) => {
+            const val = dataset.data[index];
+            if (val !== null && val !== undefined) {
+              const pos = element.tooltipPosition();
+              const text = isTop30 ? `★${val}` : `${val}`;
+              
+              // 겹치지 않게 내 점수는 점 위로, 기준점은 점 아래로 배치
+              if (isTop30) {
+                 ctx.textBaseline = 'top';
+                 ctx.fillText(text, pos.x, pos.y + 8);
+              } else {
+                 ctx.textBaseline = 'bottom';
+                 ctx.fillText(text, pos.x, pos.y - 8);
+              }
+            }
+          });
+        });
       }
-      
-      // 어떤 과목이 켜졌는지에 따라 기준선이 달라져야 하므로 차트를 아예 새로 그림
-      renderTrendChart_(currentTrendItems); 
     };
-  });
-}
 
+    // 2️⃣ [차트 생성]
+    window.adminChart = new Chart(ctx, {
+      type: 'line',
+      data: { labels: items.map(it => it.label), datasets: datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        layout: { padding: { top: 20, bottom: 20 } }, // 글씨가 잘리지 않게 위아래 여백 확보
+        scales: {
+          y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } },
+          y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
+        },
+        plugins: { 
+          legend: { display: false },
+          tooltip: { callbacks: { label: function(c) { return c.dataset.label.includes("Top30%") ? `${c.dataset.label}: ${c.formattedValue} (기준)` : `${c.dataset.label}: ${c.formattedValue}`; } } }
+        } 
+      },
+      plugins: [alwaysShowLabelsPlugin] // 💡 플러그인 등록!
+    });
+
+    // 3️⃣ 버튼 이벤트 (모드 전환)
+    document.querySelectorAll(".mode-btn").forEach(btn => {
+      btn.onclick = function() { currentMode = this.dataset.mode; renderTrendChart_(currentTrendItems); };
+    });
+
+    // 4️⃣ 과목 필터 버튼 (내 성적과 기준선을 동시에 껐다 켜기)
+    document.querySelectorAll(".filter-btn").forEach(btn => {
+      const subjName = btn.innerText.trim();
+      let mainIdx = -1;
+      // 초기 버튼 투명도 동기화
+      if (window.adminChart) {
+        window.adminChart.data.datasets.forEach((ds, i) => { if (ds.label === subjName) mainIdx = i; });
+        if (mainIdx !== -1) btn.style.opacity = window.adminChart.isDatasetVisible(mainIdx) ? "1" : "0.3";
+      }
+
+      btn.onclick = function() {
+        if (!window.adminChart) return;
+        const sName = this.innerText.trim();
+        let mIdx = -1;
+        window.adminChart.data.datasets.forEach((ds, i) => { if (ds.label === sName) mIdx = i; });
+        if (mIdx === -1) return;
+        
+        const isVisible = window.adminChart.isDatasetVisible(mIdx);
+        
+        // 💡 주 과목과 연관된 Top30% 선을 모두 같이 토글!
+        window.adminChart.data.datasets.forEach((ds, i) => {
+          if (ds.label.startsWith(sName)) {
+            if (isVisible) window.adminChart.hide(i);
+            else window.adminChart.show(i);
+          }
+        });
+        this.style.opacity = isVisible ? "0.3" : "1";
+      };
+    });
+  }
+  
   /** ✅ 취약 영역 방사형 차트 (+ 행동영역 상세 분석 카드 추가) */
   function renderVulnerabilityChart(unitsBySubject, token) {
   const canvas = document.getElementById("vulnRadarChart");
