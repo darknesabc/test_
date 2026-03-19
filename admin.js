@@ -552,7 +552,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function issueStudentToken_(seat, studentId) {
     const sess = getAdminSession();
-    const data = await apiPost("admin_issue_token", { adminToken: sess.adminToken, seat, studentId });
+    if (!sess?.adminToken) throw new Error("관리자 세션이 없습니다.");
+    
+    // 💡 백엔드 파라미터 불일치 문제 해결: adminToken과 token 둘 다 전송
+    const data = await apiPost("admin_issue_token", { 
+      adminToken: sess.adminToken, 
+      token: sess.adminToken, 
+      seat, 
+      studentId 
+    });
+    
     if (!data.ok) throw new Error(data.error || "token 발급 실패");
     return data.token;
   }
@@ -620,7 +629,6 @@ async function loadSummariesForStudent_(seat, studentId) {
     const cached = getSummaryCache(key);
     if (cached) {
       console.log(`⚡ ${name} 학생 데이터를 캐시에서 즉시 로드합니다.`);
-      // 💡 중요: render 함수에 보내는 형식을 { student, summary } 로 통일
       renderStudentDetail({ student: st, summary: cached }); 
       return;
     }
@@ -628,17 +636,35 @@ async function loadSummariesForStudent_(seat, studentId) {
     // 2️⃣ 보관함에 없을 때만 로딩 표시 후 호출
     detailBody.innerHTML = "데이터를 불러오는 중…";
     try {
-      const data = await apiPost("admin_student_detail", { adminToken: sess.adminToken, seat, studentId });
-      if (!data.ok) { detailBody.innerHTML = `<div style="color:#ff6b6b;">조회 실패</div>`; return; }
+      // 💡 백엔드 호환성을 위해 token 파라미터도 함께 전송
+      const data = await apiPost("admin_student_detail", { 
+        adminToken: sess.adminToken, 
+        token: sess.adminToken, 
+        seat, 
+        studentId 
+      });
+      
+      if (!data.ok) { 
+        // 💡 에러 메시지를 화면에 정확히 표시
+        detailBody.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(data.error || "조회 실패")}</div>`; 
+        
+        // 진짜 세션 만료인 경우 깔끔하게 자동 로그아웃 처리
+        if (data.error && data.error.includes("만료")) {
+          setTimeout(() => { clearAdminSession(); location.reload(); }, 1500);
+        }
+        return; 
+      }
       
       const summary = await loadSummariesForStudent_(seat, studentId);
-      // 💡 [추가] 직접 클릭해서 가져올 때도 이름표를 꼭 달아줍니다.
       summary.student = st;
       setSummaryCache(key, summary);
       data.summary = summary;
       renderStudentDetail(data);
     } catch (e) {
-      detailBody.innerHTML = `<div style="color:#ff6b6b;">네트워크 오류</div>`;
+      detailBody.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e.message || "네트워크 오류")}</div>`;
+      if (e.message && e.message.includes("만료")) {
+        setTimeout(() => { clearAdminSession(); location.reload(); }, 1500);
+      }
     }
   }
 
