@@ -1402,152 +1402,90 @@ async function loadSummariesForStudent_(seat, studentId) {
     }
   }
 
-  /**
-   * 📈 [최종 통합 버전] 그래프 렌더링 + 항상 텍스트 표시 플러그인 + 동적 토글
-   */
-  function renderTrendChart_(items, top30Cutoffs, studentClass) {
-    currentTrendItems = items; 
-    if (top30Cutoffs) currentTop30 = top30Cutoffs; 
-    if (studentClass !== undefined) selectedCutoffClass = studentClass;
+  /** 📈 [수정본] 영역 강조(Area Shading)가 적용된 성적 추이 그래프 */
+function renderTrendChart_(items, top30Cutoffs, studentClass) {
+  currentTrendItems = items; 
+  if (top30Cutoffs) currentTop30 = top30Cutoffs; 
+  if (studentClass !== undefined) selectedCutoffClass = studentClass;
 
-    const canvas = $("adminGradeTrendChart");
-    const ctx = canvas.getContext('2d');
-    if (window.adminChart) window.adminChart.destroy(); 
+  const canvas = $("adminGradeTrendChart");
+  const ctx = canvas.getContext('2d');
+  if (window.adminChart) window.adminChart.destroy(); 
 
-    // 💡 학반 선택 드롭다운 세팅
-    const classSelect = $("classCutoffSelect");
-    if (classSelect && currentTop30 && currentTop30.classes) {
-      if (top30Cutoffs) { // 데이터가 갱신되었을 때만 옵션 새로 생성
-        classSelect.innerHTML = '<option value="">전체 Top 30%만 보기</option>';
-        Object.keys(currentTop30.classes).forEach(cName => {
-          const opt = document.createElement("option");
-          opt.value = cName;
-          opt.text = `${cName} Top 30% 표시`;
-          classSelect.appendChild(opt);
-        });
-      }
-      if (Array.from(classSelect.options).some(o => o.value === selectedCutoffClass)) {
-        classSelect.value = selectedCutoffClass;
-      } else {
-        classSelect.value = "";
-        selectedCutoffClass = "";
-      }
-      classSelect.onchange = function() {
-        selectedCutoffClass = this.value;
-        renderTrendChart_(currentTrendItems); // 반 변경 시 차트 재렌더링
-      };
-    }
+  // 1️⃣ 백분위/원점수 모드에 따른 키 설정
+  const isPct = (currentMode === 'pct');
+  const suffix = isPct ? '_pct' : '_raw';
 
-    // 1️⃣ 백분위/원점수 버튼 활성화 스타일
-    document.querySelectorAll(".mode-btn").forEach(btn => {
-      if (btn.dataset.mode === currentMode) {
-        btn.style.background = "#3498db"; btn.style.color = "white"; btn.style.fontWeight = "bold"; btn.classList.add("active");
-      } else {
-        btn.style.background = "transparent"; btn.style.color = "rgba(255,255,255,0.5)"; btn.style.fontWeight = "normal"; btn.classList.remove("active");
-      }
-    });
+  const datasets = [
+    { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', backgroundColor: '#3498db', tension: 0.3, fill: false },
+    { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', backgroundColor: '#e74c3c', tension: 0.3, fill: false },
+    { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', backgroundColor: '#2ecc71', tension: 0.3, fill: false },
+    { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', backgroundColor: '#f1c40f', tension: 0.3, fill: false },
+    { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', backgroundColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false }
+  ];
 
-    const suffix = currentMode === 'pct' ? '_pct' : '_raw';
-    const targetKey = currentMode === 'pct' ? 'pct' : 'raw'; 
-    
-    // 내 성적 데이터셋 (기본)
-    const datasets = [
-      { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', backgroundColor: '#3498db', tension: 0.3, fill: false },
-      { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', backgroundColor: '#e74c3c', tension: 0.3, fill: false },
-      { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', backgroundColor: '#2ecc71', tension: 0.3, borderDash: [5, 5], fill: false },
-      { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', backgroundColor: '#f1c40f', tension: 0.3, borderDash: [5, 5], fill: false },
-      { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', backgroundColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, pointStyle: 'circle', pointRadius: 5 }
+  // 2️⃣ Top 30% 기준선 및 영역(Shading) 추가
+  if (currentTop30) {
+    const subjects = [
+      { key: "국어", color: "#3498db" }, { key: "수학", color: "#e74c3c" },
+      { key: "탐구1", color: "#2ecc71" }, { key: "탐구2", color: "#f1c40f" }
     ];
 
-    // 💡 Top 30% 컷오프 데이터셋 추가 (눈에 잘 띄게 수정)
-    if (currentTop30) {
-      const subjects = [
-        { key: "국어", color: "#3498db" }, { key: "수학", color: "#e74c3c" },
-        { key: "탐구1", color: "#2ecc71" }, { key: "탐구2", color: "#f1c40f" },
-        { key: "영어", color: "#9b59b6", isEng: true }
-      ];
-
-      subjects.forEach(subj => {
-        // 1. 전체 Top 30% (얇은 점선, 네모 포인트)
-        if (currentTop30.overall && currentTop30.overall[subj.key]) {
-          let val = currentTop30.overall[subj.key][targetKey];
-          if (val === "-" || val === undefined) val = null; 
-          if (val !== null) {
-            datasets.push({
-              label: `${subj.key} 전체 Top30%`, data: items.map(() => val),
-              borderColor: subj.color, backgroundColor: subj.color, tension: 0, borderDash: [3, 3], borderWidth: 1.5, fill: false, pointStyle: 'rectRot', pointRadius: 5, yAxisID: subj.isEng ? 'y_eng' : 'y'
-            });
-          }
-        }
-        // 2. 선택된 학반 Top 30% (두꺼운 점선, 세모 포인트)
-        if (selectedCutoffClass && currentTop30.classes && currentTop30.classes[selectedCutoffClass] && currentTop30.classes[selectedCutoffClass][subj.key]) {
-          let val = currentTop30.classes[selectedCutoffClass][subj.key][targetKey];
-          if (val === "-" || val === undefined) val = null; 
-          if (val !== null) {
-            datasets.push({
-              label: `${subj.key} [${selectedCutoffClass}] Top30%`, data: items.map(() => val),
-              borderColor: subj.color, backgroundColor: subj.color, tension: 0, borderDash: [6, 6], borderWidth: 2, fill: false, pointStyle: 'triangle', pointRadius: 6, yAxisID: subj.isEng ? 'y_eng' : 'y'
-            });
-          }
-        }
-      });
-    }
-
-    // 🎯 [특수 플러그인] 차트 위에 점수를 항상 텍스트로 써주는 마법
-    const alwaysShowLabelsPlugin = {
-      id: 'alwaysShowLabels',
-      afterDatasetsDraw(chart) {
-        const { ctx } = chart;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        
-        chart.data.datasets.forEach((dataset, i) => {
-          const meta = chart.getDatasetMeta(i);
-          if (meta.hidden) return; // 숨겨진 과목은 패스
-          
-          const isTop30 = dataset.label.includes("Top30%");
-          // 내 점수는 크게, Top30% 기준점은 살짝 작게
-          ctx.font = isTop30 ? 'bold 11px Noto Sans KR' : '900 13px Noto Sans KR';
-          ctx.fillStyle = dataset.borderColor; 
-          
-          meta.data.forEach((element, index) => {
-            const val = dataset.data[index];
-            if (val !== null && val !== undefined) {
-              const pos = element.tooltipPosition();
-              const text = isTop30 ? `★${val}` : `${val}`;
-              
-              // 겹치지 않게 내 점수는 점 위로, 기준점은 점 아래로 배치
-              if (isTop30) {
-                 ctx.textBaseline = 'top';
-                 ctx.fillText(text, pos.x, pos.y + 8);
-              } else {
-                 ctx.textBaseline = 'bottom';
-                 ctx.fillText(text, pos.x, pos.y - 8);
-              }
-            }
-          });
+    subjects.forEach(subj => {
+      // 백엔드 키와 매칭 (예: 국어_pct 또는 국어)
+      const cutoffKey = isPct ? subj.key + "_pct" : subj.key;
+      
+      // 전체 상위 30% (영역으로 표시)
+      if (currentTop30.overall && currentTop30.overall[cutoffKey]) {
+        const val = currentTop30.overall[cutoffKey];
+        datasets.push({
+          label: `${subj.key} 목표 영역`,
+          data: items.map(() => val),
+          borderColor: 'transparent',
+          backgroundColor: subj.color + '15', // 아주 연한 과목 색상 (투명도 0.08 정도)
+          fill: 'end', // 기준점부터 상단(100점)까지 채우기
+          pointRadius: 0,
+          order: 10 // 배경으로 보내기
         });
       }
-    };
 
-    // 2️⃣ [차트 생성]
-    window.adminChart = new Chart(ctx, {
-      type: 'line',
-      data: { labels: items.map(it => it.label), datasets: datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        layout: { padding: { top: 20, bottom: 20 } }, // 글씨가 잘리지 않게 위아래 여백 확보
-        scales: {
-          y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.6)' }, grid: { color: 'rgba(255,255,255,0.1)' }, title: { display: true, text: currentMode === 'pct' ? '백분위' : '원점수', color: '#fff' } },
-          y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { drawOnChartArea: false }, ticks: { color: 'rgba(255,255,255,0.6)' } }
-        },
-        plugins: { 
-          legend: { display: false },
-          tooltip: { callbacks: { label: function(c) { return c.dataset.label.includes("Top30%") ? `${c.dataset.label}: ${c.formattedValue} (기준)` : `${c.dataset.label}: ${c.formattedValue}`; } } }
-        } 
-      },
-      plugins: [alwaysShowLabelsPlugin] // 💡 플러그인 등록!
+      // 반 상위 30% (얇은 점선으로 표시)
+      if (selectedCutoffClass && currentTop30.classes[selectedCutoffClass]) {
+        const classVal = currentTop30.classes[selectedCutoffClass][cutoffKey];
+        if (classVal) {
+          datasets.push({
+            label: `${subj.key}(반) 30%`,
+            data: items.map(() => classVal),
+            borderColor: subj.color,
+            borderDash: [5, 5],
+            borderWidth: 1,
+            pointStyle: 'triangle',
+            pointRadius: 3,
+            fill: false
+          });
+        }
+      }
     });
+  }
+
+  // 3️⃣ 차트 생성
+  window.adminChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: items.map(it => it.label), datasets: datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.5)' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { display: false } }
+      },
+      plugins: {
+        legend: { display: false },
+        // 기존의 alwaysShowLabelsPlugin을 여기에 연결
+      }
+    },
+    plugins: [alwaysShowLabelsPlugin]
+  });
+}
 
     // 3️⃣ 버튼 이벤트 (모드 전환)
     document.querySelectorAll(".mode-btn").forEach(btn => {
