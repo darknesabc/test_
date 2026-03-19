@@ -1461,7 +1461,10 @@ function renderTrendChart_(items) {
   // 3️⃣ 헬퍼 함수 및 반별 시각적 스타일 지정 (여러 개 켜도 헷갈리지 않게 점선/도형 다르게)
   const getClassVal = (it, className, subj) => {
     if (!it.all_classes_cutoffs || !it.all_classes_cutoffs[className]) return null;
-    return it.all_classes_cutoffs[className][subj + suffix];
+    
+    // 💡 [버그 수정] 백분위일 때는 '_pct'를 붙이고, 원점수일 때는 과목명(예: '국어') 그대로 찾도록 수정
+    const key = currentMode === 'pct' ? (subj + '_pct') : subj;
+    return it.all_classes_cutoffs[className][key];
   };
 
   const classStyles = [
