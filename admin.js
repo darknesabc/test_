@@ -1412,19 +1412,19 @@ function renderTrendChart_(items, top30Cutoffs, studentClass) {
   const ctx = canvas.getContext('2d');
   if (window.adminChart) window.adminChart.destroy(); 
 
-  // 1️⃣ 백분위/원점수 모드에 따른 키 설정
   const isPct = (currentMode === 'pct');
   const suffix = isPct ? '_pct' : '_raw';
 
+  // 1️⃣ 기본 내 성적 데이터셋
   const datasets = [
-    { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', backgroundColor: '#3498db', tension: 0.3, fill: false },
-    { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', backgroundColor: '#e74c3c', tension: 0.3, fill: false },
-    { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', backgroundColor: '#2ecc71', tension: 0.3, fill: false },
-    { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', backgroundColor: '#f1c40f', tension: 0.3, fill: false },
-    { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', backgroundColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false }
+    { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', backgroundColor: '#3498db', tension: 0.3, fill: false, z: 10 },
+    { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', backgroundColor: '#e74c3c', tension: 0.3, fill: false, z: 10 },
+    { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', backgroundColor: '#2ecc71', tension: 0.3, fill: false, z: 10 },
+    { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', backgroundColor: '#f1c40f', tension: 0.3, fill: false, z: 10 },
+    { label: '영어', data: items.map(it => it.eng_grade), borderColor: '#9b59b6', backgroundColor: '#9b59b6', tension: 0.3, yAxisID: 'y_eng', fill: false, z: 10 }
   ];
 
-  // 2️⃣ Top 30% 기준선 및 영역(Shading) 추가
+  // 2️⃣ 상위 30% 목표 영역(Area Shading) 및 반 기준선 추가
   if (currentTop30) {
     const subjects = [
       { key: "국어", color: "#3498db" }, { key: "수학", color: "#e74c3c" },
@@ -1432,59 +1432,68 @@ function renderTrendChart_(items, top30Cutoffs, studentClass) {
     ];
 
     subjects.forEach(subj => {
-      // 백엔드 키와 매칭 (예: 국어_pct 또는 국어)
+      // 💡 백엔드 데이터 키 매칭 수정 (전체 30%)
       const cutoffKey = isPct ? subj.key + "_pct" : subj.key;
-      
-      // 전체 상위 30% (영역으로 표시)
-      if (currentTop30.overall && currentTop30.overall[cutoffKey]) {
-        const val = currentTop30.overall[cutoffKey];
+      const totalVal = currentTop30.overall ? currentTop30.overall[cutoffKey] : null;
+
+      if (totalVal && typeof totalVal === 'number') {
         datasets.push({
           label: `${subj.key} 목표 영역`,
-          data: items.map(() => val),
+          data: items.map(() => totalVal),
           borderColor: 'transparent',
-          backgroundColor: subj.color + '15', // 아주 연한 과목 색상 (투명도 0.08 정도)
-          fill: 'end', // 기준점부터 상단(100점)까지 채우기
+          backgroundColor: subj.color + '10', // 10% 투명도 (아주 연하게)
+          fill: 'end', // 💡 기준점부터 100점(끝)까지 채우기
           pointRadius: 0,
-          order: 10 // 배경으로 보내기
+          order: 20 // 선 뒤로 보내기
         });
       }
 
-      // 반 상위 30% (얇은 점선으로 표시)
-      if (selectedCutoffClass && currentTop30.classes[selectedCutoffClass]) {
+      // 💡 반 상위 30% 기준선 (얇은 점선)
+      if (selectedCutoffClass && currentTop30.classes && currentTop30.classes[selectedCutoffClass]) {
         const classVal = currentTop30.classes[selectedCutoffClass][cutoffKey];
-        if (classVal) {
+        if (classVal && typeof classVal === 'number') {
           datasets.push({
             label: `${subj.key}(반) 30%`,
             data: items.map(() => classVal),
             borderColor: subj.color,
             borderDash: [5, 5],
-            borderWidth: 1,
+            borderWidth: 1.5,
+            fill: false,
             pointStyle: 'triangle',
-            pointRadius: 3,
-            fill: false
+            pointRadius: 4,
+            order: 5
           });
         }
       }
     });
   }
 
-  // 3️⃣ 차트 생성
+  // 3️⃣ 차트 생성 (Scale 설정 포함)
   window.adminChart = new Chart(ctx, {
     type: 'line',
     data: { labels: items.map(it => it.label), datasets: datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       scales: {
-        y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.5)' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-        y_eng: { position: 'right', min: 1, max: 9, reverse: true, grid: { display: false } }
+        y: { 
+          min: 0, max: 100, 
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: 'rgba(255,255,255,0.5)' } 
+        },
+        y_eng: { 
+          position: 'right', min: 1, max: 9, reverse: true, 
+          grid: { display: false },
+          ticks: { color: 'rgba(255,255,255,0.5)' } 
+        }
       },
       plugins: {
         legend: { display: false },
-        // 기존의 alwaysShowLabelsPlugin을 여기에 연결
+        tooltip: { mode: 'index', intersect: false }
       }
     },
-    plugins: [alwaysShowLabelsPlugin]
+    plugins: [alwaysShowLabelsPlugin] // 💡 기존 점수 표시 플러그인 유지
   });
+}
 
     // 3️⃣ 버튼 이벤트 (모드 전환)
     document.querySelectorAll(".mode-btn").forEach(btn => {
