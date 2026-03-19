@@ -45,6 +45,11 @@ function hhmmToMin_(t) {
 function inferStartPeriodByTime_(timeHHMM) {
   const t = hhmmToMin_(timeHHMM);
   if (!Number.isFinite(t)) return 0;
+
+  // 💡 [추가] 1교시 시작 시간(08:00)보다 이르면 1교시부터 시작한 것으로 간주
+  const firstPeriodStart = hhmmToMin_(PERIODS_ATT_[0].start);
+  if (t < firstPeriodStart) return 1;
+
   for (let i = 0; i < PERIODS_ATT_.length; i++) {
     const cur = PERIODS_ATT_[i];
     const s = hhmmToMin_(cur.start);
@@ -88,7 +93,9 @@ function buildMoveMapFromItems_(items) {
     const sp = inferStartPeriodByTime_(time); 
     const from = sp > 0 ? sp : Math.max(1, rp - 1);
     const to = rp;
-    const start = (from <= to) ? from : Math.max(1, rp - 1);
+    
+    // 💡 [핵심 수정] sp가 1 이상이면 무조건 꽉 채우도록 보정
+    const start = (from <= to) ? from : to;
 
     map[iso] = map[iso] || {};
     for (let p = start; p <= to; p++) {
