@@ -338,11 +338,13 @@ function setSummaryCache(key, summary) {
 }
 
 /** =========================
-* ✅ 정오표(Errata) 렌더
+* ✅ 정오표(Errata) 렌더 (+ 출제영역 & 막대그래프 추가)
 * ========================= */
 function renderErrataHtml_(errata) {
   if (!errata || !errata.subjects) return "";
   const s = errata.subjects;
+  const qInfo = errata.qInfo || {}; // 💡 백엔드에서 받은 출제 영역 텍스트
+  
   const pctText = (pct) => (pct === null || pct === undefined) ? "-" : `${pct}%`;
   const asMap = (arr, key) => { const m = new Map(); (arr || []).forEach(it => { if (it && it[key] !== undefined) m.set(it[key], it); }); return m; };
 
@@ -356,7 +358,8 @@ function renderErrataHtml_(errata) {
     </details>
   `;
 
-  const renderTable = (oxArr, rateArr, qFrom, qTo) => {
+  // 💡 subjKey를 받아 해당 과목의 출제 영역을 매칭합니다.
+  const renderTable = (oxArr, rateArr, qFrom, qTo, subjKey) => {
     const oxMap = asMap(oxArr, "q");
     const rtMap = asMap(rateArr, "q");
     const rows = [];
@@ -364,28 +367,51 @@ function renderErrataHtml_(errata) {
       const ox = oxMap.get(q)?.ox || "";
       const rt = rtMap.get(q);
       const isWrong = (ox !== "" && ox !== "O" && ox !== "○");
-      const isHighPct = (rt && typeof rt.pct === "number" && rt.pct >= 70);
+      
+      const pct = rt?.pct;
+      const isHighPct = (pct !== null && pct !== undefined && pct >= 70);
       const highlightPct = (isWrong && isHighPct);
 
+      // 1️⃣ 출제 영역 텍스트 찾기
+      const infoText = (qInfo[subjKey] && qInfo[subjKey][q]) ? qInfo[subjKey][q] : "-";
+
+      // 2️⃣ 정답률 미니 막대그래프 HTML 그리기
+      let barHtml = `<div style="text-align:right; width:45px; color:rgba(255,255,255,0.5);">-</div>`;
+      if (pct !== null && pct !== undefined) {
+         let barColor = "#2ecc71"; // 초록 (쉬움)
+         if (pct <= 30) barColor = "#e74c3c"; // 빨강 (킬러/어려움)
+         else if (pct <= 70) barColor = "#f1c40f"; // 노랑 (보통)
+         
+         barHtml = `
+            <div style="display:flex; align-items:center; gap:8px; justify-content: flex-end;">
+                <div style="width:40px; text-align:right; font-size:12px;">${pct}%</div>
+                <div style="width:60px; height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden;">
+                    <div style="width:${pct}%; height:100%; background:${barColor}; border-radius:3px;"></div>
+                </div>
+            </div>`;
+      }
+
       rows.push(`
-        <tr>
-          <td style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; width:52px;">${q}</td>
-          <td class="${isWrong ? "errata-x-high" : ""}" style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center; width:52px; font-weight:900;">${escapeHtml(ox || "")}</td>
-          <td class="${highlightPct ? "errata-x-high" : ""}" style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; width:90px;">${escapeHtml(pctText(rt?.pct))}</td>
-          <td style="padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; opacity:.8;">${rt ? `${rt.o}/${rt.n}` : "-"}</td>
+        <tr style="transition: background 0.1s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
+          <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center; width:45px; font-weight:bold;">${q}</td>
+          <td class="${isWrong ? "errata-x-high" : ""}" style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center; width:50px; font-weight:900; font-size:14px;">${escapeHtml(ox || "")}</td>
+          <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; color:rgba(255,255,255,0.85); font-size:12px; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(infoText)}">${escapeHtml(infoText)}</td>
+          <td class="${highlightPct ? "errata-x-high" : ""}" style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06);">${barHtml}</td>
+          <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; opacity:.7; font-size:12px; width:60px;">${rt ? `${rt.o}/${rt.n}` : "-"}</td>
         </tr>
       `);
     }
 
     return `
       <div style="overflow:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px; table-layout: fixed;">
           <thead>
             <tr style="background:rgba(255,255,255,.03);">
-              <th style="padding:8px; text-align:right;">문항</th>
-              <th style="padding:8px; text-align:center;">O/X</th>
-              <th style="padding:8px; text-align:right;">정답률</th>
-              <th style="padding:8px; text-align:right;">O/응시</th>
+              <th style="padding:8px; text-align:center; width:45px;">문항</th>
+              <th style="padding:8px; text-align:center; width:50px;">O/X</th>
+              <th style="padding:8px; text-align:left;">출제 영역 <span style="font-size:10px; font-weight:normal; opacity:0.6;">(단원-행동영역)</span></th>
+              <th style="padding:8px; text-align:right; width:130px;">정답률</th>
+              <th style="padding:8px; text-align:right; width:60px;">O/응시</th>
             </tr>
           </thead>
           <tbody>${rows.join("")}</tbody>
@@ -405,16 +431,16 @@ function renderErrataHtml_(errata) {
     blocks.push(section(title, meta, html, open));
   };
 
-  if (s.kor?.common) pushAcc("국어 공통", "문항 1~34" + (korChoice ? ` · ${korChoice}` : ""), renderTable(s.kor.common.ox, s.kor.common.rate, 1, 34));
-  if (s.kor?.choice) pushAcc("국어 선택", "문항 35~45" + (korChoice ? ` · ${korChoice}` : ""), renderTable(s.kor.choice.ox, s.kor.choice.rate, 35, 45));
-  if (s.math?.common) pushAcc("수학 공통", "문항 1~22" + (mathChoice ? ` · ${mathChoice}` : ""), renderTable(s.math.common.ox, s.math.common.rate, 1, 22));
-  if (s.math?.choice) pushAcc("수학 선택", "문항 23~30" + (mathChoice ? ` · ${mathChoice}` : ""), renderTable(s.math.choice.ox, s.math.choice.rate, 23, 30));
-  if (s.eng?.all) pushAcc("영어", "문항 1~45", renderTable(s.eng.all.ox, s.eng.all.rate, 1, 45));
+  if (s.kor?.common) pushAcc("국어 공통", "문항 1~34" + (korChoice ? ` · ${korChoice}` : ""), renderTable(s.kor.common.ox, s.kor.common.rate, 1, 34, "국어"));
+  if (s.kor?.choice) pushAcc("국어 선택", "문항 35~45" + (korChoice ? ` · ${korChoice}` : ""), renderTable(s.kor.choice.ox, s.kor.choice.rate, 35, 45, "국어"));
+  if (s.math?.common) pushAcc("수학 공통", "문항 1~22" + (mathChoice ? ` · ${mathChoice}` : ""), renderTable(s.math.common.ox, s.math.common.rate, 1, 22, "수학"));
+  if (s.math?.choice) pushAcc("수학 선택", "문항 23~30" + (mathChoice ? ` · ${mathChoice}` : ""), renderTable(s.math.choice.ox, s.math.choice.rate, 23, 30, "수학"));
+  if (s.eng?.all) pushAcc("영어", "문항 1~45", renderTable(s.eng.all.ox, s.eng.all.rate, 1, 45, "영어"));
 
   const tamItems = Array.isArray(s.tam?.items) ? s.tam.items : [];
   tamItems.forEach(it => {
     if (!it?.name || !it?.all) return;
-    pushAcc(`탐구 (${it.name})`, "문항 1~20", renderTable(it.all.ox, it.all.rate, 1, 20));
+    pushAcc(`탐구 (${it.name})`, "문항 1~20", renderTable(it.all.ox, it.all.rate, 1, 20, it.name));
   });
 
   const hasAny = blocks.length > 0;
@@ -422,7 +448,7 @@ function renderErrataHtml_(errata) {
   return `
     <div class="card" style="margin-top:14px;">
       <div class="card-head" style="display:flex; align-items:center; justify-content:space-between;">
-        <div style="font-weight:800;">정오표</div>
+        <div style="font-weight:800;">정오표 상세 분석</div>
         <div style="color:rgba(255,255,255,0.6); font-size:12px;">${escapeHtml(String(errata.errataSheetName || ""))}</div>
       </div>
       <div class="card-body" style="padding-top:6px;">
