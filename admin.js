@@ -1684,42 +1684,41 @@ function renderTrendChart_(items) {
   }
 }
 
-  /** ✅ 취약 영역 방사형 차트 (+ 행동영역 상세 분석 카드 추가) */
-  function renderVulnerabilityChart(unitsBySubject, token) {
+  /** ✅ 취약 영역 방사형 차트 (+ 행동영역 크로스 분석 토글 기능 추가) */
+function renderVulnerabilityChart(unitsBySubject, token) {
   const canvas = document.getElementById("vulnRadarChart");
   const msgEl = document.getElementById("vulnChartMsg");
   const canvasWrap = canvas.parentNode;
 
   if (!canvas || !unitsBySubject || Object.keys(unitsBySubject).length === 0) {
-  if (msgEl) msgEl.textContent = "분석할 데이터가 부족합니다.";
-  return;
+    if (msgEl) msgEl.textContent = "분석할 데이터가 부족합니다.";
+    return;
   }
   if (msgEl) msgEl.style.display = "none";
 
   // 버튼 컨테이너 (우측 상단)
   let btnContainer = document.getElementById("vulnSubjectBtns");
   if (!btnContainer) {
-  btnContainer = document.createElement("div");
-  btnContainer.id = "vulnSubjectBtns";
-  btnContainer.style.display = "flex";
-  btnContainer.style.justifyContent = "flex-end"; 
-  btnContainer.style.alignItems = "center";
-  btnContainer.style.gap = "8px";
-  btnContainer.style.marginBottom = "15px";
-  btnContainer.style.flexWrap = "wrap";
-  canvasWrap.insertBefore(btnContainer, canvas);
+    btnContainer = document.createElement("div");
+    btnContainer.id = "vulnSubjectBtns";
+    btnContainer.style.display = "flex";
+    btnContainer.style.justifyContent = "flex-end"; 
+    btnContainer.style.alignItems = "center";
+    btnContainer.style.gap = "8px";
+    btnContainer.style.marginBottom = "15px";
+    btnContainer.style.flexWrap = "wrap";
+    canvasWrap.insertBefore(btnContainer, canvas);
   }
   btnContainer.innerHTML = ""; 
 
-  // 🎯 [신규] 차트 아래에 띄울 '세부 행동영역 분석 카드' DOM 생성
+  // 🎯 세부 분석 카드 DOM 생성
   let detailCard = document.getElementById("vulnDetailCard");
   if (!detailCard) {
-  detailCard = document.createElement("div");
-  detailCard.id = "vulnDetailCard";
-  detailCard.style.marginTop = "20px";
-  detailCard.style.display = "none"; // 평소엔 숨김
-  // 캔버스를 감싸는 래퍼 바로 아래에 추가
-  canvasWrap.parentNode.insertBefore(detailCard, canvasWrap.nextSibling);
+    detailCard = document.createElement("div");
+    detailCard.id = "vulnDetailCard";
+    detailCard.style.marginTop = "20px";
+    detailCard.style.display = "none";
+    canvasWrap.parentNode.insertBefore(detailCard, canvasWrap.nextSibling);
   }
   detailCard.style.display = "none";
 
@@ -1727,191 +1726,215 @@ function renderTrendChart_(items) {
   let currentSubject = subjects[0];
 
   let isAccumulatedMode = false;
+  let isBehaviorMode = false; // 💡 [추가] 행동영역 보기 모드 상태
   let accumulatedData = null;
 
   const drawChart = () => {
-  // 탭 이동 시 상세 카드는 무조건 닫기
-  detailCard.style.display = "none"; 
+    detailCard.style.display = "none"; 
 
-  const dataSource = isAccumulatedMode ? accumulatedData : unitsBySubject;
-  const rawData = dataSource ? dataSource[currentSubject] : null;
+    const dataSource = isAccumulatedMode ? accumulatedData : unitsBySubject;
+    const rawData = dataSource ? dataSource[currentSubject] : null;
 
-  if (!rawData || rawData.length === 0) {
-  if (window.vulnChart) window.vulnChart.destroy();
-  return;
-  }
+    if (!rawData || rawData.length === 0) {
+      if (window.vulnChart) window.vulnChart.destroy();
+      return;
+    }
 
-  // 단원별 코드(code) 순서대로 정렬
-  const data = [...rawData].sort((a, b) => Number(a.code || 99) - Number(b.code || 99));
-
-  if (window.vulnChart) window.vulnChart.destroy();
-  const ctx = canvas.getContext('2d');
-
-  const pointColors = data.map((d) => {
-  const code = Number(d.code); 
-  if (currentSubject === "국어") {
-  if (code >= 1 && code <= 7) return '#3b82f6';
-  if (code >= 8 && code <= 14) return '#10b981';
-  if (code >= 15 && code <= 16) return '#f59e0b';
-  } else if (currentSubject === "수학") {
-  if (code >= 1 && code <= 3) return '#ec4899';
-  if (code >= 4 && code <= 6) return '#8b5cf6';
-  if (code >= 7 && code <= 9) return '#eab308';
-  }
-  return '#3498db'; 
-  });
-
-  window.vulnChart = new Chart(ctx, {
-  type: 'radar',
-  data: {
-    labels: data.map(d => d.area),
-    datasets: [{
-      label: `${currentSubject} 성취도(%)`,
-      data: data.map(d => d.score),
-      backgroundColor: isAccumulatedMode ? 'rgba(231, 76, 60, 0.15)' : 'rgba(52, 152, 219, 0.15)', 
-      borderColor: 'rgba(255, 255, 255, 0.3)',
-      pointBackgroundColor: pointColors,
-      pointBorderColor: pointColors,
-      pointRadius: 5,
-      pointHoverRadius: 8,
-      borderWidth: 2
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      r: {
-        min: 0, max: 100, beginAtZero: true,
-        grid: { color: 'rgba(255,255,255,0.15)' },
-        angleLines: { color: 'rgba(255,255,255,0.15)' },
-        pointLabels: { 
-          color: (context) => pointColors[context.index] || 'rgba(255,255,255,0.85)', 
-          font: { size: 12, weight: 'bold' } 
-        },
-        ticks: { display: false, stepSize: 20 }
-      }
-    },
-    onHover: (e, elements) => {
-      e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
-    },
-    onClick: (e, elements) => {
-      if (elements.length === 0) return; 
-
-      const idx = elements[0].index;
-      const item = data[idx]; 
-
-      // 🎯 [분리] 기존의 상세 카드 렌더링 로직을 함수로 묶습니다.
-      const renderDetailCard = (targetItem, targetIdx) => {
-        if (!targetItem || !targetItem.details || Object.keys(targetItem.details).length === 0) {
-          detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 행동영역 데이터가 없습니다.</div>`;
-          detailCard.style.display = "block";
-          return;
-        }
-
-        let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
-        html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[targetIdx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
-        html += `🔍 [${escapeHtml(targetItem.area)}] 세부 영역 분석</div>`;
-
-        for (const [beh, stats] of Object.entries(targetItem.details)) {
-          if (!beh || beh === "기타") continue;
-          const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
-
-          let color = "#2ecc71"; 
-          if (pct < 50) color = "#e74c3c"; 
-          else if (pct < 80) color = "#f1c40f"; 
-
-          html += `
-             <div style="margin-bottom: 12px;">
-               <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; font-weight: 600;">
-                 <span style="opacity:0.9;">${escapeHtml(beh)}</span>
-                 <span style="color:${color};">${pct}% <span style="opacity:0.6; font-size:11px; margin-left:4px;">(${stats.o}/${stats.n})</span></span>
-               </div>
-               <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
-                 <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 6px; transition: width 0.5s ease-out;"></div>
-               </div>
-             </div>
-          `;
-        }
-        html += `</div>`;
-
-        detailCard.innerHTML = html;
-        detailCard.style.display = "block";
-
-        setTimeout(() => {
-          detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 100);
-      };
-
-      // 🎯 [신규] 0점인 데이터들이 여러 개 겹쳐있는지 확인
-      const zeroItems = [];
-      data.forEach((d, i) => {
-        if (d.score === 0 || d.score === 0.0) {
-          zeroItems.push({ item: d, index: i });
-        }
-      });
-
-      // 클릭한 항목이 0점이고, 0점인 항목이 2개 이상일 때 -> 사용자 선택 UI 제공
-      if (item.score === 0 && zeroItems.length > 1) {
-        let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
-        html += `<div style="font-size: 14px; font-weight: 800; margin-bottom: 12px; color: #fff; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
-        html += `🎯 여러 단원의 성취도가 0%로 겹쳐있습니다.<br>상세 분석을 확인할 단원을 선택하세요.</div>`;
-        html += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
-
-        // 겹친 0% 항목들을 버튼으로 생성
-        zeroItems.forEach(z => {
-          const btnColor = pointColors[z.index] || '#3498db';
-          html += `<button class="zero-select-btn" data-idx="${z.index}" style="padding: 6px 12px; background: transparent; border: 1px solid ${btnColor}; border-radius: 6px; color: ${btnColor}; font-weight:bold; cursor: pointer; transition: background 0.2s;">
-            ${escapeHtml(z.item.area)}
-          </button>`;
-        });
-
-        html += `</div></div>`;
-        detailCard.innerHTML = html;
-        detailCard.style.display = "block";
-
-        // 생성된 버튼들에 이벤트 연결
-        const btns = detailCard.querySelectorAll('.zero-select-btn');
-        btns.forEach(btn => {
-          btn.addEventListener('click', function() {
-            const selectedIdx = parseInt(this.getAttribute('data-idx'));
-            // 버튼 클릭 시 최종 선택한 단원의 상세 카드 렌더링
-            renderDetailCard(data[selectedIdx], selectedIdx); 
-          });
-          // 간단한 Hover 효과
-          btn.addEventListener('mouseover', function() { this.style.background = 'rgba(255,255,255,0.1)'; });
-          btn.addEventListener('mouseout', function() { this.style.background = 'transparent'; });
-        });
-
-        setTimeout(() => {
-          detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 100);
-
-        return; // 선택 화면을 띄웠으므로 이벤트 종료
-      }
-
-      // 0점이 아니거나, 0점인 항목이 1개뿐이라면 기존처럼 바로 상세 화면 표시
-      renderDetailCard(item, idx);
-    },
-    plugins: { 
-      legend: { display: false },
-      tooltip: { 
-        callbacks: {
-          label: function(context) {
-            const item = data[context.dataIndex];
-            if (item && item.n !== undefined) {
-              return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항) - 클릭하여 상세분석`;
+    // 💡 [핵심] 모드에 따라 데이터를 다르게 뭉칩니다.
+    let chartData = [];
+    
+    if (isBehaviorMode) {
+        // 행동영역 모드: details 안의 행동영역들을 끄집어내서 합침
+        const behMap = {};
+        rawData.forEach(unit => {
+            if (unit.details) {
+                Object.entries(unit.details).forEach(([beh, stats]) => {
+                    if (!beh || beh === "기타" || beh === "-") return;
+                    if (!behMap[beh]) behMap[beh] = { o: 0, n: 0, details: {} };
+                    behMap[beh].o += stats.o;
+                    behMap[beh].n += stats.n;
+                    
+                    // 행동영역 클릭 시 '어느 단원'인지 보여주기 위해 역으로 저장
+                    behMap[beh].details[unit.area] = { o: stats.o, n: stats.n };
+                });
             }
-            return ` 성취도: ${item.score}%`;
+        });
+        
+        chartData = Object.keys(behMap).map(beh => ({
+            area: beh,
+            score: behMap[beh].n > 0 ? Math.round((behMap[beh].o / behMap[beh].n) * 100) : 0,
+            o: behMap[beh].o,
+            n: behMap[beh].n,
+            details: behMap[beh].details,
+            code: '99' // 색상 지정을 위해 임의값 부여
+        })).sort((a, b) => b.n - a.n); // 많이 출제된 행동영역부터 정렬
+
+    } else {
+        // 단원별 모드 (기존)
+        chartData = [...rawData].sort((a, b) => Number(a.code || 99) - Number(b.code || 99));
+    }
+
+    if (window.vulnChart) window.vulnChart.destroy();
+    const ctx = canvas.getContext('2d');
+
+    // 💡 색상 팔레트 지정 (모드에 따라 변환)
+    const behaviorPalette = ['#9b59b6', '#e67e22', '#1abc9c', '#e74c3c', '#3498db', '#f1c40f', '#34495e'];
+    const pointColors = chartData.map((d, i) => {
+      if (isBehaviorMode) return behaviorPalette[i % behaviorPalette.length];
+      
+      const code = Number(d.code); 
+      if (currentSubject === "국어") {
+        if (code >= 1 && code <= 7) return '#3b82f6';
+        if (code >= 8 && code <= 14) return '#10b981';
+        if (code >= 15 && code <= 16) return '#f59e0b';
+      } else if (currentSubject === "수학") {
+        if (code >= 1 && code <= 3) return '#ec4899';
+        if (code >= 4 && code <= 6) return '#8b5cf6';
+        if (code >= 7 && code <= 9) return '#eab308';
+      }
+      return '#3498db'; 
+    });
+
+    window.vulnChart = new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels: chartData.map(d => d.area),
+        datasets: [{
+          label: `${currentSubject} 성취도(%)`,
+          data: chartData.map(d => d.score),
+          backgroundColor: isAccumulatedMode ? 'rgba(231, 76, 60, 0.15)' : (isBehaviorMode ? 'rgba(155, 89, 182, 0.15)' : 'rgba(52, 152, 219, 0.15)'), 
+          borderColor: 'rgba(255, 255, 255, 0.3)',
+          pointBackgroundColor: pointColors,
+          pointBorderColor: pointColors,
+          pointRadius: 5,
+          pointHoverRadius: 8,
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            min: 0, max: 100, beginAtZero: true,
+            grid: { color: 'rgba(255,255,255,0.15)' },
+            angleLines: { color: 'rgba(255,255,255,0.15)' },
+            pointLabels: { 
+              color: (context) => pointColors[context.index] || 'rgba(255,255,255,0.85)', 
+              font: { size: 12, weight: 'bold' } 
+            },
+            ticks: { display: false, stepSize: 20 }
+          }
+        },
+        onHover: (e, elements) => {
+          e.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+        },
+        onClick: (e, elements) => {
+          if (elements.length === 0) return; 
+
+          const idx = elements[0].index;
+          const item = chartData[idx]; 
+
+          const renderDetailCard = (targetItem, targetIdx) => {
+            if (!targetItem || !targetItem.details || Object.keys(targetItem.details).length === 0) {
+              detailCard.innerHTML = `<div style="padding:12px; text-align:center; opacity:0.7; font-size:13px; background: rgba(255,255,255,0.04); border-radius:10px;">세부 분석 데이터가 없습니다.</div>`;
+              detailCard.style.display = "block";
+              return;
+            }
+
+            let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
+            
+            // 💡 [수정] 모드에 따라 제목 아이콘과 텍스트 변경
+            const icon = isBehaviorMode ? "🧠" : "🔍";
+            const suffix = isBehaviorMode ? "단원별 득점 비중" : "세부 영역 분석";
+            html += `<div style="font-size: 15px; font-weight: 800; margin-bottom: 12px; color: ${pointColors[targetIdx]}; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
+            html += `${icon} [${escapeHtml(targetItem.area)}] ${suffix}</div>`;
+
+            for (const [beh, stats] of Object.entries(targetItem.details)) {
+              if (!beh || beh === "기타") continue;
+              const pct = stats.n > 0 ? Math.round((stats.o / stats.n) * 100) : 0;
+
+              let color = "#2ecc71"; 
+              if (pct < 50) color = "#e74c3c"; 
+              else if (pct < 80) color = "#f1c40f"; 
+
+              html += `
+                 <div style="margin-bottom: 12px;">
+                   <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; font-weight: 600;">
+                     <span style="opacity:0.9;">${escapeHtml(beh)}</span>
+                     <span style="color:${color};">${pct}% <span style="opacity:0.6; font-size:11px; margin-left:4px;">(${stats.o}/${stats.n})</span></span>
+                   </div>
+                   <div style="width: 100%; background: rgba(255,255,255,0.1); border-radius: 6px; height: 8px; overflow: hidden;">
+                     <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 6px; transition: width 0.5s ease-out;"></div>
+                   </div>
+                 </div>
+              `;
+            }
+            html += `</div>`;
+
+            detailCard.innerHTML = html;
+            detailCard.style.display = "block";
+
+            setTimeout(() => { detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
+          };
+
+          const zeroItems = [];
+          chartData.forEach((d, i) => {
+            if (d.score === 0 || d.score === 0.0) zeroItems.push({ item: d, index: i });
+          });
+
+          if (item.score === 0 && zeroItems.length > 1) {
+            let html = `<div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">`;
+            html += `<div style="font-size: 14px; font-weight: 800; margin-bottom: 12px; color: #fff; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px;">`;
+            html += `🎯 여러 영역의 성취도가 0%로 겹쳐있습니다.<br>상세 분석을 확인할 영역을 선택하세요.</div>`;
+            html += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+
+            zeroItems.forEach(z => {
+              const btnColor = pointColors[z.index] || '#3498db';
+              html += `<button class="zero-select-btn" data-idx="${z.index}" style="padding: 6px 12px; background: transparent; border: 1px solid ${btnColor}; border-radius: 6px; color: ${btnColor}; font-weight:bold; cursor: pointer; transition: background 0.2s;">
+                ${escapeHtml(z.item.area)}
+              </button>`;
+            });
+
+            html += `</div></div>`;
+            detailCard.innerHTML = html;
+            detailCard.style.display = "block";
+
+            const btns = detailCard.querySelectorAll('.zero-select-btn');
+            btns.forEach(btn => {
+              btn.addEventListener('click', function() {
+                const selectedIdx = parseInt(this.getAttribute('data-idx'));
+                renderDetailCard(chartData[selectedIdx], selectedIdx); 
+              });
+              btn.addEventListener('mouseover', function() { this.style.background = 'rgba(255,255,255,0.1)'; });
+              btn.addEventListener('mouseout', function() { this.style.background = 'transparent'; });
+            });
+
+            setTimeout(() => { detailCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
+            return; 
+          }
+
+          renderDetailCard(item, idx);
+        }
+      },
+      plugins: { 
+        legend: { display: false },
+        tooltip: { 
+          callbacks: {
+            label: function(context) {
+              const item = chartData[context.dataIndex];
+              if (item && item.n !== undefined) {
+                return ` 성취도: ${item.score}% (${item.o}맞음 / ${item.n}문항) - 클릭하여 상세분석`;
+              }
+              return ` 성취도: ${item.score}%`;
+            }
           }
         }
       }
-    }
-  }
-});
+    });
   };
-    
-  // [전체 (누적)] 토글 버튼
+
+  // 💡 [전체 (누적)] 토글 버튼
   const allBtn = document.createElement("button");
   allBtn.className = "btn btn-mini";
   allBtn.textContent = "전체 (누적)";
@@ -1922,66 +1945,87 @@ function renderTrendChart_(items) {
   allBtn.style.borderRadius = "8px";
   allBtn.style.cursor = "pointer";
   allBtn.style.fontWeight = "bold";
-  allBtn.style.marginRight = "auto"; 
-
+  
   allBtn.onclick = async () => {
-  isAccumulatedMode = !isAccumulatedMode;
+    isAccumulatedMode = !isAccumulatedMode;
 
-  if (isAccumulatedMode && !accumulatedData) {
-  msgEl.textContent = "누적 데이터를 분석 중입니다... 잠시만 기다려주세요.";
-  msgEl.style.display = "block";
-  canvas.style.opacity = "0.3"; 
+    if (isAccumulatedMode && !accumulatedData) {
+      msgEl.textContent = "누적 데이터를 분석 중입니다... 잠시만 기다려주세요.";
+      msgEl.style.display = "block";
+      canvas.style.opacity = "0.3"; 
 
-  try {
-  const res = await apiPost("grade_analysis_accumulated", { token });
-  if (res.ok && Object.keys(res.units).length > 0) {
-  accumulatedData = res.units;
-  } else {
-  alert("아직 누적된 성적 데이터가 없습니다.");
-  isAccumulatedMode = false; 
-  }
-  } catch (e) { 
-  alert("데이터를 불러오는데 오류가 발생했습니다.");
-  isAccumulatedMode = false;
-  }
+      try {
+        const res = await apiPost("grade_analysis_accumulated", { token });
+        if (res.ok && Object.keys(res.units).length > 0) {
+          accumulatedData = res.units;
+        } else {
+          alert("아직 누적된 성적 데이터가 없습니다.");
+          isAccumulatedMode = false; 
+        }
+      } catch (e) { 
+        alert("데이터를 불러오는데 오류가 발생했습니다.");
+        isAccumulatedMode = false;
+      }
 
-  msgEl.style.display = "none";
-  canvas.style.opacity = "1";
-  }
+      msgEl.style.display = "none";
+      canvas.style.opacity = "1";
+    }
 
-  allBtn.style.background = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.1)";
-  allBtn.style.borderColor = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.3)";
-  drawChart();
+    allBtn.style.background = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.1)";
+    allBtn.style.borderColor = isAccumulatedMode ? "#e74c3c" : "rgba(255,255,255,0.3)";
+    drawChart();
   };
   btnContainer.appendChild(allBtn);
 
-  // 과목 버튼들 생성
+  // 💡 [행동영역 보기] 토글 버튼 (새로 추가됨)
+  const behaviorBtn = document.createElement("button");
+  behaviorBtn.className = "btn btn-mini";
+  behaviorBtn.innerHTML = "🔄 행동영역 보기";
+  behaviorBtn.style.background = "rgba(255,255,255,0.1)";
+  behaviorBtn.style.color = "#fff";
+  behaviorBtn.style.border = "1px solid rgba(255,255,255,0.3)";
+  behaviorBtn.style.padding = "6px 14px";
+  behaviorBtn.style.borderRadius = "8px";
+  behaviorBtn.style.cursor = "pointer";
+  behaviorBtn.style.fontWeight = "bold";
+  behaviorBtn.style.marginRight = "auto"; // 버튼들을 양쪽으로 밀어내기 위함
+  
+  behaviorBtn.onclick = () => {
+    isBehaviorMode = !isBehaviorMode;
+    behaviorBtn.innerHTML = isBehaviorMode ? "🔄 단원별 보기" : "🔄 행동영역 보기";
+    behaviorBtn.style.background = isBehaviorMode ? "#9b59b6" : "rgba(255,255,255,0.1)";
+    behaviorBtn.style.borderColor = isBehaviorMode ? "#9b59b6" : "rgba(255,255,255,0.3)";
+    drawChart();
+  };
+  btnContainer.appendChild(behaviorBtn);
+
+  // 과목 탭 버튼들 생성
   const subjBtnGroup = [];
   subjects.forEach((subj, idx) => {
-  const btn = document.createElement("button");
-  btn.className = "btn btn-mini";
-  btn.style.background = idx === 0 ? "#3498db" : "rgba(255,255,255,0.1)";
-  btn.style.color = "#fff";
-  btn.style.border = "none";
-  btn.style.padding = "6px 14px";
-  btn.style.borderRadius = "8px";
-  btn.style.cursor = "pointer";
-  btn.style.fontWeight = "bold";
-  btn.textContent = subj;
+    const btn = document.createElement("button");
+    btn.className = "btn btn-mini";
+    btn.style.background = idx === 0 ? "#3498db" : "rgba(255,255,255,0.1)";
+    btn.style.color = "#fff";
+    btn.style.border = "none";
+    btn.style.padding = "6px 14px";
+    btn.style.borderRadius = "8px";
+    btn.style.cursor = "pointer";
+    btn.style.fontWeight = "bold";
+    btn.textContent = subj;
 
-  btn.onclick = () => {
-  currentSubject = subj; 
-  subjBtnGroup.forEach(b => b.style.background = "rgba(255,255,255,0.1)");
-  btn.style.background = "#3498db";
-  drawChart();
-  };
+    btn.onclick = () => {
+      currentSubject = subj; 
+      subjBtnGroup.forEach(b => b.style.background = "rgba(255,255,255,0.1)");
+      btn.style.background = "#3498db";
+      drawChart();
+    };
 
-  subjBtnGroup.push(btn);
-  btnContainer.appendChild(btn);
+    subjBtnGroup.push(btn);
+    btnContainer.appendChild(btn);
   });
 
   drawChart();
-  }
+}
 
   // =========================================================================
   // 💡 [최종] 우리 반 전체 현황(대시보드 홈) - 중간 생략 없는 완전판
