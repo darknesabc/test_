@@ -1744,11 +1744,11 @@ function renderVulnerabilityChart(unitsBySubject, token) {
     let chartData = [];
     
     if (isBehaviorMode) {
-        // 행동영역 모드: details 안의 행동영역들을 끄집어내서 합침
+        // 행동영역 모드: behDetails 안의 행동영역들을 끄집어내서 합침
         const behMap = {};
         rawData.forEach(unit => {
-            if (unit.details) {
-                Object.entries(unit.details).forEach(([beh, stats]) => {
+            if (unit.behDetails) { // 💡 details -> behDetails 로 변경
+                Object.entries(unit.behDetails).forEach(([beh, stats]) => { // 💡 여기도 변경
                     if (!beh || beh === "기타" || beh === "-") return;
                     if (!behMap[beh]) behMap[beh] = { o: 0, n: 0, details: {} };
                     behMap[beh].o += stats.o;
@@ -1766,7 +1766,7 @@ function renderVulnerabilityChart(unitsBySubject, token) {
             o: behMap[beh].o,
             n: behMap[beh].n,
             details: behMap[beh].details,
-            code: '99' // 색상 지정을 위해 임의값 부여
+            code: '99' 
         })).sort((a, b) => b.n - a.n); // 많이 출제된 행동영역부터 정렬
 
     } else {
