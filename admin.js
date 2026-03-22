@@ -2176,66 +2176,112 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
     alert(`${st.studentName} 학생의 데이터가 최신 상태로 업데이트되었습니다.`);
   };
 
-   /**
-   * ✅ 보관함 데이터를 분석하여 위험 학생 알림판을 업데이트합니다.
-   */
-  window.updateRiskNoticePanel = function() {
-    const panel = document.getElementById("riskNoticePanel");
-    if (!panel) return;
+  /**
+ * ✅ [업그레이드] 스마트 확인 완료 및 월요일 자동 리셋 기능이 포함된 알림판
+ */
+window.updateRiskNoticePanel = function() {
+  const panel = document.getElementById("riskNoticePanel");
+  if (!panel) return;
 
-    const store = loadLocalCache_();
-    const risks = { penalty: [], attendance: [], sleep: [] };
+  const store = loadLocalCache_();
+  
+  // 💡 LocalStorage에서 '확인 시점의 숫자' 목록 가져오기
+  let smartDismissStr = localStorage.getItem("admin_smart_dismiss") || "{}";
+  let smartDismissMap = JSON.parse(smartDismissStr);
 
-    // 1. 모든 캐시 데이터를 돌며 위험 학생 필터링
-    Object.keys(store).forEach(key => {
-      const item = store[key].summary;
-      if (!item || !item.student || !item.student.name || item.student.name === "알 수 없음") return;
-      const name = item.student.name;
-      const id = item.student.studentId;
+  // 💡 [추가] 매주 월요일 아침 자동 리셋 로직
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0];
+  const isMonday = now.getDay() === 1; // 1 = 월요일
 
-      // 🚩 기준 1: 전체 누적 벌점 10점 이상 (백엔드에서 전체 누적으로 들어옴)
-      if (item.eduscore?.ok && item.eduscore.monthTotal >= 10) {
-        risks.penalty.push({ name, val: item.eduscore.monthTotal, id });
-      }
-      // 🚩 기준 2: 최근 7일(일요일 제외) 결석 3회 이상
-      if (item.attendance?.ok && item.attendance.absent >= 3) {
-        risks.attendance.push({ name, val: item.attendance.absent, id });
-      }
-      // 🚩 기준 3: 최근 7일 취침 5회 이상
-      if (item.sleep?.ok && item.sleep.sleepTotal7d >= 5) {
-        risks.sleep.push({ name, val: item.sleep.sleepTotal7d, id });
-      }
-    });
+  if (isMonday && smartDismissMap._lastReset !== todayStr) {
+    console.log("🔄 월요일입니다. 집중 관리 대상 확인 기록을 초기화합니다.");
+    smartDismissMap = { _lastReset: todayStr }; // 기존 기록 싹 지우고 리셋 날짜만 기록
+    localStorage.setItem("admin_smart_dismiss", JSON.stringify(smartDismissMap));
+  }
 
-    if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0) {
-      panel.style.display = "none";
-      return;
+  const risks = { penalty: [], attendance: [], sleep: [] };
+
+  Object.keys(store).forEach(key => {
+    const item = store[key].summary;
+    if (!item || !item.student || !item.student.name || item.student.name === "알 수 없음") return;
+    
+    const id = item.student.studentId;
+    const name = item.student.name;
+
+    // 각 항목별 현재 수치
+    const curP = item.eduscore?.ok ? (item.eduscore.monthTotal || 0) : 0;
+    const curA = item.attendance?.ok ? (item.attendance.absent || 0) : 0;
+    const curS = item.sleep?.ok ? (item.sleep.sleepTotal7d || 0) : 0;
+    
+    // 💡 스마트 체크: 저장된 숫자보다 현재 숫자가 더 커졌을 때만 목록에 추가
+    const lastCheckVal = smartDismissMap[id] || 0;
+    const maxCurVal = Math.max(curP >= 10 ? curP : 0, curA >= 3 ? curA : 0, curS >= 5 ? curS : 0);
+
+    // 기준을 넘었으면서, 이전에 확인한 숫자보다 클 때만 노출
+    if (maxCurVal > 0 && maxCurVal > lastCheckVal) {
+      if (curP >= 10) risks.penalty.push({ name, val: curP, id, maxCurVal });
+      if (curA >= 3) risks.attendance.push({ name, val: curA, id, maxCurVal });
+      if (curS >= 5) risks.sleep.push({ name, val: curS, id, maxCurVal });
     }
+  });
 
-    let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
-                  <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상
+  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+
+  // 💡 명단 생성 로직 (✅ 버튼 추가)
+  let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+                <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; justify-content:space-between;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상 <span style="font-size:12px; font-weight:normal; color:#e74c3c;">(미확인)</span>
                   </div>
-                  <div style="display: flex; gap: 12px; flex-wrap: wrap;">`;
-
-    const createTag = (color, label, list) => {
-      if (list.length === 0) return "";
-      return `<div style="background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 10px; border-left: 4px solid ${color}; flex-grow:1; min-width:200px;">
-                <b style="color:${color}; font-size:12px;">${label}</b><br>
-                <div style="margin-top:5px; font-size:13px; line-height:1.6;">
-                  ${list.map(s => `<span style="cursor:pointer; color:#eee; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();">${escapeHtml(s.name)}(${s.val})</span>`).join(", ")}
+                  <div style="font-size:11px; opacity:0.6; color:#fff;">✅를 누르면 숨겨지고, 추가 기록이 발생하거나 다음 주 월요일이 되면 다시 나타납니다.</div>
                 </div>
-              </div>`;
-    };
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">`;
 
-    // 💡 [수정] 화면에 보여지는 텍스트 수정
-    html += createTag("#ff4757", "🔴 누적 벌점 주의 (10점↑)", risks.penalty);
-    html += createTag("#ffa502", "📅 최근 결석 주의 (3회↑)", risks.attendance);
-    html += createTag("#f1c40f", "💤 최근 취침 주의 (5회↑)", risks.sleep);
-
-    html += `</div></div>`;
-    panel.innerHTML = html;
-    panel.style.display = "block";
+  const createTag = (color, label, list) => {
+    if (list.length === 0) return "";
+    return `<div style="background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 10px; border-left: 4px solid ${color}; flex-grow:1; min-width:200px;">
+              <b style="color:${color}; font-size:12px;">${label}</b><br>
+              <div style="margin-top:6px; font-size:13px; line-height:2.2;">
+                ${list.map(s => `
+                  <span style="display:inline-flex; align-items:center; margin-right:8px; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.1);">
+                    <span style="cursor:pointer; color:#eee; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();" title="학생 상세 정보 보기">
+                      ${escapeHtml(s.name)}(${s.val})
+                    </span>
+                    <button onclick="smartDismissStudent('${s.id}', ${s.maxCurVal})" title="상담 완료 (숨기기)" style="background:none; border:none; cursor:pointer; font-size:13px; margin-left:4px; padding:0; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+                      ✅
+                    </button>
+                  </span>
+                `).join("")}
+              </div>
+            </div>`;
   };
+
+  html += createTag("#ff4757", "🔴 누적 벌점 주의 (10점↑)", risks.penalty);
+  html += createTag("#ffa502", "📅 최근 결석 주의 (3회↑)", risks.attendance);
+  html += createTag("#f1c40f", "💤 최근 취침 주의 (5회↑)", risks.sleep);
+
+  html += `</div></div>`;
+  panel.innerHTML = html;
+  panel.style.display = "block";
+};
+
+/**
+ * ✅ [스마트 숨기기] 버튼 클릭 시 현재 가장 높은 수치를 기록하고 목록에서 숨김
+ */
+window.smartDismissStudent = function(studentId, currentMaxVal) {
+  let smartDismissStr = localStorage.getItem("admin_smart_dismiss") || "{}";
+  let smartDismissMap = JSON.parse(smartDismissStr);
+
+  // 현재 숫자를 '확인 완료된 기준선'으로 저장
+  smartDismissMap[studentId] = currentMaxVal;
+  localStorage.setItem("admin_smart_dismiss", JSON.stringify(smartDismissMap));
+  
+  // 즉시 명단 다시 그리기 (방금 누른 학생이 슥 사라짐)
+  window.updateRiskNoticePanel();
+};
 
 }); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
