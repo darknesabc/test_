@@ -2177,32 +2177,22 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
   };
 
   /**
- * ✅ [완벽 업그레이드] 상담 후 7일간 숨김 유지 + 추가 사고 시 즉시 재알림
+ * ✅ [최종 완성본] 상담 후 7일 유예 + 추가 사고 시 재알림 + 확인 완료 목록 조회
  */
 window.updateRiskNoticePanel = function() {
   const panel = document.getElementById("riskNoticePanel");
   if (!panel) return;
 
   const store = loadLocalCache_();
-  
-  // 💡 LocalStorage에서 '확인 기록(숫자 + 만료일)' 가져오기
   let smartDismissStr = localStorage.getItem("admin_smart_dismiss_v2") || "{}";
   let smartDismissMap = JSON.parse(smartDismissStr);
 
   const now = new Date();
   const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
 
-  // 💡 만료된(7일 지난) 기록 자동 청소
-  let needsSave = false;
-  Object.keys(smartDismissMap).forEach(id => {
-      if (smartDismissMap[id].expireDate && smartDismissMap[id].expireDate < todayStr) {
-          delete smartDismissMap[id];
-          needsSave = true;
-      }
-  });
-  if (needsSave) localStorage.setItem("admin_smart_dismiss_v2", JSON.stringify(smartDismissMap));
-
+  // 데이터 분류용 객체
   const risks = { penalty: [], attendance: [], sleep: [] };
+  const dismissedList = []; // 💡 확인 완료된 학생들을 담을 목록
 
   Object.keys(store).forEach(key => {
     const item = store[key].summary;
@@ -2210,51 +2200,47 @@ window.updateRiskNoticePanel = function() {
     
     const id = item.student.studentId;
     const name = item.student.name;
+    const record = smartDismissMap[id];
 
-    // 각 항목별 현재 수치
     const curP = item.eduscore?.ok ? (item.eduscore.monthTotal || 0) : 0;
     const curA = item.attendance?.ok ? (item.attendance.absent || 0) : 0;
     const curS = item.sleep?.ok ? (item.sleep.sleepTotal7d || 0) : 0;
-    
-    // 이 학생의 가장 높은 위험 수치
     const maxCurVal = Math.max(curP >= 10 ? curP : 0, curA >= 3 ? curA : 0, curS >= 5 ? curS : 0);
 
     if (maxCurVal > 0) {
-      const record = smartDismissMap[id];
       let shouldShow = false;
 
       if (!record) {
-        // 1. 한 번도 확인한 적 없으면 보여줌
         shouldShow = true;
       } else {
-        // 2. 확인한 적 있다면 깐깐하게 체크
         if (todayStr > record.expireDate) {
-          shouldShow = true; // 유효기간(7일)이 지났으면 다시 보여줌
+          shouldShow = true; 
         } else if (maxCurVal > record.maxVal) {
-          shouldShow = true; // 7일 안 지났어도, 숫자가 더 늘어났으면(또 사고치면) 다시 보여줌
+          shouldShow = true; 
+        } else {
+          // 💡 여기에 해당하면 '확인 완료되어 숨겨진 학생'입니다.
+          dismissedList.push({ id, name, val: maxCurVal, expire: record.expireDate });
         }
       }
 
       if (shouldShow) {
-        if (curP >= 10) risks.penalty.push({ name, val: curP, id, maxCurVal });
-        if (curA >= 3) risks.attendance.push({ name, val: curA, id, maxCurVal });
-        if (curS >= 5) risks.sleep.push({ name, val: curS, id, maxCurVal });
+        if (curP >= 10) risks.penalty.push({ name, val: curP, id });
+        if (curA >= 3) risks.attendance.push({ name, val: curA, id });
+        if (curS >= 5) risks.sleep.push({ name, val: curS, id });
       }
     }
   });
 
-  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0) {
+  // 알림판이 아예 비어있고 확인 완료 목록도 없으면 숨김
+  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0 && dismissedList.length === 0) {
     panel.style.display = "none";
     return;
   }
 
-  // 화면 그리기 로직
   let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
                 <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; justify-content:space-between;">
-                  <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상 <span style="font-size:12px; font-weight:normal; color:#e74c3c;">(미확인)</span>
-                  </div>
-                  <div style="font-size:11px; opacity:0.6; color:#fff;">✅를 누르면 7일간 숨겨집니다. (수치가 더 늘어나면 즉시 재알림)</div>
+                  <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상</div>
+                  <div style="font-size:11px; opacity:0.6; color:#fff;">새로운 기록이 추가되면 다시 나타납니다.</div>
                 </div>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">`;
 
@@ -2264,48 +2250,56 @@ window.updateRiskNoticePanel = function() {
               <b style="color:${color}; font-size:12px;">${label}</b><br>
               <div style="margin-top:6px; font-size:13px; line-height:2.2;">
                 ${list.map(s => `
-                  <span style="display:inline-flex; align-items:center; margin-right:8px; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:6px; border:1px solid rgba(255,255,255,0.1);">
-                    <span style="cursor:pointer; color:#eee; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();" title="학생 상세 정보 보기">
-                      ${escapeHtml(s.name)}(${s.val})
-                    </span>
-                    <button onclick="smartDismissStudent('${s.id}', ${s.maxCurVal})" title="상담 완료 (7일간 숨기기)" style="background:none; border:none; cursor:pointer; font-size:13px; margin-left:4px; padding:0; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
-                      ✅
-                    </button>
+                  <span style="display:inline-flex; align-items:center; margin-right:8px; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:6px;">
+                    <span style="cursor:pointer; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();">${escapeHtml(s.name)}(${s.val})</span>
+                    <button onclick="smartDismissStudent('${s.id}', ${Math.max(curP, curA, curS)})" style="background:none; border:none; cursor:pointer; margin-left:4px;">✅</button>
                   </span>
                 `).join("")}
               </div>
             </div>`;
   };
 
-  html += createTag("#ff4757", "🔴 누적 벌점 주의 (10점↑)", risks.penalty);
-  html += createTag("#ffa502", "📅 최근 결석 주의 (3회↑)", risks.attendance);
-  html += createTag("#f1c40f", "💤 최근 취침 주의 (5회↑)", risks.sleep);
+  html += createTag("#ff4757", "🔴 누적 벌점 주의", risks.penalty);
+  html += createTag("#ffa502", "📅 최근 결석 주의", risks.attendance);
+  html += createTag("#f1c40f", "💤 최근 취침 주의", risks.sleep);
 
-  html += `</div></div>`;
+  html += `</div>`;
+
+  // 💡 [추가] 확인 완료된 학생 목록 (접이식 UI)
+  if (dismissedList.length > 0) {
+    html += `
+      <details style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 10px;">
+        <summary style="font-size: 12px; color: rgba(255,255,255,0.5); cursor: pointer; user-select: none;">
+          ✔️ 확인 완료된 학생 보기 (${dismissedList.length}명)
+        </summary>
+        <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
+          ${dismissedList.map(s => `
+            <div style="font-size: 11px; background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 6px;">
+              <span>${escapeHtml(s.name)} (확인당시:${s.val})</span>
+              <button onclick="undoSmartDismiss('${s.id}')" title="다시 목록으로 복구" style="background:none; border:none; cursor:pointer; font-size:10px; padding:0; color:#ff6b6b;">✕</button>
+            </div>
+          `).join("")}
+        </div>
+      </details>
+    `;
+  }
+
+  html += `</div>`;
   panel.innerHTML = html;
   panel.style.display = "block";
 };
 
 /**
- * ✅ [스마트 숨기기] 누른 날로부터 딱 7일간 유효한 만료일(expireDate)을 함께 저장
+ * ✅ [추가] 확인 완료 취소 (다시 위험 목록으로 복구)
  */
-window.smartDismissStudent = function(studentId, currentMaxVal) {
+window.undoSmartDismiss = function(studentId) {
   let smartDismissStr = localStorage.getItem("admin_smart_dismiss_v2") || "{}";
   let smartDismissMap = JSON.parse(smartDismissStr);
 
-  const now = new Date();
-  now.setDate(now.getDate() + 7); // 💡 오늘 + 7일
-  const expireStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
-
-  // 현재 숫자와 7일 뒤 만료 날짜를 함께 저장
-  smartDismissMap[studentId] = {
-      maxVal: currentMaxVal,
-      expireDate: expireStr
-  };
+  delete smartDismissMap[studentId]; // 기록 삭제
   localStorage.setItem("admin_smart_dismiss_v2", JSON.stringify(smartDismissMap));
   
-  // 방금 누른 학생 숨기기
-  window.updateRiskNoticePanel();
+  window.updateRiskNoticePanel(); // 즉시 새로고침
 };
 
 }); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
