@@ -2025,12 +2025,16 @@ function renderTrendChart_(items) {
                   // 1. 공통 뱃지 스타일 (개별 위치 속성 제거, 디자인 통일)
                   const bStyle = "font-size:9px; font-weight:900; padding:2px 6px; border-radius:6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space:nowrap; display:inline-flex; align-items:center;";
 
-                  // 2. 출결 뱃지 (badgeAtt)
+                  // 2. 출결 뱃지 (badgeAtt) - 💡 일요일(0)에는 뱃지 생성 제외
+                  const isSunday = new Date().getDay() === 0;
                   const abs = Number(st.todayAbs || 0);
                   let badgeAtt = "";
+
+                  // 일요일이 아닐 때만 출결 경고 뱃지를 띄웁니다.
+                  if (!isSunday) {
                   if (abs >= 6) badgeAtt = `<span style="${bStyle} background:#ff4757; color:white;">📅 위험 ${abs}</span>`;
                   else if (abs >= 3) badgeAtt = `<span style="${bStyle} background:#ffa502; color:white;">📅 경고 ${abs}</span>`;
-
+                  }
                   // 3. 취침 뱃지 (badgeSleep)
                   const sleep = Number(st.sleepToday || 0);
                   let badgeSleep = "";
