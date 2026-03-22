@@ -2177,7 +2177,7 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
   };
 
   /**
- * ✅ [업그레이드] 스마트 확인 완료 및 월요일 자동 리셋 기능이 포함된 알림판
+ * ✅ [완벽 업그레이드] 상담 후 7일간 숨김 유지 + 추가 사고 시 즉시 재알림
  */
 window.updateRiskNoticePanel = function() {
   const panel = document.getElementById("riskNoticePanel");
@@ -2185,20 +2185,22 @@ window.updateRiskNoticePanel = function() {
 
   const store = loadLocalCache_();
   
-  // 💡 LocalStorage에서 '확인 시점의 숫자' 목록 가져오기
-  let smartDismissStr = localStorage.getItem("admin_smart_dismiss") || "{}";
+  // 💡 LocalStorage에서 '확인 기록(숫자 + 만료일)' 가져오기
+  let smartDismissStr = localStorage.getItem("admin_smart_dismiss_v2") || "{}";
   let smartDismissMap = JSON.parse(smartDismissStr);
 
-  // 💡 [추가] 매주 월요일 아침 자동 리셋 로직
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const isMonday = now.getDay() === 1; // 1 = 월요일
+  const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
 
-  if (isMonday && smartDismissMap._lastReset !== todayStr) {
-    console.log("🔄 월요일입니다. 집중 관리 대상 확인 기록을 초기화합니다.");
-    smartDismissMap = { _lastReset: todayStr }; // 기존 기록 싹 지우고 리셋 날짜만 기록
-    localStorage.setItem("admin_smart_dismiss", JSON.stringify(smartDismissMap));
-  }
+  // 💡 만료된(7일 지난) 기록 자동 청소
+  let needsSave = false;
+  Object.keys(smartDismissMap).forEach(id => {
+      if (smartDismissMap[id].expireDate && smartDismissMap[id].expireDate < todayStr) {
+          delete smartDismissMap[id];
+          needsSave = true;
+      }
+  });
+  if (needsSave) localStorage.setItem("admin_smart_dismiss_v2", JSON.stringify(smartDismissMap));
 
   const risks = { penalty: [], attendance: [], sleep: [] };
 
@@ -2214,15 +2216,30 @@ window.updateRiskNoticePanel = function() {
     const curA = item.attendance?.ok ? (item.attendance.absent || 0) : 0;
     const curS = item.sleep?.ok ? (item.sleep.sleepTotal7d || 0) : 0;
     
-    // 💡 스마트 체크: 저장된 숫자보다 현재 숫자가 더 커졌을 때만 목록에 추가
-    const lastCheckVal = smartDismissMap[id] || 0;
+    // 이 학생의 가장 높은 위험 수치
     const maxCurVal = Math.max(curP >= 10 ? curP : 0, curA >= 3 ? curA : 0, curS >= 5 ? curS : 0);
 
-    // 기준을 넘었으면서, 이전에 확인한 숫자보다 클 때만 노출
-    if (maxCurVal > 0 && maxCurVal > lastCheckVal) {
-      if (curP >= 10) risks.penalty.push({ name, val: curP, id, maxCurVal });
-      if (curA >= 3) risks.attendance.push({ name, val: curA, id, maxCurVal });
-      if (curS >= 5) risks.sleep.push({ name, val: curS, id, maxCurVal });
+    if (maxCurVal > 0) {
+      const record = smartDismissMap[id];
+      let shouldShow = false;
+
+      if (!record) {
+        // 1. 한 번도 확인한 적 없으면 보여줌
+        shouldShow = true;
+      } else {
+        // 2. 확인한 적 있다면 깐깐하게 체크
+        if (todayStr > record.expireDate) {
+          shouldShow = true; // 유효기간(7일)이 지났으면 다시 보여줌
+        } else if (maxCurVal > record.maxVal) {
+          shouldShow = true; // 7일 안 지났어도, 숫자가 더 늘어났으면(또 사고치면) 다시 보여줌
+        }
+      }
+
+      if (shouldShow) {
+        if (curP >= 10) risks.penalty.push({ name, val: curP, id, maxCurVal });
+        if (curA >= 3) risks.attendance.push({ name, val: curA, id, maxCurVal });
+        if (curS >= 5) risks.sleep.push({ name, val: curS, id, maxCurVal });
+      }
     }
   });
 
@@ -2231,13 +2248,13 @@ window.updateRiskNoticePanel = function() {
     return;
   }
 
-  // 💡 명단 생성 로직 (✅ 버튼 추가)
+  // 화면 그리기 로직
   let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
                 <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; justify-content:space-between;">
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상 <span style="font-size:12px; font-weight:normal; color:#e74c3c;">(미확인)</span>
                   </div>
-                  <div style="font-size:11px; opacity:0.6; color:#fff;">✅를 누르면 숨겨지고, 추가 기록이 발생하거나 다음 주 월요일이 되면 다시 나타납니다.</div>
+                  <div style="font-size:11px; opacity:0.6; color:#fff;">✅를 누르면 7일간 숨겨집니다. (수치가 더 늘어나면 즉시 재알림)</div>
                 </div>
                 <div style="display: flex; gap: 12px; flex-wrap: wrap;">`;
 
@@ -2251,7 +2268,7 @@ window.updateRiskNoticePanel = function() {
                     <span style="cursor:pointer; color:#eee; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();" title="학생 상세 정보 보기">
                       ${escapeHtml(s.name)}(${s.val})
                     </span>
-                    <button onclick="smartDismissStudent('${s.id}', ${s.maxCurVal})" title="상담 완료 (숨기기)" style="background:none; border:none; cursor:pointer; font-size:13px; margin-left:4px; padding:0; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
+                    <button onclick="smartDismissStudent('${s.id}', ${s.maxCurVal})" title="상담 완료 (7일간 숨기기)" style="background:none; border:none; cursor:pointer; font-size:13px; margin-left:4px; padding:0; transition: transform 0.1s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">
                       ✅
                     </button>
                   </span>
@@ -2270,17 +2287,24 @@ window.updateRiskNoticePanel = function() {
 };
 
 /**
- * ✅ [스마트 숨기기] 버튼 클릭 시 현재 가장 높은 수치를 기록하고 목록에서 숨김
+ * ✅ [스마트 숨기기] 누른 날로부터 딱 7일간 유효한 만료일(expireDate)을 함께 저장
  */
 window.smartDismissStudent = function(studentId, currentMaxVal) {
-  let smartDismissStr = localStorage.getItem("admin_smart_dismiss") || "{}";
+  let smartDismissStr = localStorage.getItem("admin_smart_dismiss_v2") || "{}";
   let smartDismissMap = JSON.parse(smartDismissStr);
 
-  // 현재 숫자를 '확인 완료된 기준선'으로 저장
-  smartDismissMap[studentId] = currentMaxVal;
-  localStorage.setItem("admin_smart_dismiss", JSON.stringify(smartDismissMap));
+  const now = new Date();
+  now.setDate(now.getDate() + 7); // 💡 오늘 + 7일
+  const expireStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
+
+  // 현재 숫자와 7일 뒤 만료 날짜를 함께 저장
+  smartDismissMap[studentId] = {
+      maxVal: currentMaxVal,
+      expireDate: expireStr
+  };
+  localStorage.setItem("admin_smart_dismiss_v2", JSON.stringify(smartDismissMap));
   
-  // 즉시 명단 다시 그리기 (방금 누른 학생이 슥 사라짐)
+  // 방금 누른 학생 숨기기
   window.updateRiskNoticePanel();
 };
 
