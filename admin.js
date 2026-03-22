@@ -2183,18 +2183,15 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
   };
 
  /**
- * ✅ [안정화 버전] 저장소 용량 초과 문제 해결 및 알림판 렌더링
+ * ✅ [기능 확장] 복귀 안 함(3회↑) 추가 및 스마트 알림판 안정화 버전
  */
 window.updateRiskNoticePanel = function() {
   const panel = document.getElementById("riskNoticePanel");
   if (!panel) return;
 
   const store = loadLocalCache_();
-  
   if (typeof __memSummaryCache !== 'undefined') {
-    __memSummaryCache.forEach((pack, key) => {
-      if (!store[key]) store[key] = pack;
-    });
+    __memSummaryCache.forEach((pack, key) => { if (!store[key]) store[key] = pack; });
   }
 
   let smartDismissStr = localStorage.getItem("admin_smart_dismiss_v2") || "{}";
@@ -2202,7 +2199,7 @@ window.updateRiskNoticePanel = function() {
   const now = new Date();
   const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
 
-  const risks = { penalty: [], attendance: [], sleep: [] };
+  const risks = { penalty: [], attendance: [], sleep: [], move: [] }; // 💡 move 리스트 추가
   const dismissedList = [];
 
   Object.keys(store).forEach(key => {
@@ -2213,35 +2210,44 @@ window.updateRiskNoticePanel = function() {
     const name = item.student.name;
     const record = smartDismissMap[id];
 
+    // 각 수치 추출
     const curP = item.eduscore?.ok ? (item.eduscore.monthTotal || 0) : 0;
     const curA = item.attendance?.ok ? (item.attendance.absent || 0) : 0;
     const curS = item.sleep?.ok ? (item.sleep.sleepTotal7d || 0) : 0;
-    const maxCurVal = Math.max(curP >= 10 ? curP : 0, curA >= 3 ? curA : 0, curS >= 5 ? curS : 0);
+    const curM = item.move?.ok ? (item.move.noReturn7d || 0) : 0; // 💡 복귀안함 수치 추출
+
+    // 💡 스마트 체크용 최대 수치 계산 (기준치를 넘긴 항목들 중 최대값)
+    const maxCurVal = Math.max(
+      curP >= 10 ? curP : 0, 
+      curA >= 3 ? curA : 0, 
+      curS >= 5 ? curS : 0,
+      curM >= 3 ? curM : 0 // 💡 복귀안함 기준 3회 적용
+    );
 
     if (maxCurVal > 0) {
       let shouldShow = false;
       if (!record) {
         shouldShow = true;
       } else {
-        if (todayStr > record.expireDate) shouldShow = true; 
-        else if (maxCurVal > record.maxVal) shouldShow = true; 
+        // 유효기간 만료 혹은 수치 증가 시 다시 노출
+        if (todayStr > record.expireDate || maxCurVal > record.maxVal) shouldShow = true; 
         else dismissedList.push({ id, name, val: maxCurVal, expire: record.expireDate });
       }
 
       if (shouldShow) {
-        if (curP >= 10) risks.penalty.push({ name, val: curP, id });
-        if (curA >= 3) risks.attendance.push({ name, val: curA, id });
-        if (curS >= 5) risks.sleep.push({ name, val: curS, id });
+        if (curP >= 10) risks.penalty.push({ name, val: curP, id, maxCurVal });
+        if (curA >= 3) risks.attendance.push({ name, val: curA, id, maxCurVal });
+        if (curS >= 5) risks.sleep.push({ name, val: curS, id, maxCurVal });
+        if (curM >= 3) risks.move.push({ name, val: curM, id, maxCurVal }); // 💡 명단 추가
       }
     }
   });
 
-  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0 && dismissedList.length === 0) {
+  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0 && risks.move.length === 0 && dismissedList.length === 0) {
     panel.style.display = "none";
     return;
   }
 
-  // 💡 [수정됨] 잘못 들어갔던 버튼을 빼고 깔끔하게 복구한 HTML 구조
   let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
                 <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; justify-content:space-between;">
                   <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상</div>
@@ -2257,7 +2263,7 @@ window.updateRiskNoticePanel = function() {
                 ${list.map(s => `
                   <span style="display:inline-flex; align-items:center; margin-right:8px; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:6px;">
                     <span style="cursor:pointer; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();">${escapeHtml(s.name)}(${s.val})</span>
-                    <button onclick="smartDismissStudent('${s.id}', ${s.val})" style="background:none; border:none; cursor:pointer; margin-left:4px; font-size:13px;" title="7일간 숨기기" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">✅</button>
+                    <button onclick="smartDismissStudent('${s.id}', ${s.maxCurVal})" style="background:none; border:none; cursor:pointer; margin-left:4px; font-size:13px;" title="7일간 숨기기">✅</button>
                   </span>
                 `).join("")}
               </div>
@@ -2267,15 +2273,17 @@ window.updateRiskNoticePanel = function() {
   html += createTag("#ff4757", "🔴 누적 벌점 주의", risks.penalty);
   html += createTag("#ffa502", "📅 최근 결석 주의", risks.attendance);
   html += createTag("#f1c40f", "💤 최근 취침 주의", risks.sleep);
+  html += createTag("#9b59b6", "🚶‍♂️ 최근 복귀 안 함 주의", risks.move); // 💡 새 카테고리 (보라색)
+
   html += `</div>`;
 
   if (dismissedList.length > 0) {
     html += `<details style="margin-top: 15px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 10px;">
-        <summary style="font-size: 12px; color: rgba(255,255,255,0.5); cursor: pointer; user-select: none;">✔️ 확인 완료된 학생 보기 (${dismissedList.length}명)</summary>
+        <summary style="font-size: 12px; color: rgba(255,255,255,0.5); cursor: pointer;">✔️ 확인 완료된 학생 보기 (${dismissedList.length}명)</summary>
         <div style="margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap;">
           ${dismissedList.map(s => `<div style="font-size: 11px; background: rgba(255,255,255,0.03); padding: 4px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); display: flex; align-items: center; gap: 6px;">
-              <span>${escapeHtml(s.name)} (확인당시:${s.val})</span>
-              <button onclick="undoSmartDismiss('${s.id}')" title="다시 목록으로 복구" style="background:none; border:none; cursor:pointer; font-size:10px; padding:0; color:#ff6b6b;">✕</button>
+              <span>${escapeHtml(s.name)} (${s.val})</span>
+              <button onclick="undoSmartDismiss('${s.id}')" style="background:none; border:none; cursor:pointer; color:#ff6b6b;">✕</button>
             </div>`).join("")}
         </div></details>`;
   }
