@@ -2238,7 +2238,7 @@ window.updateRiskNoticePanel = function() {
   }
 
   let html = `<div style="background: rgba(231, 76, 60, 0.08); border: 1px solid rgba(231, 76, 60, 0.2); border-radius: 14px; padding: 18px; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
-                <div style="font-weight: 900; color: #ff6b6b; margin-bottom: 12px; font-size: 15px; display:flex; align-items:center; justify-content:space-between;">
+                <button onclick="smartDismissStudent('${s.id}', ${s.val})" style="background:none; border:none; cursor:pointer; margin-left:4px; font-size:13px;" title="7일간 숨기기" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'">✅</button>
                   <div style="display:flex; align-items:center; gap:8px;"><span style="font-size:18px;">🚨</span> 오늘의 집중 관리 대상</div>
                   <div style="font-size:11px; opacity:0.6; color:#fff;">새로운 기록이 추가되면 다시 나타납니다.</div>
                 </div>
