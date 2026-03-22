@@ -796,14 +796,20 @@ async function loadSummariesForStudent_(seat, studentId) {
         </section>
 
         <section class="card" style="padding:14px; margin:0;">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">🚶‍♂️ 이동 요약</div><button class="btn btn-ghost btn-mini" id="btnMoveDetail" style="padding:6px 10px;">상세</button></div>
-          <div class="card-sub">
-            ${mv && mv.ok ? `
-              최근 이동: <b>${escapeHtml(mv.latestText || "-")}</b><br>
-              ${escapeHtml(mv.latestDateTime || "")}
-            ` : (loading ? "불러오는 중…" : "데이터 없음")}
-          </div>
-        </section>
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+    <div class="card-title" style="font-size:15px; margin:0;">🚶‍♂️ 이동 요약 (최근 7일)</div>
+    <button class="btn btn-ghost btn-mini" id="btnMoveDetail" style="padding:6px 10px;">상세</button>
+  </div>
+  <div class="card-sub">
+    ${mv && mv.ok ? `
+      화장실 : <b>${mv.restroom7d ?? 0}회</b><br>
+      복귀 안함 : <b style="color:${(mv.noReturn7d > 0) ? '#ff4757' : 'inherit'};">${mv.noReturn7d ?? 0}회</b><br>
+      <div style="font-size:11px; opacity:0.6; margin-top:6px; padding-top:4px; border-top:1px dashed rgba(255,255,255,0.1);">
+        최근: ${escapeHtml(mv.latestText || "-")} (${escapeHtml(mv.latestDateTime.split(' ')[0])})
+      </div>
+    ` : (loading ? "불러오는 중…" : "데이터 없음")}
+  </div>
+</section>
 
         <section class="card" style="padding:14px; margin:0;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;"><div class="card-title" style="font-size:15px; margin:0;">💤 취침 요약</div><button class="btn btn-ghost btn-mini" id="btnSleepDetail" style="padding:6px 10px;">상세</button></div>
