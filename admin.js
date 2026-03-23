@@ -2159,17 +2159,25 @@ function renderVulnerabilityChart(unitsBySubject, token) {
                   if (edu >= 15) badgeEdu = `<span style="${bStyle} background:#6c5ce7; color:white;">💯 위험 ${edu}</span>`;
                   else if (edu >= 10) badgeEdu = `<span style="${bStyle} background:#a29bfe; color:white;">💯 경고 ${edu}</span>`;
 
-                  // 5. 실시간 상태 신호등 (수정 버전)
-const cs = String(st.currentStatus);
-const reason = String(st.currentReason || "").trim(); // 현재 이동 사유 가져오기
-let lampColor = "rgba(255,255,255,0.15)";
+                  // 💡 4-1. [신규 추가] 지각 뱃지 (badgeLate)
+                  const late = Number(st.todayLate || 0);
+                  let badgeLate = "";
+                  if (late > 0) {
+                      // 지각은 1번만 해도 바로 눈에 띄게 주황색 뱃지로 표시!
+                      badgeLate = `<span style="${bStyle} background:#e67e22; color:white;">⏰ 지각 ${late}</span>`;
+                  }
 
-if (cs === "1") {
-  lampColor = "#2ecc71"; // 정상 출석 -> 초록색
-} 
-else if (cs === "3S") {
-  // 💡 상태가 3S(이동)일 때, 사유가 '화장실/정수기'인 경우만 초록색으로!
-  if (reason === "화장실/정수기") {
+                  // 5. 실시간 상태 신호등 (수정 버전)
+                  const cs = String(st.currentStatus);
+                  const reason = String(st.currentReason || "").trim(); // 현재 이동 사유 가져오기
+                  let lampColor = "rgba(255,255,255,0.15)";
+
+                  if (cs === "1") {
+                  lampColor = "#2ecc71"; // 정상 출석 -> 초록색
+                  } 
+                  else if (cs === "3S") {
+                  // 💡 상태가 3S(이동)일 때, 사유가 '화장실/정수기'인 경우만 초록색으로!
+                if (reason === "화장실/정수기") {
     lampColor = "#2ecc71"; 
   } else {
     // 그 외 수업 이동 등은 원래대로 주황색 표시
@@ -2187,11 +2195,10 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
 
                   // 6. 카드 조립 (뱃지들을 하나의 컨테이너로 묶음)
                   gridHtml += `
-                    <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
-                         onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+                    <div class="class-dash-card" style="...">
                       
                       <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
-                          ${badgeAtt} ${badgeSleep} ${badgeEdu}
+                          ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
                       </div>
 
                       <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
