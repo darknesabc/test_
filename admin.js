@@ -1783,8 +1783,8 @@ function renderVulnerabilityChart(unitsBySubject, token) {
         // 행동영역 모드: behDetails 안의 행동영역들을 끄집어내서 합침
         const behMap = {};
         rawData.forEach(unit => {
-            if (unit.behDetails) { // 💡 details -> behDetails 로 변경
-                Object.entries(unit.behDetails).forEach(([beh, stats]) => { // 💡 여기도 변경
+            if (unit.behDetails) { 
+                Object.entries(unit.behDetails).forEach(([beh, stats]) => { 
                     if (!beh || beh === "기타" || beh === "-") return;
                     if (!behMap[beh]) behMap[beh] = { o: 0, n: 0, details: {} };
                     behMap[beh].o += stats.o;
@@ -1796,6 +1796,42 @@ function renderVulnerabilityChart(unitsBySubject, token) {
             }
         });
         
+        // 💡 [신규] 선생님이 제안하신 '평가원 표준 행동영역 순서' 함수
+        const getBehOrder = (subj, behName) => {
+            // 띄어쓰기 및 가운데점을 통일하여 인식률 100% 보장
+            const name = String(behName).replace(/\s+/g, '').replace(/∙/g, '·'); 
+            
+            if (subj === "국어") {
+                const arr = ["사실적이해", "추론적이해", "비판적이해", "창의적이해", "어휘", "어법"];
+                const idx = arr.findIndex(o => name.includes(o));
+                return idx !== -1 ? idx : 99;
+            } 
+            else if (subj === "수학") {
+                const arr = ["계산", "이해", "문제해결", "추론"];
+                const idx = arr.findIndex(o => name.includes(o));
+                return idx !== -1 ? idx : 99;
+            } 
+            else if (subj === "영어") {
+                const arr = ["어법", "어휘", "사실적이해", "적용", "종합적이해", "추론적이해"];
+                const idx = arr.findIndex(o => name.includes(o));
+                return idx !== -1 ? idx : 99;
+            } 
+            else {
+                // 💡 사탐 & 과탐 통합 순서 (기가 막히게 정렬됩니다!)
+                const arr = [
+                    "개념·원리의이해", "이해", 
+                    "문제파악및인식", "적용", 
+                    "문제인식및가설설정", 
+                    "탐구설계및수행", 
+                    "자료분석및해석", 
+                    "결론도출및평가", 
+                    "가치판단및의사결정"
+                ];
+                const idx = arr.findIndex(o => name.includes(o));
+                return idx !== -1 ? idx : 99;
+            }
+        };
+
         chartData = Object.keys(behMap).map(beh => ({
             area: beh,
             score: behMap[beh].n > 0 ? Math.round((behMap[beh].o / behMap[beh].n) * 100) : 0,
@@ -1803,7 +1839,7 @@ function renderVulnerabilityChart(unitsBySubject, token) {
             n: behMap[beh].n,
             details: behMap[beh].details,
             code: '99' 
-        })).sort((a, b) => b.n - a.n); // 많이 출제된 행동영역부터 정렬
+        })).sort((a, b) => getBehOrder(currentSubject, a.area) - getBehOrder(currentSubject, b.area)); // 💡 지정된 순서대로 완벽 정렬!
 
     } else {
         // 단원별 모드 (기존)
