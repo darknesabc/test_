@@ -338,12 +338,12 @@ function setSummaryCache(key, summary) {
 }
 
 /** =========================
-* ✅ 정오표(Errata) 렌더 (+ 출제영역 & 막대그래프 추가)
+* ✅ 정오표(Errata) 렌더 (+ 출제영역 세련된 뱃지 디자인 & 막대그래프)
 * ========================= */
 function renderErrataHtml_(errata) {
   if (!errata || !errata.subjects) return "";
   const s = errata.subjects;
-  const qInfo = errata.qInfo || {}; // 💡 백엔드에서 받은 출제 영역 텍스트
+  const qInfo = errata.qInfo || {}; 
   
   const pctText = (pct) => (pct === null || pct === undefined) ? "-" : `${pct}%`;
   const asMap = (arr, key) => { const m = new Map(); (arr || []).forEach(it => { if (it && it[key] !== undefined) m.set(it[key], it); }); return m; };
@@ -358,7 +358,41 @@ function renderErrataHtml_(errata) {
     </details>
   `;
 
-  // 💡 subjKey를 받아 해당 과목의 출제 영역을 매칭합니다.
+  // 💡 [디자인 핵심] 텍스트를 분석하여 예쁜 뱃지 HTML로 변환해주는 함수
+  const formatAreaText = (text) => {
+    if (!text || text === "-") return "-";
+    const parts = text.split(" - ");
+    if (parts.length === 1) return `<span style="color:#e2e8f0;">${escapeHtml(text)}</span>`;
+
+    const beh = parts.pop(); // 항상 마지막은 행동영역
+    let firstPart = parts[0];
+    let prefixHtml = "";
+    
+    // "수1", "수2", "1.", "12." 등의 접두사 감지 후 뱃지로 변환
+    const prefixMatch = firstPart.match(/^(수1|수2|\d+\.)\s+(.*)/);
+    if (prefixMatch) {
+        let pText = prefixMatch[1].replace('.', '');
+        // 과목별 뱃지 색상 (수학은 파랑, 탐구는 보라 톤)
+        let bg = pText.includes('수') ? 'rgba(52, 152, 219, 0.2)' : 'rgba(155, 89, 182, 0.2)';
+        let color = pText.includes('수') ? '#60a5fa' : '#c084fc';
+        prefixHtml = `<span style="display:inline-block; background:${bg}; color:${color}; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800; margin-right:6px; transform:translateY(-1px);">${pText}</span>`;
+        firstPart = prefixMatch[2];
+    }
+
+    let html = `<div style="line-height:1.6;">`; // 감싸는 div (줄바꿈 대비)
+    html += `${prefixHtml}<span style="color:#f8fafc; font-weight:600; font-size:12px;">${escapeHtml(firstPart)}</span>`;
+
+    // 탐구영역처럼 소단원이 중간에 껴있는 경우 화살표(›)로 표시
+    if (parts.length > 1) {
+        html += ` <span style="color:#64748b; font-size:11px; margin:0 4px;">›</span> <span style="color:#cbd5e1; font-size:11px;">${escapeHtml(parts[1])}</span>`;
+    }
+
+    // 행동영역 회색 태그
+    html += `<span style="display:inline-block; margin-left:6px; font-size:10px; background:rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding:1px 6px; border-radius:4px; color:#9fb3c8; white-space:nowrap; transform:translateY(-1px);">${escapeHtml(beh)}</span>`;
+    html += `</div>`;
+    return html;
+  };
+
   const renderTable = (oxArr, rateArr, qFrom, qTo, subjKey) => {
     const oxMap = asMap(oxArr, "q");
     const rtMap = asMap(rateArr, "q");
@@ -372,15 +406,16 @@ function renderErrataHtml_(errata) {
       const isHighPct = (pct !== null && pct !== undefined && pct >= 70);
       const highlightPct = (isWrong && isHighPct);
 
-      // 1️⃣ 출제 영역 텍스트 찾기
-      const infoText = (qInfo[subjKey] && qInfo[subjKey][q]) ? qInfo[subjKey][q] : "-";
+      const infoTextRaw = (qInfo[subjKey] && qInfo[subjKey][q]) ? qInfo[subjKey][q] : "-";
+      
+      // 💡 여기서 텍스트를 예쁜 HTML 뱃지로 변경합니다!
+      const formattedArea = formatAreaText(infoTextRaw); 
 
-      // 2️⃣ 정답률 미니 막대그래프 HTML 그리기
       let barHtml = `<div style="text-align:right; width:45px; color:rgba(255,255,255,0.5);">-</div>`;
       if (pct !== null && pct !== undefined) {
-         let barColor = "#2ecc71"; // 초록 (쉬움)
-         if (pct <= 30) barColor = "#e74c3c"; // 빨강 (킬러/어려움)
-         else if (pct <= 70) barColor = "#f1c40f"; // 노랑 (보통)
+         let barColor = "#2ecc71"; 
+         if (pct <= 30) barColor = "#e74c3c"; 
+         else if (pct <= 70) barColor = "#f1c40f"; 
          
          barHtml = `
             <div style="display:flex; align-items:center; gap:8px; justify-content: flex-end;">
@@ -391,11 +426,12 @@ function renderErrataHtml_(errata) {
             </div>`;
       }
 
+      // 출제 영역 td 설정 (max-width 약간 넓히고 줄바꿈 허용으로 변경)
       rows.push(`
         <tr style="transition: background 0.1s;" onmouseover="this.style.background='rgba(255,255,255,0.03)'" onmouseout="this.style.background='transparent'">
           <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center; width:45px; font-weight:bold;">${q}</td>
           <td class="${isWrong ? "errata-x-high" : ""}" style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:center; width:50px; font-weight:900; font-size:14px;">${escapeHtml(ox || "")}</td>
-          <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; color:rgba(255,255,255,0.85); font-size:12px; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(infoText)}">${escapeHtml(infoText)}</td>
+          <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:left; max-width:280px; word-break:keep-all;">${formattedArea}</td>
           <td class="${highlightPct ? "errata-x-high" : ""}" style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06);">${barHtml}</td>
           <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,.06); text-align:right; opacity:.7; font-size:12px; width:60px;">${rt ? `${rt.o}/${rt.n}` : "-"}</td>
         </tr>
