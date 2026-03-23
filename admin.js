@@ -2195,7 +2195,8 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
 
                   // 6. 카드 조립 (뱃지들을 하나의 컨테이너로 묶음)
                   gridHtml += `
-                    <div class="class-dash-card" style="...">
+                    <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
+                         onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
                       
                       <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
                           ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
