@@ -2298,6 +2298,7 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
 
  /**
  * ✅ [기능 확장] 복귀 안 함(3회↑) 추가 및 스마트 알림판 안정화 버전
+ * 💡 + 최근 지각 주의(2회 이상) 추가 및 취침(3회) 기준 변경 반영!
  */
 window.updateRiskNoticePanel = function() {
   const panel = document.getElementById("riskNoticePanel");
@@ -2313,7 +2314,8 @@ window.updateRiskNoticePanel = function() {
   const now = new Date();
   const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
 
-  const risks = { penalty: [], attendance: [], sleep: [], move: [] }; // 💡 move 리스트 추가
+  // 💡 1. risks 객체에 late(지각) 목록 추가
+  const risks = { penalty: [], attendance: [], sleep: [], move: [], late: [] }; 
   const dismissedList = [];
 
   Object.keys(store).forEach(key => {
@@ -2324,18 +2326,20 @@ window.updateRiskNoticePanel = function() {
     const name = item.student.name;
     const record = smartDismissMap[id];
 
-    // 각 수치 추출
+    // 💡 2. 각 수치 추출 (curL = 최근 7일 지각 횟수 추출)
     const curP = item.eduscore?.ok ? (item.eduscore.monthTotal || 0) : 0;
     const curA = item.attendance?.ok ? (item.attendance.absent || 0) : 0;
+    const curL = item.attendance?.ok ? (item.attendance.weekLate || 0) : 0; // ⏰ 지각
     const curS = item.sleep?.ok ? (item.sleep.sleepTotal7d || 0) : 0;
-    const curM = item.move?.ok ? (item.move.noReturn7d || 0) : 0; // 💡 복귀안함 수치 추출
+    const curM = item.move?.ok ? (item.move.noReturn7d || 0) : 0;
 
-    // 💡 스마트 체크용 최대 수치 계산 (기준치를 넘긴 항목들 중 최대값)
+    // 💡 3. 스마트 체크용 최대 수치 계산 (지각 2회 이상, 취침 3회 이상 반영)
     const maxCurVal = Math.max(
       curP >= 10 ? curP : 0, 
       curA >= 3 ? curA : 0, 
-      curS >= 5 ? curS : 0,
-      curM >= 3 ? curM : 0 // 💡 복귀안함 기준 3회 적용
+      curL >= 2 ? curL : 0, // ⏰ 지각 기준 2회
+      curS >= 3 ? curS : 0, // 💤 취침 기준 3회
+      curM >= 3 ? curM : 0 
     );
 
     if (maxCurVal > 0) {
@@ -2351,13 +2355,15 @@ window.updateRiskNoticePanel = function() {
       if (shouldShow) {
         if (curP >= 10) risks.penalty.push({ name, val: curP, id, maxCurVal });
         if (curA >= 3) risks.attendance.push({ name, val: curA, id, maxCurVal });
-        if (curS >= 5) risks.sleep.push({ name, val: curS, id, maxCurVal });
-        if (curM >= 3) risks.move.push({ name, val: curM, id, maxCurVal }); // 💡 명단 추가
+        if (curL >= 2) risks.late.push({ name, val: curL, id, maxCurVal }); // ⏰ 지각 명단 추가
+        if (curS >= 3) risks.sleep.push({ name, val: curS, id, maxCurVal });
+        if (curM >= 3) risks.move.push({ name, val: curM, id, maxCurVal }); 
       }
     }
   });
 
-  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.sleep.length === 0 && risks.move.length === 0 && dismissedList.length === 0) {
+  // 💡 4. risks.late.length 검사 조건 추가
+  if (risks.penalty.length === 0 && risks.attendance.length === 0 && risks.late.length === 0 && risks.sleep.length === 0 && risks.move.length === 0 && dismissedList.length === 0) {
     panel.style.display = "none";
     return;
   }
@@ -2386,8 +2392,9 @@ window.updateRiskNoticePanel = function() {
 
   html += createTag("#ff4757", "🔴 누적 벌점 주의", risks.penalty);
   html += createTag("#ffa502", "📅 최근 결석 주의", risks.attendance);
+  html += createTag("#e67e22", "⏰ 최근 지각 주의", risks.late); // 💡 주황색 지각 태그 렌더링 추가!
   html += createTag("#f1c40f", "💤 최근 취침 주의", risks.sleep);
-  html += createTag("#9b59b6", "🚶‍♂️ 최근 복귀 안 함 주의", risks.move); // 💡 새 카테고리 (보라색)
+  html += createTag("#9b59b6", "🚶‍♂️ 최근 복귀 안 함 주의", risks.move); 
 
   html += `</div>`;
 
