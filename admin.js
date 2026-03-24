@@ -1236,11 +1236,10 @@ async function loadSummariesForStudent_(seat, studentId) {
           }
         } catch (_) { /* ignore */ }
 
-        // ✅ 1. 성적표 + 대학라인예측 + 정오표 모두 그리기
-        const gradeHtml = renderGradeTableHtml_(buildGradeTableRows_(data), data);
+        // ✅ 1. 정오표만 그리기 (상세 화면에 표 중복 제거)
         const errataHtml = errata ? renderErrataHtml_(errata) : `<div class="muted" style="margin-top:15px;">정오표 데이터가 없습니다.</div>`;
         
-        wrap.innerHTML = gradeHtml + errataHtml; // 💡 두 개를 합쳐서 화면에 쏩니다!
+        wrap.innerHTML = errataHtml;
         wrap.style.display = "block";
         loading.textContent = "";
 
