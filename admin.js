@@ -105,6 +105,37 @@ function buildMoveMapFromItems_(items) {
   return map;
 }
 
+/** =========================
+* ✅ 설문 기록을 출결 스케줄에 맞게 맵핑
+* ========================= */
+function buildSurveyMapFromItems_(items) {
+  const map = {}; 
+  const arr = Array.isArray(items) ? items : [];
+  
+  for (const it of arr) {
+    const iso = String(it?.date || "").trim();
+    const reason = String(it?.reason || "").trim();
+    const timeType = String(it?.timeType || "").trim();
+
+    if (!iso || !reason || !timeType) continue;
+
+    // 설문 내용(오전, 오후, 결석)에 따른 교시 범위 설정 (학원 기준에 맞게 숫자 조정 가능)
+    let startP = 0, endP = 0;
+    if (timeType.includes("오전")) { startP = 1; endP = 3; }
+    else if (timeType.includes("오후")) { startP = 4; endP = 6; }
+    else if (timeType.includes("결석")) { startP = 1; endP = 8; }
+
+    if (startP > 0) {
+      map[iso] = map[iso] || {};
+      for (let p = startP; p <= endP; p++) {
+        // [설문] 태그를 붙여서 이동/벌점 사유와 시각적으로 구분되게 함
+        map[iso][p] = `[설문] ${reason}`; 
+      }
+    }
+  }
+  return map;
+}
+
 const ADMIN_SESSION_KEY = "admin_session_v1";
 const SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000; 
 const SUMMARY_CACHE_KEY = "admin_summary_cache_v1"; 
@@ -1180,14 +1211,20 @@ async function loadSummariesForStudent_(seat, studentId) {
       
       // 출결(attendance)은 별도 로직
       if (kind === "attendance") {
-        const [att, mv, edu] = await Promise.all([ 
+        // 💡 [수정] survey_detail도 함께 가져오도록 Promise.all에 추가
+        const [att, mv, edu, surv] = await Promise.all([ 
           apiPost("attendance", { token }), 
           apiPost("move_detail", { token, days: 180 }),
-          apiPost("eduscore_detail", { token, days: 180 })
+          apiPost("eduscore_detail", { token, days: 180 }),
+          apiPost("survey_detail", { token, days: 180 }) // ✅ 추가!
         ]);
         if (!att.ok) return showError(att, targetEl);
+        
         const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
-        targetEl.innerHTML = renderAttendanceDetail_(att, moveMap);
+        const surveyMap = (surv && surv.ok) ? buildSurveyMapFromItems_(surv.items) : {}; // ✅ 맵 생성 추가
+
+        // 💡 [수정] renderAttendanceDetail_에 surveyMap도 전달
+        targetEl.innerHTML = renderAttendanceDetail_(att, moveMap, surveyMap);
         return;
       }
 
@@ -1338,7 +1375,7 @@ async function loadSummariesForStudent_(seat, studentId) {
   }
 
   // 💡 여기서부터 renderAttendanceDetail_ 함수 전체를 다시 채워 넣으세요!
-  function renderAttendanceDetail_(data, moveMap) {
+  function renderAttendanceDetail_(data, moveMap, surveyMap) {
   const blocks = data.allBlocks && data.allBlocks.length > 0 ? data.allBlocks : [{ dates: data.dates, rows: data.rows }];
   if (!blocks || blocks.length === 0 || !blocks[0].dates || !blocks[0].dates.length) return "출결 상세 데이터가 없습니다.";
 
@@ -1402,17 +1439,23 @@ async function loadSummariesForStudent_(seat, studentId) {
   const sRaw = String(c.s ?? "").trim();  
   const iso = String((dates[i] && dates[i].iso) || "").trim();
 
-  // 💡 완벽하게 매칭된 이동(지각) 사유 가져오기
+ 
+  // 💡 완벽하게 매칭된 이동/설문 사유 가져오기
   const mvReason = (moveMap && moveMap[iso] && moveMap[iso][pNumFront]) ? String(moveMap[iso][pNumFront]) : "";
+  const survReason = (surveyMap && surveyMap[iso] && surveyMap[iso][pNumFront]) ? String(surveyMap[iso][pNumFront]) : "";
 
-  // 1. 스케줄 칸 텍스트 조립
+  // 1. 스케줄 칸 텍스트 조립 (우선순위: 설문 > 시트 기록 > 이동)
   let s = sRaw;
-  if (sRaw === "" || sRaw === "-") {
-  s = escapeHtml(mvReason);
+  
+  if (survReason) {
+    // 설문 내용이 있으면 하늘색으로 강조해서 가장 우선으로 보여줌
+    s = `<span style="color:#3498db; font-size:11px; font-weight:bold; background:rgba(52,152,219,0.1); padding:2px 4px; border-radius:4px;">${escapeHtml(survReason)}</span>`;
+  } else if (sRaw === "" || sRaw === "-") {
+    s = escapeHtml(mvReason);
   } else if (mvReason.includes("지각")) {
-  s = escapeHtml(sRaw) + " <span style='color:#f1c40f; font-size:11px; font-weight:bold;'>(" + escapeHtml(mvReason) + ")</span>";
+    s = escapeHtml(sRaw) + " <span style='color:#f1c40f; font-size:11px; font-weight:bold;'>(" + escapeHtml(mvReason) + ")</span>";
   } else {
-  s = escapeHtml(sRaw);
+    s = escapeHtml(sRaw);
   }
 
   // 2. 출결 상태 라벨 조립
