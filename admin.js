@@ -115,21 +115,23 @@ function buildSurveyMapFromItems_(items) {
   for (const it of arr) {
     const iso = String(it?.date || "").trim();
     const reason = String(it?.reason || "").trim();
-    const timeType = String(it?.timeType || "").trim();
+    const timeType = String(it?.timeType || "").trim(); // F열 (결석, 오전, 오후 등)
 
     if (!iso || !reason || !timeType) continue;
 
-    // 설문 내용(오전, 오후, 결석)에 따른 교시 범위 설정 (학원 기준에 맞게 숫자 조정 가능)
+    // 💡 [수정] 선생님 말씀대로 F열(timeType) 내용으로 정확히 시간대 파악
     let startP = 0, endP = 0;
-    if (timeType.includes("오전")) { startP = 1; endP = 3; }
+    if (timeType.includes("결석")) { startP = 1; endP = 8; }
+    else if (timeType.includes("오전")) { startP = 1; endP = 3; }
     else if (timeType.includes("오후")) { startP = 4; endP = 6; }
-    else if (timeType.includes("결석")) { startP = 1; endP = 8; }
+    else if (timeType.includes("야간") || timeType.includes("저녁")) { startP = 7; endP = 8; }
 
     if (startP > 0) {
       map[iso] = map[iso] || {};
       for (let p = startP; p <= endP; p++) {
-        // [설문] 태그를 붙여서 이동/벌점 사유와 시각적으로 구분되게 함
-        map[iso][p] = `[설문] ${reason}`; 
+        // 보기 깔끔하도록 사유에 섞여 들어오는 불필요한 기호(◼) 제거
+        let cleanReason = reason.replace(/◼/g, '').trim();
+        map[iso][p] = `[설문] ${cleanReason}`; 
       }
     }
   }
