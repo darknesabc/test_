@@ -1220,7 +1220,7 @@ async function loadSummariesForStudent_(seat, studentId) {
         
         const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
         
-        // 💡 [수정] 백엔드의 att 안에 같이 딸려온 surveyItems로 맵을 만듭니다.
+        // 백엔드의 att 안에 같이 딸려온 surveyItems로 맵을 만듭니다. (API 중복 호출 방지)
         const surveyMap = buildSurveyMapFromItems_(att.surveyItems || []); 
 
         targetEl.innerHTML = renderAttendanceDetail_(att, moveMap, surveyMap);
