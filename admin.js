@@ -1083,7 +1083,6 @@ async function loadSummariesForStudent_(seat, studentId) {
       ${grd && grd.ok ? `(${escapeHtml(grd.sheetName || "")})` : ""}
     </div>
 
-    // 기존 코드를 아래처럼 콤마(,) 뒤에 grd 데이터를 하나 더 넣어주도록 변경합니다.
     <div id="gradeSummaryTable">
       ${grd && grd.ok 
         ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {}), grd.data || grd || {}) 
@@ -1237,8 +1236,11 @@ async function loadSummariesForStudent_(seat, studentId) {
           }
         } catch (_) { /* ignore */ }
 
-        // ✅ 1. 정오표 그리기
-        wrap.innerHTML = (errata ? renderErrataHtml_(errata) : `<div class="muted">정오표 데이터가 없습니다.</div>`);
+        // ✅ 1. 성적표 + 대학라인예측 + 정오표 모두 그리기
+        const gradeHtml = renderGradeTableHtml_(buildGradeTableRows_(data), data);
+        const errataHtml = errata ? renderErrataHtml_(errata) : `<div class="muted" style="margin-top:15px;">정오표 데이터가 없습니다.</div>`;
+        
+        wrap.innerHTML = gradeHtml + errataHtml; // 💡 두 개를 합쳐서 화면에 쏩니다!
         wrap.style.display = "block";
         loading.textContent = "";
 
