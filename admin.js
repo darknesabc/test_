@@ -247,8 +247,9 @@ function buildGradeTableRows_(data) {
   ];
 }
 
-function renderGradeTableHtml_(rows) {
-  return `
+// 💡 [수정] 원본 데이터(rawData)를 두 번째 인자로 받아 배치표를 꺼냅니다.
+function renderGradeTableHtml_(rows, rawData) {
+  const tableHtml = `
     <div style="margin-top:10px; overflow:auto;">
       <table style="width:100%; border-collapse:collapse; font-size:13px;">
         <thead>
@@ -276,6 +277,89 @@ function renderGradeTableHtml_(rows) {
           `).join("")}
         </tbody>
       </table>
+    </div>
+  `;
+
+  // 💡 표 밑에 대학 라인 예측 상자 부착
+  const universityLineHtml = (rawData && rawData.placement) ? getUniversityLineHtml_(rawData.placement) : "";
+  
+  return tableHtml + universityLineHtml;
+}
+
+/** =========================
+ * ✅ [NEW] 배치표 UI 렌더링 함수 ('군외' 포함 가/나/다 분리)
+ * ========================= */
+function getUniversityLineHtml_(placement) {
+  if (!placement || placement.myScore === 0) return "";
+
+  // 💡 군(가/나/다/군외)별 표를 그려주는 내부 함수
+  const renderGunRows = (lines) => {
+    let html = '';
+    ['가', '나', '다', '군외'].forEach(gun => {
+      const univs = lines[gun];
+      if (!univs || Object.keys(univs).length === 0) return;
+
+      let univHeaders = '';
+      let deptCells = '';
+      const univKeys = Object.keys(univs).slice(0, 6); // 가로로 너무 길어지지 않게 6개 대학 제한
+
+      univKeys.forEach(u => {
+        univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
+        const depts = univs[u].slice(0, 4).join("<br>"); // 학과도 4개 제한
+        deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${depts}</td>`;
+      });
+
+      html += `
+        <tr style="border-top:1px solid rgba(255,255,255,0.2);">
+          <td style="width:35px; text-align:center; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); font-size:13px;">${gun}</td>
+          <td style="padding:0;">
+            <table style="width:100%; border-collapse:collapse; text-align:center;">
+              <thead><tr>${univHeaders}</tr></thead>
+              <tbody><tr>${deptCells}</tr></tbody>
+            </table>
+          </td>
+        </tr>
+      `;
+    });
+    return html || `<tr><td colspan="2" style="padding:15px; text-align:center; opacity:0.5;">매칭되는 대학이 없습니다.</td></tr>`;
+  };
+
+  return `
+    <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
+      <div style="background:#0a0f19; border-bottom:2px solid #f1c40f; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
+        <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 <span style="font-size:11px; opacity:0.6; font-weight:normal;">(백분위 합산 기준)</span></div>
+        <div style="background:#f1c40f; color:#000; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
+          학생 계열 분석: <span style="color:#c0392b; margin-left:4px;">${placement.stream}</span>
+        </div>
+      </div>
+      
+      <div style="display:flex; gap:10px; margin-top:8px;">
+        
+        <div style="flex:1; border:1px solid rgba(52, 152, 219, 0.4); background:rgba(0,0,0,0.2);">
+          <div style="display:flex;">
+            <div style="width:40px; background:#2980b9; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; flex-direction:column; text-align:center; line-height:1.2;">
+              <span>내</span><br><span>점</span><br><span>수</span><br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span>
+            </div>
+            <table style="flex:1; border-collapse:collapse; width:100%;">
+              ${renderGunRows(placement.myLines)}
+            </table>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:center; color:#e74c3c; font-size:24px; font-weight:bold;">▶</div>
+
+        <div style="flex:1; border:1px solid rgba(142, 68, 173, 0.4); background:rgba(0,0,0,0.2);">
+           <div style="display:flex;">
+            <div style="width:40px; background:#8e44ad; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; flex-direction:column; text-align:center; line-height:1.2;">
+              <span>상</span><br><span>승</span><br><span>예</span><br><span>측</span><br><br><span style="font-size:16px; color:#f1c40f;">${placement.upScore}</span>
+            </div>
+            <table style="flex:1; border-collapse:collapse; width:100%;">
+              ${renderGunRows(placement.upLines)}
+            </table>
+          </div>
+        </div>
+
+      </div>
     </div>
   `;
 }
@@ -999,9 +1083,10 @@ async function loadSummariesForStudent_(seat, studentId) {
       ${grd && grd.ok ? `(${escapeHtml(grd.sheetName || "")})` : ""}
     </div>
 
+    // 기존 코드를 아래처럼 콤마(,) 뒤에 grd 데이터를 하나 더 넣어주도록 변경합니다.
     <div id="gradeSummaryTable">
       ${grd && grd.ok 
-        ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {})) 
+        ? renderGradeTableHtml_(buildGradeTableRows_(grd.data || grd || {}), grd.data || grd || {}) 
         : `
           <div style="text-align:center; padding:30px 10px; color:rgba(255,255,255,0.5); border:1px dashed rgba(255,255,255,0.1); border-radius:12px;">
             <div style="font-size:20px; margin-bottom:8px;">💡</div>
@@ -1051,6 +1136,7 @@ async function loadSummariesForStudent_(seat, studentId) {
     const gradeSel = $("gradeSummarySelect");
     if (gradeSel) {
       gradeSel.addEventListener("change", async () => {
+        // 기존 try 블록 안의 코드를 아래처럼 수정해 주세요. (gs2 데이터를 추가로 넘겨줍니다)
         try {
           const seat2 = String(st.seat || "").trim();
           const studentId2 = String(st.studentId || "").trim();
@@ -1063,7 +1149,9 @@ async function loadSummariesForStudent_(seat, studentId) {
           const gs2 = await apiPost("grade_summary", { token: token2, exam });
           if (!gs2.ok) throw new Error(gs2.error || "grade_summary 실패");
           if (labelHost) labelHost.innerHTML = `(${escapeHtml(gs2.sheetName || "")})`;
-          if (tableHost) tableHost.innerHTML = renderGradeTableHtml_(buildGradeTableRows_(gs2));
+          
+          // 💡 [수정] 콤마 뒤에 gs2를 추가했습니다.
+          if (tableHost) tableHost.innerHTML = renderGradeTableHtml_(buildGradeTableRows_(gs2), gs2);
         } catch (e) {
           const tableHost = $("gradeSummaryTable");
           if (tableHost) tableHost.innerHTML = `<div style="color:#ff6b6b;">${escapeHtml(e?.message || "성적 조회 오류")}</div>`;
