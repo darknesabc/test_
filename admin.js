@@ -114,12 +114,21 @@ function buildSurveyMapFromItems_(items) {
   
   for (const it of arr) {
     const iso = String(it?.date || "").trim();
-    const reason = String(it?.reason || "").trim();
-    const timeType = String(it?.timeType || "").trim(); // F열 (결석, 오전, 오후 등)
+    let reason = String(it?.reason || "").trim(); // 원본 사유
+    const timeType = String(it?.timeType || "").trim();
 
     if (!iso || !reason || !timeType) continue;
 
-    // 💡 [수정] 선생님 말씀대로 F열(timeType) 내용으로 정확히 시간대 파악
+    // 💡 [추가] 사유를 "학원", "병원", "개인일정" 핵심 단어로만 축약합니다.
+    if (reason.includes("학원")) reason = "학원";
+    else if (reason.includes("병원")) reason = "병원";
+    else if (reason.includes("개인일정")) reason = "개인일정";
+    else {
+      // 혹시 다른 사유가 있을 경우, 괄호 '(' 앞부분까지만 잘라서 깔끔하게 보여줍니다.
+      reason = reason.split("(")[0].trim();
+    }
+
+    // F열(timeType) 내용으로 정확히 시간대 파악
     let startP = 0, endP = 0;
     if (timeType.includes("결석")) { startP = 1; endP = 8; }
     else if (timeType.includes("오전")) { startP = 1; endP = 3; }
@@ -129,7 +138,7 @@ function buildSurveyMapFromItems_(items) {
     if (startP > 0) {
       map[iso] = map[iso] || {};
       for (let p = startP; p <= endP; p++) {
-        // 보기 깔끔하도록 사유에 섞여 들어오는 불필요한 기호(◼) 제거
+        // 불필요한 기호 제거 후 짧아진 사유로 저장
         let cleanReason = reason.replace(/◼/g, '').trim();
         map[iso][p] = `[설문] ${cleanReason}`; 
       }
