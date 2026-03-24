@@ -1211,19 +1211,18 @@ async function loadSummariesForStudent_(seat, studentId) {
       
       // 출결(attendance)은 별도 로직
       if (kind === "attendance") {
-        // 💡 [수정] survey_detail도 함께 가져오도록 Promise.all에 추가
-        const [att, mv, edu, surv] = await Promise.all([ 
+        const [att, mv, edu] = await Promise.all([ 
           apiPost("attendance", { token }), 
           apiPost("move_detail", { token, days: 180 }),
-          apiPost("eduscore_detail", { token, days: 180 }),
-          apiPost("survey_detail", { token, days: 180 }) // ✅ 추가!
+          apiPost("eduscore_detail", { token, days: 180 })
         ]);
         if (!att.ok) return showError(att, targetEl);
         
         const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
-        const surveyMap = (surv && surv.ok) ? buildSurveyMapFromItems_(surv.items) : {}; // ✅ 맵 생성 추가
+        
+        // 💡 [수정] 백엔드의 att 안에 같이 딸려온 surveyItems로 맵을 만듭니다.
+        const surveyMap = buildSurveyMapFromItems_(att.surveyItems || []); 
 
-        // 💡 [수정] renderAttendanceDetail_에 surveyMap도 전달
         targetEl.innerHTML = renderAttendanceDetail_(att, moveMap, surveyMap);
         return;
       }
