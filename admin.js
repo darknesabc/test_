@@ -306,21 +306,26 @@ function getUniversityLineHtml_(placement) {
       univKeys.forEach(u => {
         univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
         
-        // 💡 [디자인 핵심] 학과 옆에 예쁜 색상의 미니 뱃지를 부착합니다!
+        // 💡 [디자인 핵심] 학과 옆에 예쁜 색상의 미니 뱃지를 다중으로 부착합니다!
         const deptsHtml = univs[u].slice(0, 4).map(d => {
             const name = typeof d === 'string' ? d : (d.name || "");
-            const badge = d.badge || "";
-            let badgeHtml = "";
+            const badges = d.badges || []; // 여러 개의 뱃지가 들어있는 배열
             
-            if (badge === "과1") {
-                badgeHtml = `<span style="background:#3498db; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1;">과1</span>`;
-            } else if (badge === "사1") {
-                badgeHtml = `<span style="background:#9b59b6; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1;">사1</span>`;
-            } else if (badge === "탐1") {
-                badgeHtml = `<span style="background:#e67e22; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1;">탐1</span>`;
-            }
+            let badgeHtmlStr = "";
+            badges.forEach(b => {
+                let bg = "#7f8c8d"; // 기본 회색
+                
+                // 뱃지 종류별 맞춤 색상 지정 (다크모드에 잘 어울리는 컬러)
+                if (b === "과1") bg = "#3498db";         // 파란색
+                else if (b === "사1") bg = "#9b59b6";    // 보라색
+                else if (b === "탐1") bg = "#e67e22";    // 주황색
+                else if (b === "지역인재") bg = "#27ae60"; // 🍀 초록색 (눈에 띔)
+                else if (b === "지역균형") bg = "#16a085"; // 🍀 청록색
+                
+                badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">${b}</span>`;
+            });
             
-            return `<div style="margin-bottom:2px; line-height:1.4;">${escapeHtml(name)}${badgeHtml}</div>`;
+            return `<div style="margin-bottom:2px; line-height:1.4;">${escapeHtml(name)}${badgeHtmlStr}</div>`;
         }).join("");
         
         deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${deptsHtml}</td>`;
