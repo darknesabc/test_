@@ -287,12 +287,19 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (단일 통합 테이블 & 원스크롤 UI)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (시뮬레이션 조정 패널 탑재)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
 
   const ALL_GROUPS = ['가', '나', '다', '군외'];
+  
+  // 💡 [코어 변경] 현재 화면의 '시뮬레이션 상태'를 글로벌로 관리합니다.
+  window.__currentSimStatus = {
+      score: placement.defaultUpScore,
+      math: placement.profile.mathType, // 미기, 확통, null
+      tamType: placement.profile.tamType // 과탐, 사탐, 사과탐, null
+  };
   window.__currentPlacement = placement;
 
   // 💡 한 대학 안의 학과 목록과 뱃지를 그려주는 함수
@@ -320,7 +327,7 @@ function getUniversityLineHtml_(placement) {
     }).join("");
   };
 
-  // 💡 단일 지원군의 대학 목록 데이터를 그려주는 함수 (테이블 속의 테이블)
+  // 💡 단일 지원군의 대학 목록 데이터를 그려주는 함수
   window.renderSingleGroupDataHelper = function(univDataObj) {
     if (!univDataObj || Object.keys(univDataObj).length === 0) {
         return `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.3); font-size:12px; font-style:italic;">매칭 대학 없음</div>`;
@@ -343,99 +350,154 @@ function getUniversityLineHtml_(placement) {
     `;
   };
 
-  // 💡 실시간 점수 수정 시 실행되는 함수 (해당 칸만 번개처럼 교체!)
-  window.updateUpScore = function(val) {
-    const score = Number(val);
+  // 💡 [핵심 마법] 시뮬레이션 조정 패널이 변경될 때마다 실행되는 함수 (복합 필터링 탑재)
+  window.runUniversitySimulation = function() {
+    const status = window.__currentSimStatus;
     const placeData = window.__currentPlacement;
-    if (!score || !placeData) return;
+    if (!status || !placeData) return;
 
     const upLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
+    const score = Number(status.score);
+    
     placeData.allMatches.forEach(m => {
-      if (m.score >= score - 1 && m.score <= score + 2) {
-        if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
-        upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
+      // 1순위: 점수 조건 검색 (입력 점수 ±1점)
+      if (m.score < score - 1 || m.score > score + 2) return;
+
+      // 2순위: 수학 선택과목 조건 검색 (시뮬레이션 설정값 기준)
+      if (m.mathReq === "미기" && status.math !== "미기") return;
+      if (m.mathReq === "확통" && status.math !== "확통") return;
+
+      // 3순위: 탐구 조건 검색 (시뮬레이션 설정값 기준)
+      if (m.tamReqCount === 1) {
+          // 탐구 1과목 반영 대학
+          if (m.tamTypeReq === "과" && status.tamType === "사탐") return; // 사탐만 본 학생은 과탐 필수 대학 지원불가
+          if (m.tamTypeReq === "사" && status.tamType === "과탐") return;
+      } else {
+          // 탐구 2과목 반영 대학 (더 엄격)
+          if (m.tamTypeReq === "과" && status.tamType !== "과탐") return; // 무조건 과탐 2개여야 함
+          if (m.tamTypeReq === "사" && status.tamType !== "사탐") return; 
+          // 대학이 '사' 또는 '과'를 지정했는데 학생이 '사과탐' 혼합이면, 2과목 필수 조건 충족 불가
+          if ((m.tamTypeReq === "과" || m.tamTypeReq === "사") && status.tamType === "사과탐") return;
       }
+
+      if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
+      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
     });
 
+    // 4. 화면 우측 칸만 실시간 교체!
     ALL_GROUPS.forEach(gun => {
        const td = document.getElementById('up-data-' + gun);
        if (td) td.innerHTML = window.renderSingleGroupDataHelper(upLines[gun]);
     });
   };
 
-  // 초기 데이터 분류
+  // 초기 내 점수 표 그리기
   const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
   placement.allMatches.forEach(m => {
+    // 내 점수는 '실제 프로필' 기준으로 ±1점 고정
     if (m.score >= placement.myScore - 1 && m.score <= placement.myScore + 1) {
       if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
       myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
     }
   });
 
-  const upLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
-  placement.allMatches.forEach(m => {
-    if (m.score >= placement.myScore + 4 && m.score <= placement.myScore + 10) {
-      if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
-      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
-    }
-  });
+  // 💡 [UI 함수] 마우스 클릭 시 시뮬레이션 상태를 바꾸고 실행하는 도우미
+  window.changeSimOption = function(type, value, element) {
+      window.__currentSimStatus[type] = value;
+      // 클릭한 버튼만 활성화 스타일 적용
+      const parent = element.parentElement;
+      parent.querySelectorAll('button').forEach(b => {
+          b.style.background = 'rgba(255,255,255,0.05)';
+          b.style.color = 'rgba(255,255,255,0.6)';
+          b.style.borderColor = 'rgba(255,255,255,0.1)';
+      });
+      element.style.background = '#f1c40f';
+      element.style.color = '#000';
+      element.style.borderColor = '#f1c40f';
 
-  // 💡 [핵심] 하나의 거대한 마스터 테이블 조립
+      // 즉시 시뮬레이션 실행! (엔터 필요 없음)
+      window.runUniversitySimulation();
+  };
+
+  // 통합 테이블 조립
   let rowsHtml = '';
   ALL_GROUPS.forEach((gun, idx) => {
     const isFirst = (idx === 0);
     rowsHtml += `<tr style="border-top:1px solid rgba(255,255,255,0.2);">`;
     
-    // 1. 내 점수 파란색 바 (첫 행에만 넣고 세로로 길게 합치기)
     if (isFirst) {
         rowsHtml += `
         <td rowspan="4" style="width:45px; min-width:45px; background:#2980b9; color:#fff; text-align:center; font-weight:900; font-size:13px; line-height:1.3; border-right:1px solid rgba(255,255,255,0.2);">
           내<br>점<br>수<br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span>
         </td>`;
     }
-
-    // 2. 내 점수 가나다군 라벨
     rowsHtml += `<td style="width:30px; min-width:30px; text-align:center; font-weight:bold; font-size:13px; background:rgba(255,255,255,0.05); color:#fff; border-right:1px solid rgba(255,255,255,0.2);">${escapeHtml(gun)}</td>`;
-    
-    // 3. 내 점수 대학 데이터
     rowsHtml += `<td style="padding:0; vertical-align:top; border-right:1px solid rgba(255,255,255,0.2); min-width:300px;">${window.renderSingleGroupDataHelper(myLines[gun])}</td>`;
 
-    // 4. 중앙 화살표 구분선 (첫 행에만)
     if (isFirst) {
         rowsHtml += `<td rowspan="4" style="width:40px; min-width:40px; text-align:center; color:#e74c3c; font-size:20px; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.1);">▶</td>`;
     }
-
-    // 5. 상승예측 보라색 바 (첫 행에만)
-    if (isFirst) {
-        rowsHtml += `
-        <td rowspan="4" style="width:55px; min-width:55px; background:#8e44ad; color:#fff; text-align:center; font-weight:900; font-size:12px; line-height:1.3; border-right:1px solid rgba(255,255,255,0.2);">
-          상<br>승<br>예<br>측<br>
-          <div style="margin-top:6px; display:flex; flex-direction:column; align-items:center; background:rgba(0,0,0,0.3); border:1px dashed #f1c40f; border-radius:4px; padding:2px; margin-left:4px; margin-right:4px;">
-            <input type="number" value="${placement.defaultUpScore}" 
-                   oninput="window.updateUpScore(this.value)" 
-                   style="width:34px; background:transparent; border:none; color:#f1c40f; font-size:14px; font-weight:bold; text-align:center; outline:none; padding:0;" title="점수를 수정해보세요!" />
-          </div>
-        </td>`;
-    }
-
-    // 6. 상승예측 가나다군 라벨
+    
+    // 상승 예측 가나다군 라벨 & 대학 데이터 (우측 파트는 2등급 처리)
     rowsHtml += `<td style="width:30px; min-width:30px; text-align:center; font-weight:bold; font-size:13px; background:rgba(255,255,255,0.05); color:#fff; border-right:1px solid rgba(255,255,255,0.2);">${escapeHtml(gun)}</td>`;
-
-    // 7. 상승예측 대학 데이터 (실시간 교체 대상)
-    rowsHtml += `<td id="up-data-${gun}" style="padding:0; vertical-align:top; min-width:300px;">${window.renderSingleGroupDataHelper(upLines[gun])}</td>`;
+    rowsHtml += `<td id="up-data-${gun}" style="padding:0; vertical-align:top; min-width:300px;">${/* 초기 빈 공간, 아래서 채움 */""}</td>`;
 
     rowsHtml += `</tr>`;
   });
 
+  // 💡 [UI 디자인 핵심] 문제의 그 자리에 세련된 조정 패널을 그립니다!
+  const mathType = placement.profile.mathType;
+  const tamType = placement.profile.tamType;
+
+  const btnStyle = "background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold; outline:none; margin-right:3px; transition:all 0.2s;";
+  const activeBtnStyle = "background:#f1c40f; color:#000; border:1px solid #f1c40f;";
+
+  const panelHtml = `
+    <div style="display:flex; align-items:center; gap:10px; padding:6px 10px; background:rgba(142, 68, 173, 0.2); border:1px dashed rgba(142, 68, 173, 0.4); border-radius:6px; margin-top:8px;">
+      <div style="color:#fff; font-weight:bold; font-size:13px; white-space:nowrap;">🛠️ 시뮬레이션 조정 패널</div>
+      
+      <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+        <span style="color:rgba(255,255,255,0.7); font-size:12px;">목표 백분위 합:</span>
+        <input type="number" value="${placement.defaultUpScore}" 
+               oninput="window.__currentSimStatus.score=this.value; window.runUniversitySimulation()" 
+               style="width:35px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); color:#f1c40f; font-size:14px; font-weight:bold; text-align:center; outline:none; padding:2px; border-radius:3px;" />
+      </div>
+
+      <div style="width:1px; height:15px; background:rgba(255,255,255,0.1);"></div>
+
+      <div id="sim-math-options" style="display:flex; align-items:center; gap:5px;">
+        <span style="color:rgba(255,255,255,0.7); font-size:12px;">수학:</span>
+        <button onclick="window.changeSimOption('math', '미기', this)" style="${btnStyle}${mathType==='미기'?activeBtnStyle:''}">미적/기하</button>
+        <button onclick="window.changeSimOption('math', '확통', this)" style="${btnStyle}${mathType==='확통'?activeBtnStyle:''}">확률과통계</button>
+      </div>
+
+      <div style="width:1px; height:15px; background:rgba(255,255,255,0.1);"></div>
+
+      <div id="sim-tam-options" style="display:flex; align-items:center; gap:5px;">
+        <span style="color:rgba(255,255,255,0.7); font-size:12px;">탐구 응시:</span>
+        <button onclick="window.changeSimOption('tamType', '과탐', this)" style="${btnStyle}${tamType==='과탐'?activeBtnStyle:''}">과탐 2</button>
+        <button onclick="window.changeSimOption('tamType', '사탐', this)" style="${btnStyle}${tamType==='사탐'?activeBtnStyle:''}">사탐 2</button>
+        <button onclick="window.changeSimOption('tamType', '사과탐', this)" style="${btnStyle}${tamType==='사과탐'?activeBtnStyle:''}">사+과 융합</button>
+      </div>
+    </div>
+  `;
+
+  // 💡 [렌더링 마무리] 0.01초 뒤에 초기 시뮬레이션을 실행해서 우측 표를 채웁니다.
+  setTimeout(() => {
+      if (window.runUniversitySimulation) window.runUniversitySimulation();
+  }, 10);
+
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
       <div style="background:#0a0f19; border-bottom:2px solid #f1c40f; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
-        <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 <span style="font-size:11px; opacity:0.6; font-weight:normal;">(백분위 합산 기준)</span></div>
+        <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 시뮬레이션 <span style="font-size:11px; opacity:0.6; font-weight:normal;">(백분위 합산 기준)</span></div>
         <div style="background:#f1c40f; color:#000; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
-          학생 계열 분석: <span style="color:#c0392b; margin-left:4px;">${escapeHtml(placement.stream)}</span>
+          학생 실제 응시: <span style="color:#c0392b; margin-left:4px;">${escapeHtml(placement.stream)}</span>
         </div>
       </div>
       
+      ${panelHtml}
+
       <div style="margin-top:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); border-radius:6px; overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse;">
           <tbody>
