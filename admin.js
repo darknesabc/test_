@@ -287,74 +287,87 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (실시간 시뮬레이션 탑재)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (고정 제목 & 정렬 탑재)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
 
-  // 💡 [핵심] 사용자가 점수를 바꿀 때마다 참조할 수 있도록 데이터를 글로벌 공간에 잠시 저장해 둡니다.
+  // 모든 지원군 정의
+  const ALL_GROUPS = ['가', '나', '다', '군외'];
+
+  // 사용자가 점수를 바꿀 때마다 참조할 수 있도록 데이터를 글로벌 공간에 잠시 저장해 둡니다.
   window.__currentPlacement = placement;
 
-  // 💡 표의 <tr> <td>를 그려주는 핵심 렌더링 도우미 함수 (재사용 가능하게 분리)
-  window.renderGunRowsHelper = function(lines) {
-    let html = '';
-    ['가', '나', '다', '군외'].forEach(gun => {
-      const univs = lines[gun];
-      if (!univs || Object.keys(univs).length === 0) return;
-
-      let univHeaders = '';
-      let deptCells = '';
-      const univKeys = Object.keys(univs).slice(0, 6); // 6개 대학 제한
-
-      univKeys.forEach(u => {
-        univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
+  // 💡 [렌더링 도우미] 한 대학 안의 학과 목록과 뱃지를 그려주는 함수 (slice 4)
+  window.renderDepartmentListHelper = function(deptDataList) {
+    return deptDataList.slice(0, 4).map(d => {
+        const name = typeof d === 'string' ? d : (d.name || "");
+        const badges = d.badges || []; 
+        let badgeHtmlStr = "";
+        badges.forEach(b => {
+            let bg = "#7f8c8d"; 
+            if (b === "과1") bg = "#3498db";         
+            else if (b === "사1") bg = "#9b59b6";    
+            else if (b === "탐1") bg = "#e67e22";    
+            else if (b === "지역인재") bg = "#27ae60"; 
+            else if (b === "지역균형") bg = "#16a085"; 
+            badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
+        });
         
-        // 💡 [디자인 핵심] 학과 이름과 뱃지를 삐뚤빼뚤하지 않게 중앙 정렬 블록으로 묶어줍니다!
-        const deptsHtml = univs[u].slice(0, 4).map(d => {
-            const name = typeof d === 'string' ? d : (d.name || "");
-            const badges = d.badges || []; 
-            
-            let badgeHtmlStr = "";
-            badges.forEach(b => {
-                let bg = "#7f8c8d"; 
-                if (b === "과1") bg = "#3498db";         
-                else if (b === "사1") bg = "#9b59b6";    
-                else if (b === "탐1") bg = "#e67e22";    
-                else if (b === "지역인재") bg = "#27ae60"; 
-                else if (b === "지역균형") bg = "#16a085"; 
-                
-                // 기존의 margin-left를 없애고 뱃지를 조금 더 선명하게 다듬었습니다.
-                badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
-            });
-            
-            // 💡 [UI 마법] flex-direction: column을 써서 글씨가 길어도 뱃지가 항상 '정중앙 아래'에 예쁘게 놓이도록 셋팅!
-            return `
-              <div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:4px; word-break:keep-all;">
-                <span style="font-weight:600; line-height:1.3; color:#f8f9fa;">${escapeHtml(name)}</span>
-                ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center;">${badgeHtmlStr}</div>` : ""}
-              </div>
-            `;
-        }).join("");
-        
-        deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${deptsHtml}</td>`;
-      });
+        return `
+          <div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:4px; word-break:keep-all;">
+            <span style="font-weight:600; line-height:1.3; color:#f8f9fa;">${escapeHtml(name)}</span>
+            ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center;">${badgeHtmlStr}</div>` : ""}
+          </div>
+        `;
+    }).join("");
+  };
 
-      html += `
-        <tr style="border-top:1px solid rgba(255,255,255,0.2);">
-          <td style="width:35px; text-align:center; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); font-size:13px;">${gun}</td>
+  // 💡 [렌더링 도우미] 단일 지원군(예: '가'군)의 대학 목록 데이터를 그려주는 함수 (slice 6)
+  window.renderSingleGroupDataHelper = function(univDataObj) {
+    if (!univDataObj || Object.keys(univDataObj).length === 0) return "";
+
+    let univHeaders = '';
+    let deptCells = '';
+    const univKeys = Object.keys(univDataObj).slice(0, 6); // 6개 대학 제한
+
+    univKeys.forEach(u => {
+      univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
+      deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${window.renderDepartmentListHelper(univDataObj[u])}</td>`;
+    });
+
+    return `
+      <table style="width:100%; border-collapse:collapse; text-align:center;">
+        <thead><tr>${univHeaders}</tr></thead>
+        <tbody><tr>${deptCells}</tr></tbody>
+      </table>
+    `;
+  };
+
+  // 💡 [렌더링 도우미] 가/나/다군 제목과 데이터를 묶어서 전체 행(Row)을 그려주는 함수 (정렬 핵심)
+  window.renderAllGroupRowsHelper = function(groupedDataObj) {
+    let rowsHtml = '';
+    ALL_GROUPS.forEach(gun => {
+      const groupData = groupedDataObj[gun];
+      
+      // 데이터 유무와 상관없이 행을 생성하여 가나다군 위치를 맞춥니다.
+      const groupTableHtml = window.renderSingleGroupDataHelper(groupData);
+
+      rowsHtml += `
+        <tr style="border-top:1px solid rgba(255,255,255,0.2); min-height: 80px;">
+          <td style="width:30px; min-width:30px; text-align:center; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); font-size:13px; vertical-align:middle; writing-mode: vertical-lr; text-orientation: upright; color: #fff; background: rgba(255, 255, 255, 0.05); text-transform: uppercase;">
+            ${escapeHtml(gun)}
+          </td>
           <td style="padding:0;">
-            <table style="width:100%; border-collapse:collapse; text-align:center;">
-              <thead><tr>${univHeaders}</tr></thead>
-              <tbody><tr>${deptCells}</tr></tbody>
-            </table>
+            ${groupTableHtml || `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.5); font-size:12px;">해당 군에 매칭되는 대학이 없습니다.</div>`}
           </td>
         </tr>
       `;
     });
-    return html || `<tr><td colspan="2" style="padding:15px; text-align:center; opacity:0.5;">매칭되는 대학이 없습니다.</td></tr>`;
+    return rowsHtml;
   };
 
-  // 💡 [핵심] 숫자를 입력/수정할 때마다 자동으로 실행되는 함수!
+  // 💡 [실시간 시뮬레이션] 숫자를 입력/수정할 때마다 자동으로 실행되는 함수!
   window.updateUpScore = function(val) {
     const score = Number(val);
     const placeData = window.__currentPlacement;
@@ -371,8 +384,8 @@ function getUniversityLineHtml_(placement) {
     });
 
     // 화면 우측의 표 내용만 번개처럼 싹 갈아치웁니다.
-    const container = document.getElementById('upScoreTableContainer');
-    if (container) container.innerHTML = window.renderGunRowsHelper(upLines);
+    const container = document.getElementById('upScoreTableBody');
+    if (container) container.innerHTML = window.renderAllGroupRowsHelper(upLines);
   };
 
   // 1. 처음 화면을 열 때의 [내 점수] 그룹 (±1점)
@@ -406,12 +419,16 @@ function getUniversityLineHtml_(placement) {
         
         <div style="flex:1; border:1px solid rgba(52, 152, 219, 0.4); background:rgba(0,0,0,0.2);">
           <div style="display:flex; height:100%;">
-            <div style="width:40px; background:#2980b9; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; flex-direction:column; text-align:center; line-height:1.2;">
+            <div style="width:40px; min-width: 40px; background:#2980b9; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; flex-direction:column; text-align:center; line-height:1.2;">
               <span>내</span><br><span>점</span><br><span>수</span><br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span>
             </div>
-            <table style="flex:1; border-collapse:collapse; width:100%;">
-              ${window.renderGunRowsHelper(myLines)}
-            </table>
+            <div style="flex:1; padding:0; overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse;">
+                <tbody>
+                  ${window.renderAllGroupRowsHelper(myLines)}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -419,7 +436,7 @@ function getUniversityLineHtml_(placement) {
 
         <div style="flex:1; border:1px solid rgba(142, 68, 173, 0.4); background:rgba(0,0,0,0.2);">
           <div style="display:flex; height:100%;">
-            <div style="width:40px; background:#8e44ad; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; flex-direction:column; text-align:center; line-height:1.2; padding:4px 0;">
+            <div style="width:40px; min-width: 40px; background:#8e44ad; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; flex-direction:column; text-align:center; line-height:1.2; padding:4px 0;">
               <span>상</span><br><span>승</span><br><span>예</span><br><span>측</span><br>
               <div style="margin-top:6px; display:flex; flex-direction:column; align-items:center; background:rgba(0,0,0,0.3); border:1px dashed #f1c40f; border-radius:4px; padding:2px;">
                 <input type="number" value="${placement.defaultUpScore}" 
@@ -427,9 +444,13 @@ function getUniversityLineHtml_(placement) {
                        style="width:30px; background:transparent; border:none; color:#f1c40f; font-size:14px; font-weight:bold; text-align:center; outline:none; padding:0;" title="점수를 수정해보세요!" />
               </div>
             </div>
-            <table id="upScoreTableContainer" style="flex:1; border-collapse:collapse; width:100%;">
-              ${window.renderGunRowsHelper(upLines)}
-            </table>
+            <div id="upScoreTableContainer" style="flex:1; overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse;">
+                <tbody id="upScoreTableBody">
+                  ${window.renderAllGroupRowsHelper(upLines)}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -437,6 +458,7 @@ function getUniversityLineHtml_(placement) {
     </div>
   `;
 }
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
