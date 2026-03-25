@@ -305,10 +305,26 @@ function getUniversityLineHtml_(placement) {
 
       univKeys.forEach(u => {
         univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
-        const depts = univs[u].slice(0, 4).join("<br>"); // 학과도 4개 제한
-        deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${depts}</td>`;
+        
+        // 💡 [디자인 핵심] 학과 옆에 예쁜 색상의 미니 뱃지를 부착합니다!
+        const deptsHtml = univs[u].slice(0, 4).map(d => {
+            const name = typeof d === 'string' ? d : (d.name || "");
+            const badge = d.badge || "";
+            let badgeHtml = "";
+            
+            if (badge === "과1") {
+                badgeHtml = `<span style="background:#3498db; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1;">과1</span>`;
+            } else if (badge === "사1") {
+                badgeHtml = `<span style="background:#9b59b6; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1;">사1</span>`;
+            } else if (badge === "탐1") {
+                badgeHtml = `<span style="background:#e67e22; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1;">탐1</span>`;
+            }
+            
+            return `<div style="margin-bottom:2px; line-height:1.4;">${escapeHtml(name)}${badgeHtml}</div>`;
+        }).join("");
+        
+        deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${deptsHtml}</td>`;
       });
-
       html += `
         <tr style="border-top:1px solid rgba(255,255,255,0.2);">
           <td style="width:35px; text-align:center; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); font-size:13px;">${gun}</td>
