@@ -287,13 +287,16 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [NEW] 배치표 UI 렌더링 함수 ('군외' 포함 가/나/다 분리)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (실시간 시뮬레이션 탑재)
  * ========================= */
 function getUniversityLineHtml_(placement) {
-  if (!placement || placement.myScore === 0) return "";
+  if (!placement || !placement.allMatches) return "";
 
-  // 💡 군(가/나/다/군외)별 표를 그려주는 내부 함수
-  const renderGunRows = (lines) => {
+  // 💡 [핵심] 사용자가 점수를 바꿀 때마다 참조할 수 있도록 데이터를 글로벌 공간에 잠시 저장해 둡니다.
+  window.__currentPlacement = placement;
+
+  // 💡 표의 <tr> <td>를 그려주는 핵심 렌더링 도우미 함수 (재사용 가능하게 분리)
+  window.renderGunRowsHelper = function(lines) {
     let html = '';
     ['가', '나', '다', '군외'].forEach(gun => {
       const univs = lines[gun];
@@ -301,35 +304,30 @@ function getUniversityLineHtml_(placement) {
 
       let univHeaders = '';
       let deptCells = '';
-      const univKeys = Object.keys(univs).slice(0, 6); // 가로로 너무 길어지지 않게 6개 대학 제한
+      const univKeys = Object.keys(univs).slice(0, 6); // 6개 대학 제한
 
       univKeys.forEach(u => {
         univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
         
-        // 💡 [디자인 핵심] 학과 옆에 예쁜 색상의 미니 뱃지를 다중으로 부착합니다!
         const deptsHtml = univs[u].slice(0, 4).map(d => {
             const name = typeof d === 'string' ? d : (d.name || "");
-            const badges = d.badges || []; // 여러 개의 뱃지가 들어있는 배열
-            
+            const badges = d.badges || [];
             let badgeHtmlStr = "";
             badges.forEach(b => {
-                let bg = "#7f8c8d"; // 기본 회색
-                
-                // 뱃지 종류별 맞춤 색상 지정 (다크모드에 잘 어울리는 컬러)
-                if (b === "과1") bg = "#3498db";         // 파란색
-                else if (b === "사1") bg = "#9b59b6";    // 보라색
-                else if (b === "탐1") bg = "#e67e22";    // 주황색
-                else if (b === "지역인재") bg = "#27ae60"; // 🍀 초록색 (눈에 띔)
-                else if (b === "지역균형") bg = "#16a085"; // 🍀 청록색
-                
+                let bg = "#7f8c8d";
+                if (b === "과1") bg = "#3498db";
+                else if (b === "사1") bg = "#9b59b6";
+                else if (b === "탐1") bg = "#e67e22";
+                else if (b === "지역인재") bg = "#27ae60";
+                else if (b === "지역균형") bg = "#16a085";
                 badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">${b}</span>`;
             });
-            
             return `<div style="margin-bottom:2px; line-height:1.4;">${escapeHtml(name)}${badgeHtmlStr}</div>`;
         }).join("");
         
         deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${deptsHtml}</td>`;
       });
+
       html += `
         <tr style="border-top:1px solid rgba(255,255,255,0.2);">
           <td style="width:35px; text-align:center; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); font-size:13px;">${gun}</td>
@@ -345,24 +343,63 @@ function getUniversityLineHtml_(placement) {
     return html || `<tr><td colspan="2" style="padding:15px; text-align:center; opacity:0.5;">매칭되는 대학이 없습니다.</td></tr>`;
   };
 
+  // 💡 [핵심] 숫자를 입력/수정할 때마다 자동으로 실행되는 함수!
+  window.updateUpScore = function(val) {
+    const score = Number(val);
+    const placeData = window.__currentPlacement;
+    if (!score || !placeData) return;
+
+    const upLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
+    
+    // 사용자가 입력한 점수를 기준으로 [-1점 ~ +2점] 구간의 대학을 즉시 다시 찾습니다!
+    placeData.allMatches.forEach(m => {
+      if (m.score >= score - 1 && m.score <= score + 2) {
+        if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
+        upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
+      }
+    });
+
+    // 화면 우측의 표 내용만 번개처럼 싹 갈아치웁니다.
+    const container = document.getElementById('upScoreTableContainer');
+    if (container) container.innerHTML = window.renderGunRowsHelper(upLines);
+  };
+
+  // 1. 처음 화면을 열 때의 [내 점수] 그룹 (±1점)
+  const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
+  placement.allMatches.forEach(m => {
+    if (m.score >= placement.myScore - 1 && m.score <= placement.myScore + 1) {
+      if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
+      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
+    }
+  });
+
+  // 2. 처음 화면을 열 때의 [상승 예측] 기본 그룹 (+4점 ~ +10점)
+  const upLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
+  placement.allMatches.forEach(m => {
+    if (m.score >= placement.myScore + 4 && m.score <= placement.myScore + 10) {
+      if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
+      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
+    }
+  });
+
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
       <div style="background:#0a0f19; border-bottom:2px solid #f1c40f; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
         <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 <span style="font-size:11px; opacity:0.6; font-weight:normal;">(백분위 합산 기준)</span></div>
         <div style="background:#f1c40f; color:#000; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
-          학생 계열 분석: <span style="color:#c0392b; margin-left:4px;">${placement.stream}</span>
+          학생 계열 분석: <span style="color:#c0392b; margin-left:4px;">${escapeHtml(placement.stream)}</span>
         </div>
       </div>
       
       <div style="display:flex; gap:10px; margin-top:8px;">
         
         <div style="flex:1; border:1px solid rgba(52, 152, 219, 0.4); background:rgba(0,0,0,0.2);">
-          <div style="display:flex;">
+          <div style="display:flex; height:100%;">
             <div style="width:40px; background:#2980b9; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; flex-direction:column; text-align:center; line-height:1.2;">
               <span>내</span><br><span>점</span><br><span>수</span><br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span>
             </div>
             <table style="flex:1; border-collapse:collapse; width:100%;">
-              ${renderGunRows(placement.myLines)}
+              ${window.renderGunRowsHelper(myLines)}
             </table>
           </div>
         </div>
@@ -370,12 +407,17 @@ function getUniversityLineHtml_(placement) {
         <div style="display:flex; align-items:center; justify-content:center; color:#e74c3c; font-size:24px; font-weight:bold;">▶</div>
 
         <div style="flex:1; border:1px solid rgba(142, 68, 173, 0.4); background:rgba(0,0,0,0.2);">
-           <div style="display:flex;">
-            <div style="width:40px; background:#8e44ad; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; flex-direction:column; text-align:center; line-height:1.2;">
-              <span>상</span><br><span>승</span><br><span>예</span><br><span>측</span><br><br><span style="font-size:16px; color:#f1c40f;">${placement.upScore}</span>
+          <div style="display:flex; height:100%;">
+            <div style="width:40px; background:#8e44ad; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; flex-direction:column; text-align:center; line-height:1.2; padding:4px 0;">
+              <span>상</span><br><span>승</span><br><span>예</span><br><span>측</span><br>
+              <div style="margin-top:6px; display:flex; flex-direction:column; align-items:center; background:rgba(0,0,0,0.3); border:1px dashed #f1c40f; border-radius:4px; padding:2px;">
+                <input type="number" value="${placement.defaultUpScore}" 
+                       oninput="window.updateUpScore(this.value)" 
+                       style="width:30px; background:transparent; border:none; color:#f1c40f; font-size:14px; font-weight:bold; text-align:center; outline:none; padding:0;" title="점수를 수정해보세요!" />
+              </div>
             </div>
-            <table style="flex:1; border-collapse:collapse; width:100%;">
-              ${renderGunRows(placement.upLines)}
+            <table id="upScoreTableContainer" style="flex:1; border-collapse:collapse; width:100%;">
+              ${window.renderGunRowsHelper(upLines)}
             </table>
           </div>
         </div>
@@ -384,7 +426,6 @@ function getUniversityLineHtml_(placement) {
     </div>
   `;
 }
-
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
