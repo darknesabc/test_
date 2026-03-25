@@ -467,7 +467,7 @@ function getUniversityLineHtml_(placement) {
         <span style="color:rgba(255,255,255,0.7); font-size:12px;">목표 백분위 합:</span>
         <input type="number" value="${placement.defaultUpScore}" 
                oninput="window.__currentSimStatus.score=this.value; window.runUniversitySimulation()" 
-               style="width:35px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.2); color:#f1c40f; font-size:14px; font-weight:bold; text-align:center; outline:none; padding:2px; border-radius:3px;" />
+               style="width:65px; background:rgba(0,0,0,0.5); border:1px solid rgba(241,196,15,0.6); color:#f1c40f; font-size:15px; font-weight:900; text-align:center; outline:none; padding:4px 6px; border-radius:4px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); cursor:pointer;" title="점수를 수정해보세요!" />
       </div>
 
       <div style="width:1px; height:15px; background:rgba(255,255,255,0.1);"></div>
