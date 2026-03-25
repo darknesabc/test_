@@ -309,20 +309,31 @@ function getUniversityLineHtml_(placement) {
       univKeys.forEach(u => {
         univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
         
+        // 💡 [디자인 핵심] 학과 이름과 뱃지를 삐뚤빼뚤하지 않게 중앙 정렬 블록으로 묶어줍니다!
         const deptsHtml = univs[u].slice(0, 4).map(d => {
             const name = typeof d === 'string' ? d : (d.name || "");
-            const badges = d.badges || [];
+            const badges = d.badges || []; 
+            
             let badgeHtmlStr = "";
             badges.forEach(b => {
-                let bg = "#7f8c8d";
-                if (b === "과1") bg = "#3498db";
-                else if (b === "사1") bg = "#9b59b6";
-                else if (b === "탐1") bg = "#e67e22";
-                else if (b === "지역인재") bg = "#27ae60";
-                else if (b === "지역균형") bg = "#16a085";
-                badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:3px; padding:1px 5px; font-size:9px; margin-left:4px; font-weight:800; white-space:nowrap; vertical-align:middle; line-height:1; box-shadow: 0 1px 2px rgba(0,0,0,0.2);">${b}</span>`;
+                let bg = "#7f8c8d"; 
+                if (b === "과1") bg = "#3498db";         
+                else if (b === "사1") bg = "#9b59b6";    
+                else if (b === "탐1") bg = "#e67e22";    
+                else if (b === "지역인재") bg = "#27ae60"; 
+                else if (b === "지역균형") bg = "#16a085"; 
+                
+                // 기존의 margin-left를 없애고 뱃지를 조금 더 선명하게 다듬었습니다.
+                badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
             });
-            return `<div style="margin-bottom:2px; line-height:1.4;">${escapeHtml(name)}${badgeHtmlStr}</div>`;
+            
+            // 💡 [UI 마법] flex-direction: column을 써서 글씨가 길어도 뱃지가 항상 '정중앙 아래'에 예쁘게 놓이도록 셋팅!
+            return `
+              <div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:4px; word-break:keep-all;">
+                <span style="font-weight:600; line-height:1.3; color:#f8f9fa;">${escapeHtml(name)}</span>
+                ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center;">${badgeHtmlStr}</div>` : ""}
+              </div>
+            `;
         }).join("");
         
         deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${deptsHtml}</td>`;
