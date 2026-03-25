@@ -287,18 +287,38 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (고정 제목 & 정렬 탑재)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (가나다군 층 높이 완벽 동기화 탑재)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
 
-  // 모든 지원군 정의
   const ALL_GROUPS = ['가', '나', '다', '군외'];
-
-  // 사용자가 점수를 바꿀 때마다 참조할 수 있도록 데이터를 글로벌 공간에 잠시 저장해 둡니다.
   window.__currentPlacement = placement;
 
-  // 💡 [렌더링 도우미] 한 대학 안의 학과 목록과 뱃지를 그려주는 함수 (slice 4)
+  // 💡 [기능 추가] 왼쪽/오른쪽 표의 '가나다' 높이를 완벽하게 똑같이 맞춰주는 마법 함수
+  window.syncRowHeights = function() {
+    ALL_GROUPS.forEach(gun => {
+      const leftTr = document.getElementById('left-tr-' + gun);
+      const rightTr = document.getElementById('right-tr-' + gun);
+      
+      if (leftTr && rightTr) {
+        // 1. 높이를 초기화해서 본래의 자연스러운 높이를 잽니다.
+        leftTr.style.height = 'auto';
+        rightTr.style.height = 'auto';
+        
+        // 2. 왼쪽과 오른쪽 중 더 긴 쪽의 높이를 구합니다.
+        const h1 = leftTr.offsetHeight;
+        const h2 = rightTr.offsetHeight;
+        const maxH = Math.max(h1, h2, 40); // 최소 40px 보장
+        
+        // 3. 양쪽에 똑같이 가장 긴 높이를 강제로 부여합니다. (층 완벽 일치!)
+        leftTr.style.height = maxH + 'px';
+        rightTr.style.height = maxH + 'px';
+      }
+    });
+  };
+
+  // 💡 한 대학 안의 학과 목록과 뱃지를 그려주는 함수
   window.renderDepartmentListHelper = function(deptDataList) {
     return deptDataList.slice(0, 4).map(d => {
         const name = typeof d === 'string' ? d : (d.name || "");
@@ -323,13 +343,13 @@ function getUniversityLineHtml_(placement) {
     }).join("");
   };
 
-  // 💡 [렌더링 도우미] 단일 지원군(예: '가'군)의 대학 목록 데이터를 그려주는 함수 (slice 6)
+  // 💡 단일 지원군의 대학 목록 데이터를 그려주는 함수
   window.renderSingleGroupDataHelper = function(univDataObj) {
     if (!univDataObj || Object.keys(univDataObj).length === 0) return "";
 
     let univHeaders = '';
     let deptCells = '';
-    const univKeys = Object.keys(univDataObj).slice(0, 6); // 6개 대학 제한
+    const univKeys = Object.keys(univDataObj).slice(0, 6);
 
     univKeys.forEach(u => {
       univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px;">${escapeHtml(u)}</th>`;
@@ -337,29 +357,27 @@ function getUniversityLineHtml_(placement) {
     });
 
     return `
-      <table style="width:100%; border-collapse:collapse; text-align:center;">
+      <table style="width:100%; border-collapse:collapse; text-align:center; height:100%;">
         <thead><tr>${univHeaders}</tr></thead>
         <tbody><tr>${deptCells}</tr></tbody>
       </table>
     `;
   };
 
-  // 💡 [렌더링 도우미] 가/나/다군 제목과 데이터를 묶어서 전체 행(Row)을 그려주는 함수 (정렬 핵심)
-  window.renderAllGroupRowsHelper = function(groupedDataObj) {
+  // 💡 가/나/다군 제목과 데이터를 묶어서 전체 행(Row)을 그려주는 함수 (idPrefix 추가)
+  window.renderAllGroupRowsHelper = function(groupedDataObj, idPrefix) {
     let rowsHtml = '';
     ALL_GROUPS.forEach(gun => {
       const groupData = groupedDataObj[gun];
-      
-      // 데이터 유무와 상관없이 행을 생성하여 가나다군 위치를 맞춥니다.
       const groupTableHtml = window.renderSingleGroupDataHelper(groupData);
 
       rowsHtml += `
-        <tr style="border-top:1px solid rgba(255,255,255,0.2); min-height: 80px;">
-          <td style="width:30px; min-width:30px; text-align:center; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); font-size:13px; vertical-align:middle; writing-mode: vertical-lr; text-orientation: upright; color: #fff; background: rgba(255, 255, 255, 0.05); text-transform: uppercase;">
+        <tr id="${idPrefix}-tr-${gun}" style="border-top:1px solid rgba(255,255,255,0.2);">
+          <td style="width:30px; min-width:30px; text-align:center; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); font-size:13px; vertical-align:middle; color: #fff; background: rgba(255, 255, 255, 0.05);">
             ${escapeHtml(gun)}
           </td>
-          <td style="padding:0;">
-            ${groupTableHtml || `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.5); font-size:12px;">해당 군에 매칭되는 대학이 없습니다.</div>`}
+          <td style="padding:0; vertical-align:top;">
+            ${groupTableHtml || `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.3); font-size:12px; font-style:italic;">매칭 대학 없음</div>`}
           </td>
         </tr>
       `;
@@ -367,7 +385,7 @@ function getUniversityLineHtml_(placement) {
     return rowsHtml;
   };
 
-  // 💡 [실시간 시뮬레이션] 숫자를 입력/수정할 때마다 자동으로 실행되는 함수!
+  // 💡 실시간 점수 수정 시 실행되는 함수 (높이 자동 동기화 포함)
   window.updateUpScore = function(val) {
     const score = Number(val);
     const placeData = window.__currentPlacement;
@@ -375,7 +393,6 @@ function getUniversityLineHtml_(placement) {
 
     const upLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
     
-    // 사용자가 입력한 점수를 기준으로 [-1점 ~ +2점] 구간의 대학을 즉시 다시 찾습니다!
     placeData.allMatches.forEach(m => {
       if (m.score >= score - 1 && m.score <= score + 2) {
         if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
@@ -383,12 +400,14 @@ function getUniversityLineHtml_(placement) {
       }
     });
 
-    // 화면 우측의 표 내용만 번개처럼 싹 갈아치웁니다.
     const container = document.getElementById('upScoreTableBody');
-    if (container) container.innerHTML = window.renderAllGroupRowsHelper(upLines);
+    if (container) {
+        container.innerHTML = window.renderAllGroupRowsHelper(upLines, 'right');
+        // 표를 다시 그린 직후, 왼쪽 표와 높이를 똑같이 맞춥니다!
+        setTimeout(window.syncRowHeights, 10);
+    }
   };
 
-  // 1. 처음 화면을 열 때의 [내 점수] 그룹 (±1점)
   const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
   placement.allMatches.forEach(m => {
     if (m.score >= placement.myScore - 1 && m.score <= placement.myScore + 1) {
@@ -397,7 +416,6 @@ function getUniversityLineHtml_(placement) {
     }
   });
 
-  // 2. 처음 화면을 열 때의 [상승 예측] 기본 그룹 (+4점 ~ +10점)
   const upLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
   placement.allMatches.forEach(m => {
     if (m.score >= placement.myScore + 4 && m.score <= placement.myScore + 10) {
@@ -405,6 +423,11 @@ function getUniversityLineHtml_(placement) {
       upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
     }
   });
+
+  // 💡 화면이 처음 열리자마자 0.05초 뒤에 즉시 높이를 맞춰주는 마법 (비동기 셋타임아웃)
+  setTimeout(() => {
+      if (window.syncRowHeights) window.syncRowHeights();
+  }, 50);
 
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
@@ -417,15 +440,15 @@ function getUniversityLineHtml_(placement) {
       
       <div style="display:flex; gap:10px; margin-top:8px;">
         
-        <div style="flex:1; border:1px solid rgba(52, 152, 219, 0.4); background:rgba(0,0,0,0.2);">
+        <div style="flex:1; border:1px solid rgba(52, 152, 219, 0.4); background:rgba(0,0,0,0.2); overflow-x:auto;">
           <div style="display:flex; height:100%;">
             <div style="width:40px; min-width: 40px; background:#2980b9; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:13px; flex-direction:column; text-align:center; line-height:1.2;">
               <span>내</span><br><span>점</span><br><span>수</span><br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span>
             </div>
-            <div style="flex:1; padding:0; overflow-x:auto;">
-              <table style="width:100%; border-collapse:collapse;">
+            <div style="flex:1; padding:0;">
+              <table style="width:100%; border-collapse:collapse; height:100%;">
                 <tbody>
-                  ${window.renderAllGroupRowsHelper(myLines)}
+                  ${window.renderAllGroupRowsHelper(myLines, 'left')}
                 </tbody>
               </table>
             </div>
@@ -434,7 +457,7 @@ function getUniversityLineHtml_(placement) {
 
         <div style="display:flex; align-items:center; justify-content:center; color:#e74c3c; font-size:24px; font-weight:bold;">▶</div>
 
-        <div style="flex:1; border:1px solid rgba(142, 68, 173, 0.4); background:rgba(0,0,0,0.2);">
+        <div style="flex:1; border:1px solid rgba(142, 68, 173, 0.4); background:rgba(0,0,0,0.2); overflow-x:auto;">
           <div style="display:flex; height:100%;">
             <div style="width:40px; min-width: 40px; background:#8e44ad; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:12px; flex-direction:column; text-align:center; line-height:1.2; padding:4px 0;">
               <span>상</span><br><span>승</span><br><span>예</span><br><span>측</span><br>
@@ -444,10 +467,10 @@ function getUniversityLineHtml_(placement) {
                        style="width:30px; background:transparent; border:none; color:#f1c40f; font-size:14px; font-weight:bold; text-align:center; outline:none; padding:0;" title="점수를 수정해보세요!" />
               </div>
             </div>
-            <div id="upScoreTableContainer" style="flex:1; overflow-x:auto;">
-              <table style="width:100%; border-collapse:collapse;">
+            <div style="flex:1; padding:0;">
+              <table style="width:100%; border-collapse:collapse; height:100%;">
                 <tbody id="upScoreTableBody">
-                  ${window.renderAllGroupRowsHelper(upLines)}
+                  ${window.renderAllGroupRowsHelper(upLines, 'right')}
                 </tbody>
               </table>
             </div>
