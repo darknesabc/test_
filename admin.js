@@ -287,18 +287,25 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (시뮬레이션 조정 패널 탑재)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (시뮬레이션 조정 패널 탑재 - 에러 픽스 완료!)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
 
   const ALL_GROUPS = ['가', '나', '다', '군외'];
-  
+
+  // 💡 [버그 해결] 백엔드에서 객체를 못 받아와도 화면이 터지지 않도록, 학생 계열 텍스트에서 과목을 안전하게 역추적합니다!
+  const streamText = placement.stream || "";
+  const safeMathType = streamText.includes("미기") ? "미기" : "확통";
+  let safeTamType = "과탐";
+  if (streamText.includes("사과탐")) safeTamType = "사과탐";
+  else if (streamText.includes("사탐")) safeTamType = "사탐";
+
   // 💡 [코어 변경] 현재 화면의 '시뮬레이션 상태'를 글로벌로 관리합니다.
   window.__currentSimStatus = {
       score: placement.defaultUpScore,
-      math: placement.profile.mathType, // 미기, 확통, null
-      tamType: placement.profile.tamType // 과탐, 사탐, 사과탐, null
+      math: safeMathType,
+      tamType: safeTamType
   };
   window.__currentPlacement = placement;
 
@@ -446,8 +453,8 @@ function getUniversityLineHtml_(placement) {
   });
 
   // 💡 [UI 디자인 핵심] 문제의 그 자리에 세련된 조정 패널을 그립니다!
-  const mathType = placement.profile.mathType;
-  const tamType = placement.profile.tamType;
+  const mathType = safeMathType;
+  const tamType = safeTamType;
 
   const btnStyle = "background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold; outline:none; margin-right:3px; transition:all 0.2s;";
   const activeBtnStyle = "background:#f1c40f; color:#000; border:1px solid #f1c40f;";
@@ -508,7 +515,6 @@ function getUniversityLineHtml_(placement) {
     </div>
   `;
 }
-
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
