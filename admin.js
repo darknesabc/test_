@@ -520,22 +520,6 @@ function getUniversityLineHtml_(placement) {
   `;
 }
 
-  setTimeout(() => { if (window.runUniversitySimulation) window.runUniversitySimulation(); }, 10);
-
-  return `
-    <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
-      <div style="background:#0a0f19; border-bottom:2px solid #f1c40f; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
-        <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 시뮬레이션 <span style="font-size:11px; opacity:0.6; font-weight:normal;">(백분위 합산 기준)</span></div>
-        <div style="background:#f1c40f; color:#000; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">학생 실제 응시: <span style="color:#c0392b; margin-left:4px;">${escapeHtml(placement.stream)}</span></div>
-      </div>
-      ${panelHtml}
-      <div style="margin-top:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); border-radius:6px; overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse;"><tbody>${rowsHtml}</tbody></table>
-      </div>
-    </div>
-  `;
-}
-
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
