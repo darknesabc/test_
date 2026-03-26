@@ -2506,25 +2506,38 @@ function renderVulnerabilityChart(unitsBySubject, token) {
                   let lampColor = "rgba(255,255,255,0.15)";
 
                   if (cs === "1") {
-                  lampColor = "#2ecc71"; // 정상 출석 -> 초록색
+                    lampColor = "#2ecc71"; // 정상 출석 -> 초록색
                   } 
                   else if (cs === "3S") {
-                  // 💡 상태가 3S(이동)일 때, 사유가 '화장실/정수기'인 경우만 초록색으로!
-                if (reason === "화장실/정수기") {
-    lampColor = "#2ecc71"; 
-  } else {
-    // 그 외 수업 이동 등은 원래대로 주황색 표시
-    lampColor = "#f39c12"; 
-  }
-} 
-else if (cs === "3") {
-  lampColor = "#ff4757"; // 무단 결석 -> 빨간색
-} 
-else if (cs === "2") {
-  lampColor = "#f1c40f"; // 지각 -> 노란색
-}
+                    // 상태가 3S(이동)일 때, 사유가 '화장실/정수기'인 경우만 초록색으로!
+                    if (reason === "화장실/정수기") {
+                      lampColor = "#2ecc71"; 
+                    } else {
+                      lampColor = "#f39c12"; // 주황색
+                    }
+                  } 
+                  else if (cs === "3") {
+                    lampColor = "#ff4757"; // 무단 결석 -> 빨간색
+                  } 
+                  else if (cs === "2") {
+                    lampColor = "#f1c40f"; // 지각 -> 노란색
+                  }
 
-const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor};"></div>`;
+                  const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor}; flex-shrink:0;"></div>`;
+
+                  // 💡 5-1. [신규 추가] 주황색(이동/설문) 상태일 때 사유 뱃지 생성
+                  let reasonBadge = "";
+                  // 주황색 불이 들어왔거나, 결석/지각 등 정상(초록)이 아닌데 사유가 적혀있을 경우 뱃지를 생성합니다.
+                  if (cs !== "1" && reason && reason !== "화장실/정수기") {
+                      let bg = lampColor;
+                      let textColor = bg === "#f1c40f" ? "#000" : "#fff"; // 노란색일 때는 검은 글씨, 나머지는 흰 글씨
+                      
+                      // 사유가 너무 길면 UI가 깨지므로 짧게 가공 (예: "병원(내과)" -> "병원")
+                      let shortReason = reason.split('(')[0].trim();
+                      if (shortReason.length > 5) shortReason = shortReason.substring(0, 5) + "..";
+                      
+                      reasonBadge = `<span style="background:${bg}; color:${textColor}; font-size:10px; font-weight:800; padding:2px 5px; border-radius:4px; margin-left:6px; display:inline-block; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.2);" title="${escapeHtml(reason)}">${escapeHtml(shortReason)}</span>`;
+                  }
 
                   // 6. 카드 조립 (뱃지들을 하나의 컨테이너로 묶음)
                   gridHtml += `
@@ -2536,7 +2549,11 @@ const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; backgr
                       </div>
 
                       <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-                        <div style="font-weight:800; font-size:14px; display:flex; align-items:center;">${lampHtml} ${escapeHtml(st.name)}</div>
+                        <div style="font-weight:800; font-size:14px; display:flex; align-items:center; white-space:nowrap;">
+                          ${lampHtml} 
+                          <span>${escapeHtml(st.name)}</span>
+                          ${reasonBadge}
+                        </div>
                         <div style="font-size:11px; opacity:0.5;">${escapeHtml(st.seat)}</div>
                       </div>
                       <div style="text-align:center; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
