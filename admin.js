@@ -287,7 +287,7 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면 (타겟 검색 필터링 & 커트라인 점수 표시 탑재!)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면 (시뮬레이션 스위치 100% 작동 픽스!)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
@@ -307,20 +307,18 @@ function getUniversityLineHtml_(placement) {
   };
   window.__currentPlacement = placement;
 
-  // 💡 [기능 개선] 학과명 옆에 점수 표시 & 검색 시 더 많이(10개) 보여주기
   window.renderDepartmentListHelper = function(deptDataList, keyword = "") {
-    const limit = keyword ? 10 : 4; // 검색 중일 때는 최대 10개까지 넉넉하게 보여줌
+    const limit = keyword ? 10 : 4; 
     return deptDataList.slice(0, limit).map(d => {
         const name = typeof d === 'string' ? d : (d.name || "");
         const badges = d.badges || []; 
-        const deptScore = d.score ? d.score : ""; // 💡 학과 커트라인 점수
+        const deptScore = d.score ? d.score : ""; 
         
         let displayName = escapeHtml(name);
         if (keyword && name.includes(keyword)) {
             displayName = `<span style="background:#f1c40f; color:#000; padding:0 2px; border-radius:2px; font-weight:900;">${escapeHtml(name)}</span>`;
         }
 
-        // 💡 [핵심] 학과명 우측에 커트라인 점수를 눈에 띄게 추가합니다!
         let scoreHtml = deptScore ? `<span style="color:#f39c12; font-size:11px; font-weight:900; margin-left:4px;">(${deptScore})</span>` : "";
 
         let badgeHtmlStr = "";
@@ -343,7 +341,6 @@ function getUniversityLineHtml_(placement) {
     }).join("");
   };
 
-  // 💡 [기능 개선] 검색 중일 때는 대학도 최대 10개까지 보여줍니다.
   window.renderSingleGroupDataHelper = function(univDataObj, keyword = "") {
     if (!univDataObj || Object.keys(univDataObj).length === 0) {
         return `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.3); font-size:12px; font-style:italic;">매칭 대학 없음</div>`;
@@ -371,7 +368,6 @@ function getUniversityLineHtml_(placement) {
     `;
   };
 
-  // 💡 [핵심 마법] 시뮬레이션 필터링 엔진 (검색 시 좁은 점수 구간 무시!)
   window.runUniversitySimulation = function() {
     const status = window.__currentSimStatus;
     const placeData = window.__currentPlacement;
@@ -382,7 +378,7 @@ function getUniversityLineHtml_(placement) {
     const keyword = (status.search || "").trim();
     
     placeData.allMatches.forEach(m => {
-      // 1. 필수 과목 조건은 항상 검사
+      // 💡 [수정] 프론트엔드에서 수신한 조건(mathReq, tamTypeReq)으로 완벽하게 필터링!
       if (m.mathReq === "미기" && status.math !== "미기") return;
       if (m.mathReq === "확통" && status.math !== "확통") return;
 
@@ -395,24 +391,16 @@ function getUniversityLineHtml_(placement) {
           if ((m.tamTypeReq === "과" || m.tamTypeReq === "사") && status.tamType === "사과탐") return;
       }
 
-      // 💡 2. [가장 중요한 변화] 검색어 유무에 따른 필터링 분기
       let isMatch = false;
       if (keyword) {
-          // 검색어를 입력하면, 좁은 목표점수 구간(-1~+2)을 무시하고 검색어 포함 여부만 봅니다!
-          if (m.univ.includes(keyword) || m.dept.includes(keyword)) {
-              isMatch = true;
-          }
+          if (m.univ.includes(keyword) || m.dept.includes(keyword)) isMatch = true;
       } else {
-          // 평소에는 목표 점수 구간(-1 ~ +2)만 보여줍니다.
-          if (m.score >= score - 1 && m.score <= score + 2) {
-              isMatch = true;
-          }
+          if (m.score >= score - 1 && m.score <= score + 2) isMatch = true;
       }
 
       if (!isMatch) return;
 
       if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
-      // 💡 학과 데이터 저장 시 점수(score)도 같이 묶어서 넘깁니다!
       upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score });
     });
 
@@ -436,17 +424,28 @@ function getUniversityLineHtml_(placement) {
       window.runUniversitySimulation();
   };
 
-  // 왼쪽 '내 점수' 초기 데이터
+  // 💡 [수정] 왼쪽 '내 점수' 파트도 학생의 '초기 응시 과목' 기준으로 정확히 필터링해서 보여줍니다!
   const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
   placement.allMatches.forEach(m => {
     if (m.score >= placement.myScore - 1 && m.score <= placement.myScore + 1) {
+      
+      if (m.mathReq === "미기" && safeMathType !== "미기") return;
+      if (m.mathReq === "확통" && safeMathType !== "확통") return;
+
+      if (m.tamReqCount === 1) {
+          if (m.tamTypeReq === "과" && safeTamType === "사탐") return;
+          if (m.tamTypeReq === "사" && safeTamType === "과탐") return;
+      } else {
+          if (m.tamTypeReq === "과" && safeTamType !== "과탐") return;
+          if (m.tamTypeReq === "사" && safeTamType !== "사탐") return; 
+          if ((m.tamTypeReq === "과" || m.tamTypeReq === "사") && safeTamType === "사과탐") return;
+      }
+
       if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
-      // 💡 내 점수에도 점수가 표시되도록 score를 추가!
       myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score });
     }
   });
 
-  // 통합 테이블 조립
   let rowsHtml = '';
   ALL_GROUPS.forEach((gun, idx) => {
     const isFirst = (idx === 0);
@@ -484,7 +483,7 @@ function getUniversityLineHtml_(placement) {
 
       <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
         <span style="color:rgba(255,255,255,0.7); font-size:12px;">🎯 타겟 검색:</span>
-        <input type="text" placeholder="대학 또는 학과명 입력" 
+        <input type="text" placeholder="대학/학과 검색" 
                oninput="window.__currentSimStatus.search=this.value; window.runUniversitySimulation()" 
                style="width:150px; background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#3498db; font-size:13px; outline:none; padding:4px 8px; border-radius:4px; font-weight:bold;" />
       </div>
