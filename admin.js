@@ -287,34 +287,40 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면을 그리는 함수 (시뮬레이션 조정 패널 탑재 - 에러 픽스 완료!)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면 (실시간 검색 하이라이트 기능 추가)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
 
   const ALL_GROUPS = ['가', '나', '다', '군외'];
-
-  // 💡 [버그 해결] 백엔드에서 객체를 못 받아와도 화면이 터지지 않도록, 학생 계열 텍스트에서 과목을 안전하게 역추적합니다!
   const streamText = placement.stream || "";
   const safeMathType = streamText.includes("미기") ? "미기" : "확통";
   let safeTamType = "과탐";
   if (streamText.includes("사과탐")) safeTamType = "사과탐";
   else if (streamText.includes("사탐")) safeTamType = "사탐";
 
-  // 💡 [코어 변경] 현재 화면의 '시뮬레이션 상태'를 글로벌로 관리합니다.
+  // 💡 [상태 확장] 검색 키워드(search) 항목을 추가했습니다.
   window.__currentSimStatus = {
       score: placement.defaultUpScore,
       math: safeMathType,
-      tamType: safeTamType
+      tamType: safeTamType,
+      search: "" 
   };
   window.__currentPlacement = placement;
 
-  // 💡 한 대학 안의 학과 목록과 뱃지를 그려주는 함수
-  window.renderDepartmentListHelper = function(deptDataList) {
+  // 💡 [기능 개선] 학과명에 검색어가 포함되면 노란색으로 강조합니다.
+  window.renderDepartmentListHelper = function(deptDataList, keyword = "") {
     return deptDataList.slice(0, 4).map(d => {
         const name = typeof d === 'string' ? d : (d.name || "");
         const badges = d.badges || []; 
         let badgeHtmlStr = "";
+        
+        // 검색어 하이라이트 처리 (키워드가 있을 때만)
+        let displayName = escapeHtml(name);
+        if (keyword && name.includes(keyword)) {
+            displayName = `<span style="background:#f1c40f; color:#000; padding:0 2px; border-radius:2px; font-weight:900;">${escapeHtml(name)}</span>`;
+        }
+
         badges.forEach(b => {
             let bg = "#7f8c8d"; 
             if (b === "과1") bg = "#3498db";         
@@ -327,15 +333,15 @@ function getUniversityLineHtml_(placement) {
         
         return `
           <div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:4px; word-break:keep-all;">
-            <span style="font-weight:600; line-height:1.3; color:#f8f9fa;">${escapeHtml(name)}</span>
+            <span style="font-weight:600; line-height:1.3; color:#f8f9fa;">${displayName}</span>
             ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center;">${badgeHtmlStr}</div>` : ""}
           </div>
         `;
     }).join("");
   };
 
-  // 💡 단일 지원군의 대학 목록 데이터를 그려주는 함수
-  window.renderSingleGroupDataHelper = function(univDataObj) {
+  // 💡 [기능 개선] 대학명에 검색어가 포함되면 헤더 배경색을 바꿉니다.
+  window.renderSingleGroupDataHelper = function(univDataObj, keyword = "") {
     if (!univDataObj || Object.keys(univDataObj).length === 0) {
         return `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.3); font-size:12px; font-style:italic;">매칭 대학 없음</div>`;
     }
@@ -345,8 +351,13 @@ function getUniversityLineHtml_(placement) {
     const univKeys = Object.keys(univDataObj).slice(0, 6);
 
     univKeys.forEach(u => {
-      univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:rgba(255,255,255,0.1); font-size:12px; font-weight:bold; min-width:90px;">${escapeHtml(u)}</th>`;
-      deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${window.renderDepartmentListHelper(univDataObj[u])}</td>`;
+      // 대학명 하이라이트 (검색어가 포함되면 헤더를 밝은 파란색으로 강조)
+      const isUnivMatch = keyword && u.includes(keyword);
+      const headerBg = isUnivMatch ? "rgba(52, 152, 219, 0.5)" : "rgba(255,255,255,0.1)";
+      const headerColor = isUnivMatch ? "#fff" : "rgba(255,255,255,0.8)";
+
+      univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:${headerBg}; color:${headerColor}; font-size:12px; font-weight:bold; min-width:90px;">${escapeHtml(u)}</th>`;
+      deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${window.renderDepartmentListHelper(univDataObj[u], keyword)}</td>`;
     });
 
     return `
@@ -357,7 +368,7 @@ function getUniversityLineHtml_(placement) {
     `;
   };
 
-  // 💡 [핵심 마법] 시뮬레이션 조정 패널이 변경될 때마다 실행되는 함수 (복합 필터링 탑재)
+  // 💡 [핵심] 시뮬레이션 실행 시 키워드(search) 정보를 함께 전달합니다.
   window.runUniversitySimulation = function() {
     const status = window.__currentSimStatus;
     const placeData = window.__currentPlacement;
@@ -365,25 +376,19 @@ function getUniversityLineHtml_(placement) {
 
     const upLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
     const score = Number(status.score);
+    const keyword = status.search;
     
     placeData.allMatches.forEach(m => {
-      // 1순위: 점수 조건 검색 (입력 점수 ±1점)
       if (m.score < score - 1 || m.score > score + 2) return;
-
-      // 2순위: 수학 선택과목 조건 검색 (시뮬레이션 설정값 기준)
       if (m.mathReq === "미기" && status.math !== "미기") return;
       if (m.mathReq === "확통" && status.math !== "확통") return;
 
-      // 3순위: 탐구 조건 검색 (시뮬레이션 설정값 기준)
       if (m.tamReqCount === 1) {
-          // 탐구 1과목 반영 대학
-          if (m.tamTypeReq === "과" && status.tamType === "사탐") return; // 사탐만 본 학생은 과탐 필수 대학 지원불가
+          if (m.tamTypeReq === "과" && status.tamType === "사탐") return;
           if (m.tamTypeReq === "사" && status.tamType === "과탐") return;
       } else {
-          // 탐구 2과목 반영 대학 (더 엄격)
-          if (m.tamTypeReq === "과" && status.tamType !== "과탐") return; // 무조건 과탐 2개여야 함
+          if (m.tamTypeReq === "과" && status.tamType !== "과탐") return;
           if (m.tamTypeReq === "사" && status.tamType !== "사탐") return; 
-          // 대학이 '사' 또는 '과'를 지정했는데 학생이 '사과탐' 혼합이면, 2과목 필수 조건 충족 불가
           if ((m.tamTypeReq === "과" || m.tamTypeReq === "사") && status.tamType === "사과탐") return;
       }
 
@@ -391,27 +396,14 @@ function getUniversityLineHtml_(placement) {
       upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
     });
 
-    // 4. 화면 우측 칸만 실시간 교체!
     ALL_GROUPS.forEach(gun => {
        const td = document.getElementById('up-data-' + gun);
-       if (td) td.innerHTML = window.renderSingleGroupDataHelper(upLines[gun]);
+       if (td) td.innerHTML = window.renderSingleGroupDataHelper(upLines[gun], keyword);
     });
   };
 
-  // 초기 내 점수 표 그리기
-  const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
-  placement.allMatches.forEach(m => {
-    // 내 점수는 '실제 프로필' 기준으로 ±1점 고정
-    if (m.score >= placement.myScore - 1 && m.score <= placement.myScore + 1) {
-      if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
-      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
-    }
-  });
-
-  // 💡 [UI 함수] 마우스 클릭 시 시뮬레이션 상태를 바꾸고 실행하는 도우미
   window.changeSimOption = function(type, value, element) {
       window.__currentSimStatus[type] = value;
-      // 클릭한 버튼만 활성화 스타일 적용
       const parent = element.parentElement;
       parent.querySelectorAll('button').forEach(b => {
           b.style.background = 'rgba(255,255,255,0.05)';
@@ -421,100 +413,84 @@ function getUniversityLineHtml_(placement) {
       element.style.background = '#f1c40f';
       element.style.color = '#000';
       element.style.borderColor = '#f1c40f';
-
-      // 즉시 시뮬레이션 실행! (엔터 필요 없음)
       window.runUniversitySimulation();
   };
 
-  // 통합 테이블 조립
+  // 마스터 테이블 조립
   let rowsHtml = '';
   ALL_GROUPS.forEach((gun, idx) => {
     const isFirst = (idx === 0);
     rowsHtml += `<tr style="border-top:1px solid rgba(255,255,255,0.2);">`;
-    
     if (isFirst) {
-        rowsHtml += `
-        <td rowspan="4" style="width:45px; min-width:45px; background:#2980b9; color:#fff; text-align:center; font-weight:900; font-size:13px; line-height:1.3; border-right:1px solid rgba(255,255,255,0.2);">
-          내<br>점<br>수<br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span>
-        </td>`;
+        rowsHtml += `<td rowspan="4" style="width:45px; background:#2980b9; color:#fff; text-align:center; font-weight:900; font-size:13px; border-right:1px solid rgba(255,255,255,0.2);">내<br>점<br>수<br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span></td>`;
     }
-    rowsHtml += `<td style="width:30px; min-width:30px; text-align:center; font-weight:bold; font-size:13px; background:rgba(255,255,255,0.05); color:#fff; border-right:1px solid rgba(255,255,255,0.2);">${escapeHtml(gun)}</td>`;
-    rowsHtml += `<td style="padding:0; vertical-align:top; border-right:1px solid rgba(255,255,255,0.2); min-width:300px;">${window.renderSingleGroupDataHelper(myLines[gun])}</td>`;
-
+    const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
+    placement.allMatches.forEach(m => {
+        if (m.score >= placement.myScore - 1 && m.score <= placement.myScore + 1) {
+            if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
+            myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges });
+        }
+    });
+    rowsHtml += `<td style="width:30px; text-align:center; font-weight:bold; font-size:13px; background:rgba(255,255,255,0.05); color:#fff; border-right:1px solid rgba(255,255,255,0.2);">${escapeHtml(gun)}</td>`;
+    rowsHtml += `<td style="padding:0; vertical-align:top; border-right:1px solid rgba(255,255,255,0.2); min-width:300px;">${window.renderSingleGroupDataHelper(myLines[gun], window.__currentSimStatus.search)}</td>`;
     if (isFirst) {
-        rowsHtml += `<td rowspan="4" style="width:40px; min-width:40px; text-align:center; color:#e74c3c; font-size:20px; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.1);">▶</td>`;
+        rowsHtml += `<td rowspan="4" style="width:40px; text-align:center; color:#e74c3c; font-size:20px; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.1);">▶</td>`;
     }
-    
-    // 상승 예측 가나다군 라벨 & 대학 데이터 (우측 파트는 2등급 처리)
-    rowsHtml += `<td style="width:30px; min-width:30px; text-align:center; font-weight:bold; font-size:13px; background:rgba(255,255,255,0.05); color:#fff; border-right:1px solid rgba(255,255,255,0.2);">${escapeHtml(gun)}</td>`;
-    rowsHtml += `<td id="up-data-${gun}" style="padding:0; vertical-align:top; min-width:300px;">${/* 초기 빈 공간, 아래서 채움 */""}</td>`;
-
+    rowsHtml += `<td style="width:30px; text-align:center; font-weight:bold; font-size:13px; background:rgba(255,255,255,0.05); color:#fff; border-right:1px solid rgba(255,255,255,0.2);">${escapeHtml(gun)}</td>`;
+    rowsHtml += `<td id="up-data-${gun}" style="padding:0; vertical-align:top; min-width:300px;"></td>`;
     rowsHtml += `</tr>`;
   });
 
-  // 💡 [UI 디자인 핵심] 문제의 그 자리에 세련된 조정 패널을 그립니다!
-  const mathType = safeMathType;
-  const tamType = safeTamType;
-
-  const btnStyle = "background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold; outline:none; margin-right:3px; transition:all 0.2s;";
-  const activeBtnStyle = "background:#f1c40f; color:#000; border:1px solid #f1c40f;";
-
+  // 💡 [UI 디자인] 관심 대학/학과 검색창을 패널에 추가합니다.
   const panelHtml = `
-    <div style="display:flex; align-items:center; gap:10px; padding:6px 10px; background:rgba(142, 68, 173, 0.2); border:1px dashed rgba(142, 68, 173, 0.4); border-radius:6px; margin-top:8px;">
+    <div style="display:flex; align-items:center; gap:10px; padding:6px 10px; background:rgba(142, 68, 173, 0.2); border:1px dashed rgba(142, 68, 173, 0.4); border-radius:6px; margin-top:8px; flex-wrap:wrap;">
       <div style="color:#fff; font-weight:bold; font-size:13px; white-space:nowrap;">🛠️ 시뮬레이션 조정 패널</div>
       
       <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
-        <span style="color:rgba(255,255,255,0.7); font-size:12px;">목표 백분위 합:</span>
+        <span style="color:rgba(255,255,255,0.7); font-size:12px;">목표 백분위:</span>
         <input type="number" value="${placement.defaultUpScore}" 
                oninput="window.__currentSimStatus.score=this.value; window.runUniversitySimulation()" 
-               style="width:65px; background:rgba(0,0,0,0.5); border:1px solid rgba(241,196,15,0.6); color:#f1c40f; font-size:15px; font-weight:900; text-align:center; outline:none; padding:4px 6px; border-radius:4px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); cursor:pointer;" title="점수를 수정해보세요!" />
+               style="width:60px; background:rgba(0,0,0,0.5); border:1px solid #f1c40f; color:#f1c40f; font-size:14px; font-weight:900; text-align:center; outline:none; padding:3px; border-radius:4px;" />
+      </div>
+
+      <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+        <span style="color:rgba(255,255,255,0.7); font-size:12px;">🎯 타겟 검색:</span>
+        <input type="text" placeholder="대학 또는 학과명 입력" 
+               oninput="window.__currentSimStatus.search=this.value; window.runUniversitySimulation()" 
+               style="width:140px; background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#3498db; font-size:12px; outline:none; padding:4px 8px; border-radius:4px; font-weight:bold;" />
       </div>
 
       <div style="width:1px; height:15px; background:rgba(255,255,255,0.1);"></div>
 
       <div id="sim-math-options" style="display:flex; align-items:center; gap:5px;">
-        <span style="color:rgba(255,255,255,0.7); font-size:12px;">수학:</span>
-        <button onclick="window.changeSimOption('math', '미기', this)" style="${btnStyle}${mathType==='미기'?activeBtnStyle:''}">미적/기하</button>
-        <button onclick="window.changeSimOption('math', '확통', this)" style="${btnStyle}${mathType==='확통'?activeBtnStyle:''}">확률과통계</button>
+        <button onclick="window.changeSimOption('math', '미기', this)" style="background:${safeMathType==='미기'?'#f1c40f':'rgba(255,255,255,0.05)'}; color:${safeMathType==='미기'?'#000':'rgba(255,255,255,0.6)'}; border:1px solid ${safeMathType==='미기'?'#f1c40f':'rgba(255,255,255,0.1)'}; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold;">미적/기하</button>
+        <button onclick="window.changeSimOption('math', '확통', this)" style="background:${safeMathType==='확통'?'#f1c40f':'rgba(255,255,255,0.05)'}; color:${safeMathType==='확통'?'#000':'rgba(255,255,255,0.6)'}; border:1px solid ${safeMathType==='확통'?'#f1c40f':'rgba(255,255,255,0.1)'}; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold;">확률과통계</button>
       </div>
 
-      <div style="width:1px; height:15px; background:rgba(255,255,255,0.1);"></div>
-
       <div id="sim-tam-options" style="display:flex; align-items:center; gap:5px;">
-        <span style="color:rgba(255,255,255,0.7); font-size:12px;">탐구 응시:</span>
-        <button onclick="window.changeSimOption('tamType', '과탐', this)" style="${btnStyle}${tamType==='과탐'?activeBtnStyle:''}">과탐 2</button>
-        <button onclick="window.changeSimOption('tamType', '사탐', this)" style="${btnStyle}${tamType==='사탐'?activeBtnStyle:''}">사탐 2</button>
-        <button onclick="window.changeSimOption('tamType', '사과탐', this)" style="${btnStyle}${tamType==='사과탐'?activeBtnStyle:''}">사+과 융합</button>
+        <button onclick="window.changeSimOption('tamType', '과탐', this)" style="background:${safeTamType==='과탐'?'#f1c40f':'rgba(255,255,255,0.05)'}; color:${safeTamType==='과탐'?'#000':'rgba(255,255,255,0.6)'}; border:1px solid ${safeTamType==='과탐'?'#f1c40f':'rgba(255,255,255,0.1)'}; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold;">과탐 2</button>
+        <button onclick="window.changeSimOption('tamType', '사탐', this)" style="background:${safeTamType==='사탐'?'#f1c40f':'rgba(255,255,255,0.05)'}; color:${safeTamType==='사탐'?'#000':'rgba(255,255,255,0.6)'}; border:1px solid ${safeTamType==='사탐'?'#f1c40f':'rgba(255,255,255,0.1)'}; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold;">사탐 2</button>
+        <button onclick="window.changeSimOption('tamType', '사과탐', this)" style="background:${safeTamType==='사과탐'?'#f1c40f':'rgba(255,255,255,0.05)'}; color:${safeTamType==='사과탐'?'#000':'rgba(255,255,255,0.6)'}; border:1px solid ${safeTamType==='사과탐'?'#f1c40f':'rgba(255,255,255,0.1)'}; border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold;">사+과 융합</button>
       </div>
     </div>
   `;
 
-  // 💡 [렌더링 마무리] 0.01초 뒤에 초기 시뮬레이션을 실행해서 우측 표를 채웁니다.
-  setTimeout(() => {
-      if (window.runUniversitySimulation) window.runUniversitySimulation();
-  }, 10);
+  setTimeout(() => { if (window.runUniversitySimulation) window.runUniversitySimulation(); }, 10);
 
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
       <div style="background:#0a0f19; border-bottom:2px solid #f1c40f; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
         <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 시뮬레이션 <span style="font-size:11px; opacity:0.6; font-weight:normal;">(백분위 합산 기준)</span></div>
-        <div style="background:#f1c40f; color:#000; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
-          학생 실제 응시: <span style="color:#c0392b; margin-left:4px;">${escapeHtml(placement.stream)}</span>
-        </div>
+        <div style="background:#f1c40f; color:#000; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">학생 실제 응시: <span style="color:#c0392b; margin-left:4px;">${escapeHtml(placement.stream)}</span></div>
       </div>
-      
       ${panelHtml}
-
       <div style="margin-top:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); border-radius:6px; overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse;">
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-        </table>
+        <table style="width:100%; border-collapse:collapse;"><tbody>${rowsHtml}</tbody></table>
       </div>
     </div>
   `;
 }
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, (m) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
