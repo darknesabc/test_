@@ -2502,18 +2502,17 @@ function renderVulnerabilityChart(unitsBySubject, token) {
 
                   // 5. 실시간 상태 신호등 (수정 버전)
                   const cs = String(st.currentStatus);
-                  const reason = String(st.currentReason || "").trim(); // 현재 이동 사유 가져오기
+                  const reason = String(st.currentReason || "").trim(); 
                   let lampColor = "rgba(255,255,255,0.15)";
 
                   if (cs === "1") {
                     lampColor = "#2ecc71"; // 정상 출석 -> 초록색
                   } 
                   else if (cs === "3S") {
-                    // 상태가 3S(이동)일 때, 사유가 '화장실/정수기'인 경우만 초록색으로!
                     if (reason === "화장실/정수기") {
                       lampColor = "#2ecc71"; 
                     } else {
-                      lampColor = "#f39c12"; // 주황색
+                      lampColor = "#f39c12"; // 주황색 (이동)
                     }
                   } 
                   else if (cs === "3") {
@@ -2525,18 +2524,34 @@ function renderVulnerabilityChart(unitsBySubject, token) {
 
                   const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor}; flex-shrink:0;"></div>`;
 
-                  // 💡 5-1. [신규 추가] 주황색(이동/설문) 상태일 때 사유 뱃지 생성
+                  // 💡 5-1. [수정 완벽 버전] 사유 뱃지를 위쪽 경고 뱃지들과 똑같은 스타일로 만듭니다.
                   let reasonBadge = "";
-                  // 주황색 불이 들어왔거나, 결석/지각 등 정상(초록)이 아닌데 사유가 적혀있을 경우 뱃지를 생성합니다.
-                  if (cs !== "1" && reason && reason !== "화장실/정수기") {
+                  if (cs !== "1" && reason !== "화장실/정수기") {
                       let bg = lampColor;
-                      let textColor = bg === "#f1c40f" ? "#000" : "#fff"; // 노란색일 때는 검은 글씨, 나머지는 흰 글씨
+                      let textColor = bg === "#f1c40f" ? "#000" : "#fff"; 
                       
-                      // 사유가 너무 길면 UI가 깨지므로 짧게 가공 (예: "병원(내과)" -> "병원")
-                      let shortReason = reason.split('(')[0].trim();
-                      if (shortReason.length > 5) shortReason = shortReason.substring(0, 5) + "..";
+                      let shortReason = reason;
                       
-                      reasonBadge = `<span style="background:${bg}; color:${textColor}; font-size:10px; font-weight:800; padding:2px 5px; border-radius:4px; margin-left:6px; display:inline-block; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.2);" title="${escapeHtml(reason)}">${escapeHtml(shortReason)}</span>`;
+                      if (!shortReason) {
+                          if (cs === "3S") shortReason = "이동중";
+                          else if (cs === "2") shortReason = "지각";
+                          else if (cs === "3") shortReason = "결석";
+                          else shortReason = "기타";
+                      } else {
+                          // 🌟 1. "[설문]" 글자를 찾아내서 깔끔하게 날려버립니다.
+                          shortReason = shortReason.replace(/\[설문\]/g, "").trim();
+                          // 🌟 2. 괄호 내용 삭제
+                          shortReason = shortReason.split('(')[0].trim();
+                          // 위쪽으로 올라가서 공간이 여유로우니 글자수를 조금 더 허용합니다 (6글자)
+                          if (shortReason.length > 6) shortReason = shortReason.substring(0, 6) + "..";
+                      }
+                      
+                      // 🌟 직관적인 아이콘 추가
+                      let icon = "🏃";
+                      if (cs === "2") icon = "⏰";
+                      else if (cs === "3") icon = "❌";
+
+                      reasonBadge = `<span style="${bStyle} background:${bg}; color:${textColor}; border:1px solid rgba(255,255,255,0.2);" title="${escapeHtml(reason)}">${icon} ${escapeHtml(shortReason)}</span>`;
                   }
 
                   // 6. 카드 조립 (뱃지들을 하나의 컨테이너로 묶음)
@@ -2545,16 +2560,15 @@ function renderVulnerabilityChart(unitsBySubject, token) {
                          onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
                       
                       <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
-                          ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
+                          ${reasonBadge} ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
                       </div>
 
                       <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
                         <div style="font-weight:800; font-size:14px; display:flex; align-items:center; white-space:nowrap;">
                           ${lampHtml} 
                           <span>${escapeHtml(st.name)}</span>
-                          ${reasonBadge}
                         </div>
-                        <div style="font-size:11px; opacity:0.5;">${escapeHtml(st.seat)}</div>
+                        <div style="font-size:11px; opacity:0.5; white-space:nowrap;">${escapeHtml(st.seat)}</div>
                       </div>
                       <div style="text-align:center; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
                         <div style="font-size:11px; color:#3498db; font-weight:800;">🚰 화장실/정수기: ${st.restroomToday}회</div>
