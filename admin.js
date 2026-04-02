@@ -9,6 +9,7 @@ const API_BASE = "https://script.google.com/macros/s/AKfycbwxYd2tK4nWaBSZRyF0A3_
 let currentTrendItems = []; 
 let currentMode = 'pct';
 let showTop30 = false;         // 처음엔 꺼짐 상태
+let showChoiceTop30 = false;   // ✅ [추가] 선택과목 상위 30% 스위치 상태
 let activeClasses = new Set(); // 💡 [수정] 여러 반을 동시에 켜고 끌 수 있도록 Set으로 변경
 
 // 💡 [여기에 추가!] 주차 선택 시 테이블을 전환해주는 전역 함수
@@ -1195,6 +1196,7 @@ async function loadSummariesForStudent_(seat, studentId) {
 
                 <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                   <button id="btnToggleTop30" class="btn btn-mini" style="background:transparent; border:1px solid rgba(255,255,255,0.3); padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold;">전체 상위 30% OFF</button>
+                  <button id="btnToggleChoiceTop30" class="btn btn-mini" style="background:transparent; border:1px solid rgba(255,255,255,0.3); padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold;">선택 상위 30% OFF</button>
                   
                   <div id="classButtonsContainer" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
                 </div>
@@ -1202,13 +1204,12 @@ async function loadSummariesForStudent_(seat, studentId) {
             </div>
 
             <div id="chartFilters" style="display:flex; gap:5px; flex-wrap:wrap;">
-              <button class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
-              <button class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
-              <button class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
-              <button class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
-              <button class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
+              <button id="btnFilterKor" class="btn btn-mini filter-btn active" data-index="0" style="background:#3498db; border:none;">국어</button>
+              <button id="btnFilterMath" class="btn btn-mini filter-btn active" data-index="1" style="background:#e74c3c; border:none;">수학</button>
+              <button id="btnFilterTam1" class="btn btn-mini filter-btn active" data-index="2" style="background:#2ecc71; border:none;">탐구1</button>
+              <button id="btnFilterTam2" class="btn btn-mini filter-btn active" data-index="3" style="background:#f1c40f; border:none;">탐구2</button>
+              <button id="btnFilterEng" class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
             </div>
-          </div>
           
           <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
           <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
@@ -1822,6 +1823,31 @@ function renderTrendChart_(items) {
 
   const suffix = currentMode === 'pct' ? '_pct' : '_raw';
   
+  // ✅ [추가 1] 가장 최근 시험 기준으로 선택과목 이름 줄이기
+  const lastItem = items[items.length - 1] || {};
+  const shorten = (v) => {
+    if (!v) return "";
+    const map = { 
+      "언어와매체":"언매", "화법과작문":"화작", "미적분":"미적", "확률과통계":"확통", "기하":"기하",
+      "생활과윤리":"생윤", "사회문화":"사문", "정치와법":"정법", "윤리와사상":"윤사",
+      "물리학1":"물1", "물리학2":"물2", "화학1":"화1", "화학2":"화2", 
+      "생명과학1":"생1", "생명과학2":"생2", "지구과학1":"지1", "지구과학2":"지2"  
+    };
+    let s = String(v).replace(/\s+/g, "").replace(/Ⅰ|I/gi, "1").replace(/Ⅱ|II/gi, "2");
+    return map[s] || s;
+  };
+
+  const korLabel = lastItem.kor_choice ? `국어(${shorten(lastItem.kor_choice)})` : '국어';
+  const mathLabel = lastItem.math_choice ? `수학(${shorten(lastItem.math_choice)})` : '수학';
+  const tam1Label = lastItem.tam1_name ? `탐1(${shorten(lastItem.tam1_name)})` : '탐구1';
+  const tam2Label = lastItem.tam2_name ? `탐2(${shorten(lastItem.tam2_name)})` : '탐구2';
+
+  // ✅ [추가 2] 화면의 필터 버튼 텍스트 업데이트
+  if($("btnFilterKor")) $("btnFilterKor").textContent = korLabel;
+  if($("btnFilterMath")) $("btnFilterMath").textContent = mathLabel;
+  if($("btnFilterTam1")) $("btnFilterTam1").textContent = tam1Label;
+  if($("btnFilterTam2")) $("btnFilterTam2").textContent = tam2Label;
+
   const classSet = new Set();
   items.forEach(it => {
     if (it.all_classes_cutoffs) Object.keys(it.all_classes_cutoffs).forEach(c => classSet.add(c));
@@ -1835,20 +1861,17 @@ function renderTrendChart_(items) {
   };
 
   const classStyles = [
-    { pointStyle: 'triangle', borderDash: [2, 3] },
-    { pointStyle: 'star', borderDash: [4, 4] },
-    { pointStyle: 'rectRounded', borderDash: [6, 2] },
-    { pointStyle: 'crossRot', borderDash: [8, 4] },
-    { pointStyle: 'circle', borderDash: [1, 5] },
-    { pointStyle: 'rect', borderDash: [3, 6] }
+    { pointStyle: 'triangle', borderDash: [2, 3] }, { pointStyle: 'star', borderDash: [4, 4] },
+    { pointStyle: 'rectRounded', borderDash: [6, 2] }, { pointStyle: 'crossRot', borderDash: [8, 4] },
+    { pointStyle: 'circle', borderDash: [1, 5] }, { pointStyle: 'rect', borderDash: [3, 6] }
   ];
 
   const datasets = [
-    // --- [0~4] 학생 본인 성적 ---
-    { label: '국어', data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', tension: 0.3, fill: false },
-    { label: '수학', data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
-    { label: '탐구1', data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, fill: false },
-    { label: '탐구2', data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, fill: false },
+    // --- [0~4] 학생 본인 성적 (✅ 하드코딩된 '국어'를 korLabel로 변경) ---
+    { label: korLabel, data: items.map(it => it['kor' + suffix]), borderColor: '#3498db', tension: 0.3, fill: false },
+    { label: mathLabel, data: items.map(it => it['math' + suffix]), borderColor: '#e74c3c', tension: 0.3, fill: false },
+    { label: tam1Label, data: items.map(it => it['tam1' + suffix]), borderColor: '#2ecc71', tension: 0.3, fill: false },
+    { label: tam2Label, data: items.map(it => it['tam2' + suffix]), borderColor: '#f1c40f', tension: 0.3, fill: false },
     { label: '영어', data: items.map(it => currentMode === 'pct' ? it.eng_grade : it.eng_raw), borderColor: '#9b59b6', tension: 0.3, yAxisID: currentMode === 'pct' ? 'y_eng' : 'y', fill: false, pointStyle: 'rectRot', pointRadius: 6 },
     
     // --- [5~9] 전체 상위 30% 컷오프 ---
@@ -1856,8 +1879,11 @@ function renderTrendChart_(items) {
     { label: '수학 전체 30%', data: items.map(it => it['cutoff_math' + suffix]), borderColor: 'rgba(231, 76, 60, 0.4)', backgroundColor: 'rgba(231, 76, 60, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
     { label: '탐구1 전체 30%', data: items.map(it => it['cutoff_tam1' + suffix]), borderColor: 'rgba(46, 204, 113, 0.4)', backgroundColor: 'rgba(46, 204, 113, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
     { label: '탐구2 전체 30%', data: items.map(it => it['cutoff_tam2' + suffix]), borderColor: 'rgba(241, 196, 15, 0.4)', backgroundColor: 'rgba(241, 196, 15, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
-    // 💡 [추가] 영어 전체 상위 30% (백분위 모드일 때는 null 처리하여 자동으로 선을 숨김)
-    { label: '영어 전체 30%', data: items.map(it => currentMode === 'pct' ? null : it.cutoff_eng_raw), borderColor: 'rgba(155, 89, 182, 0.4)', backgroundColor: 'rgba(155, 89, 182, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 }
+    { label: '영어 전체 30%', data: items.map(it => currentMode === 'pct' ? null : it.cutoff_eng_raw), borderColor: 'rgba(155, 89, 182, 0.4)', backgroundColor: 'rgba(155, 89, 182, 0.4)', borderWidth: 2, borderDash: [6, 6], pointRadius: 4, pointStyle: 'rect', tension: 0.3, fill: false, hidden: !showTop30 },
+
+    // ✅ [추가 3] 선택과목(언매/미적 등) 상위 30% 컷오프 데이터셋
+    { label: korLabel + ' 30%', data: items.map(it => it['choice_cutoff_kor' + suffix]), borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.2)', borderWidth: 2, borderDash: [2, 4], pointRadius: 3, tension: 0.3, fill: false, hidden: !showChoiceTop30, isChoiceLine: true, subjIndex: 0 },
+    { label: mathLabel + ' 30%', data: items.map(it => it['choice_cutoff_math' + suffix]), borderColor: '#e74c3c', backgroundColor: 'rgba(231, 76, 60, 0.2)', borderWidth: 2, borderDash: [2, 4], pointRadius: 3, tension: 0.3, fill: false, hidden: !showChoiceTop30, isChoiceLine: true, subjIndex: 1 }
   ];
 
   // --- [10+] 반별 상위 30% 컷오프 ---
@@ -1987,6 +2013,7 @@ function renderTrendChart_(items) {
   });
 
   // 전체 상위 30% 토글
+  // 전체 상위 30% 토글
   const top30Btn = document.getElementById("btnToggleTop30");
   if (top30Btn) {
     top30Btn.style.boxSizing = "border-box";
@@ -2006,7 +2033,6 @@ function renderTrendChart_(items) {
       this.textContent = showTop30 ? "전체 상위 30% ON" : "전체 상위 30% OFF";
 
       if (!window.adminChart) return;
-      // 💡 [수정] 영어(idx:4)까지 선을 끄고 켤 수 있도록 <= 4 로 수정
       for (let i = 0; i <= 4; i++) {
         const isSubjVisible = window.adminChart.isDatasetVisible(i);
         if (showTop30 && isSubjVisible) window.adminChart.show(i + 5);
@@ -2015,8 +2041,40 @@ function renderTrendChart_(items) {
       window.adminChart.update();
     };
   }
-}
 
+  // ✅ [추가] 선택 상위 30% 토글 버튼 로직
+  const choiceTop30Btn = document.getElementById("btnToggleChoiceTop30");
+  if (choiceTop30Btn) {
+    choiceTop30Btn.style.boxSizing = "border-box";
+    choiceTop30Btn.style.minWidth = "115px"; 
+    choiceTop30Btn.style.textAlign = "center";
+    
+    choiceTop30Btn.style.background = showChoiceTop30 ? "#f39c12" : "transparent";
+    choiceTop30Btn.style.color = showChoiceTop30 ? "white" : "rgba(255,255,255,0.5)";
+    choiceTop30Btn.style.border = showChoiceTop30 ? "1px solid #f39c12" : "1px solid rgba(255,255,255,0.3)";
+    choiceTop30Btn.textContent = showChoiceTop30 ? "선택 상위 30% ON" : "선택 상위 30% OFF";
+
+    choiceTop30Btn.onclick = function() {
+      showChoiceTop30 = !showChoiceTop30;
+      this.style.background = showChoiceTop30 ? "#f39c12" : "transparent";
+      this.style.color = showChoiceTop30 ? "white" : "rgba(255,255,255,0.5)";
+      this.style.border = showChoiceTop30 ? "1px solid #f39c12" : "1px solid rgba(255,255,255,0.3)";
+      this.textContent = showChoiceTop30 ? "선택 상위 30% ON" : "선택 상위 30% OFF";
+
+      if (!window.adminChart) return;
+      
+      // isChoiceLine 속성을 가진 데이터셋을 찾아 켜고 끕니다.
+      window.adminChart.data.datasets.forEach((ds, dsIdx) => {
+        if (ds.isChoiceLine) {
+          const isSubjVisible = window.adminChart.isDatasetVisible(ds.subjIndex); // 부모 과목(국어, 수학)이 켜져있는지 확인
+          if (showChoiceTop30 && isSubjVisible) window.adminChart.show(dsIdx);
+          else window.adminChart.hide(dsIdx);
+        }
+      });
+      window.adminChart.update();
+    };
+  }
+}
   /** ✅ 취약 영역 방사형 차트 (+ 행동영역 크로스 분석 토글 기능 추가) */
 function renderVulnerabilityChart(unitsBySubject, token) {
   const canvas = document.getElementById("vulnRadarChart");
