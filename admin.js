@@ -1189,6 +1189,11 @@ async function loadSummariesForStudent_(seat, studentId) {
               <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                 <div class="card-title" style="font-size:15px; margin:0; white-space:nowrap;">📈 성적 추이</div>
                 
+                <div style="display:flex; gap:4px; background:rgba(255,255,255,0.05); padding:2px; border-radius:8px; border:1px solid rgba(255,255,255,0.1); margin-right: 10px;">
+                  <button class="btn btn-mini" id="btnViewChart" onclick="window.toggleGradeView('chart')" style="background:#f1c40f; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:#000; font-weight:bold; transition:all 0.2s;">📈 그래프</button>
+                  <button class="btn btn-mini" id="btnViewTable" onclick="window.toggleGradeView('table')" style="background:transparent; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5); font-weight:bold; transition:all 0.2s;">📋 표</button>
+                </div>
+
                 <div id="chartModeToggle" style="display:flex; gap:4px; background:rgba(255,255,255,0.05); padding:2px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
                   <button class="btn btn-mini mode-btn active" data-mode="pct" style="background:#3498db; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:white; font-weight:bold;">백분위</button>
                   <button class="btn btn-mini mode-btn" data-mode="raw" style="background:transparent; border:none; padding:4px 10px; font-size:11px; border-radius:6px; cursor:pointer; color:rgba(255,255,255,0.5);">원점수</button>
@@ -1211,8 +1216,36 @@ async function loadSummariesForStudent_(seat, studentId) {
               <button id="btnFilterEng" class="btn btn-mini filter-btn active" data-index="4" style="background:#9b59b6; border:none;">영어</button>
             </div>
           
-          <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
-          <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
+          <div id="grade-chart-container" style="display:block;">
+            <div style="height: 240px; position: relative;"><canvas id="adminGradeTrendChart"></canvas></div>
+            <div id="trendChartLoading" class="muted" style="font-size:12px; margin-top:5px;">데이터 분석 중...</div>
+          </div>
+
+          <div id="grade-table-container" style="display:none; margin-top:10px;">
+            <div style="max-height: 280px; overflow: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; background: rgba(0,0,0,0.2);">
+              <table style="width:100%; border-collapse:collapse; text-align:center; font-size:12px; min-width: 1000px;">
+                <thead style="position:sticky; top:0; z-index:10; background:#2a2d35;">
+                  <tr>
+                    <th rowspan="2" style="position:sticky; left:0; background:#2a2d35; z-index:11; padding:8px; border:1px solid rgba(255,255,255,0.1);">시험구분</th>
+                    <th colspan="4" style="padding:8px; border:1px solid rgba(255,255,255,0.1);">국어</th>
+                    <th colspan="4" style="padding:8px; border:1px solid rgba(255,255,255,0.1);">수학</th>
+                    <th colspan="3" style="padding:8px; border:1px solid rgba(255,255,255,0.1);">영어</th>
+                    <th colspan="4" style="padding:8px; border:1px solid rgba(255,255,255,0.1);">탐구1</th>
+                    <th colspan="4" style="padding:8px; border:1px solid rgba(255,255,255,0.1);">탐구2</th>
+                  </tr>
+                  <tr style="position:sticky; top:33px; z-index:10; background:#2a2d35;">
+                    <th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">원점</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">표점</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">백분위</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">등급</th>
+                    <th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">원점</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">표점</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">백분위</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">등급</th>
+                    <th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">원점</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">백분위</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">등급</th>
+                    <th style="padding:6px; border:1px solid rgba(255,255,255,0.1); color:#2ecc71;">과목</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">원점</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">백분위</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">등급</th>
+                    <th style="padding:6px; border:1px solid rgba(255,255,255,0.1); color:#f1c40f;">과목</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">원점</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">백분위</th><th style="padding:6px; border:1px solid rgba(255,255,255,0.1);">등급</th>
+                  </tr>
+                </thead>
+                <tbody id="accumulated-grade-table-body">
+                  </tbody>
+              </table>
+            </div>
+          </div>
         </section>
         
 <section class="card" style="padding:14px; margin:0;">
@@ -1804,11 +1837,129 @@ async function loadSummariesForStudent_(seat, studentId) {
     }
   }
 
+ /**
+ * 💡 [추가 기능] 그래프 / 표 뷰 전환 로직
+ */
+window.toggleGradeView = function(view) {
+  const chartCont = document.getElementById('grade-chart-container');
+  const tableCont = document.getElementById('grade-table-container');
+  const btnChart = document.getElementById('btnViewChart');
+  const btnTable = document.getElementById('btnViewTable');
+  
+  // 표 모드일 때 그래프 전용 컨트롤러(과목 필터, 상위30% 등)를 숨깁니다.
+  const chartModeToggle = document.getElementById('chartModeToggle');
+  const classButtonsContainer = document.getElementById('classButtonsContainer');
+  const chartFilters = document.getElementById('chartFilters');
+  const btnToggleTop30 = document.getElementById('btnToggleTop30');
+  const btnToggleChoiceTop30 = document.getElementById('btnToggleChoiceTop30');
+
+  if (view === 'table') {
+    chartCont.style.display = 'none';
+    tableCont.style.display = 'block';
+    
+    // 버튼 색상 반전
+    btnChart.style.background = 'transparent'; btnChart.style.color = 'rgba(255,255,255,0.5)';
+    btnTable.style.background = '#f1c40f'; btnTable.style.color = '#000';
+    
+    // 그래프 전용 UI 숨기기
+    if(chartModeToggle) chartModeToggle.style.display = 'none';
+    if(classButtonsContainer) classButtonsContainer.style.display = 'none';
+    if(chartFilters) chartFilters.style.display = 'none';
+    if(btnToggleTop30) btnToggleTop30.style.display = 'none';
+    if(btnToggleChoiceTop30) btnToggleChoiceTop30.style.display = 'none';
+  } else {
+    chartCont.style.display = 'block';
+    tableCont.style.display = 'none';
+    
+    btnChart.style.background = '#f1c40f'; btnChart.style.color = '#000';
+    btnTable.style.background = 'transparent'; btnTable.style.color = 'rgba(255,255,255,0.5)';
+
+    // 그래프 전용 UI 보이기
+    if(chartModeToggle) chartModeToggle.style.display = 'flex';
+    if(classButtonsContainer) classButtonsContainer.style.display = 'flex';
+    if(chartFilters) chartFilters.style.display = 'flex';
+    if(btnToggleTop30) btnToggleTop30.style.display = 'inline-block';
+    if(btnToggleChoiceTop30) btnToggleChoiceTop30.style.display = 'inline-block';
+  }
+};
+
+/**
+ * 💡 [추가 기능] 백엔드 데이터(items)를 받아 누적 성적표를 그립니다.
+ */
+function renderAccumulatedGradeTable(items) {
+  const tbody = document.getElementById('accumulated-grade-table-body');
+  if (!tbody) return;
+
+  if (!items || items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="19" style="padding:20px;">성적 데이터가 없습니다.</td></tr>';
+    return;
+  }
+
+  // 값이 비었거나 0일 때 하이픈(-) 처리하는 헬퍼 함수
+  const safeVal = (val) => {
+    if (val === null || val === undefined || val === "" || val === "#REF!" || val === "FALSE") return "-";
+    // 원점수가 0점일 경우 진짜 0점인지 빈 값인지 판단이 애매하면 아래 주석을 풀어 사용하세요
+    // if (val === 0 || val === "0") return "-"; 
+    return val;
+  };
+  
+  // 탐구 과목명 축약 헬퍼
+  const shorten = (v) => {
+    if (!v) return "-";
+    const map = { 
+      "언어와매체":"언매", "화법과작문":"화작", "미적분":"미적", "확률과통계":"확통", "기하":"기하",
+      "생활과윤리":"생윤", "사회문화":"사문", "정치와법":"정법", "윤리와사상":"윤사",
+      "물리학1":"물1", "물리학2":"물2", "화학1":"화1", "화학2":"화2", 
+      "생명과학1":"생1", "생명과학2":"생2", "지구과학1":"지1", "지구과학2":"지2"  
+    };
+    let s = String(v).replace(/\s+/g, "").replace(/Ⅰ|I/gi, "1").replace(/Ⅱ|II/gi, "2");
+    return map[s] || s;
+  };
+
+  let htmlString = "";
+  items.forEach(item => {
+    htmlString += `
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.05); transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+        <td style="position:sticky; left:0; background:#2a2d35; z-index:1; padding:8px; border:1px solid rgba(255,255,255,0.05); font-weight:bold; color:#fff;">${escapeHtml(item.label || "-")}</td>
+        
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.kor_raw)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.kor_std)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); color:#3498db; font-weight:bold;">${safeVal(item.kor_pct)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.kor_grade)}</td>
+
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.math_raw)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.math_std)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); color:#e74c3c; font-weight:bold;">${safeVal(item.math_pct)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.math_grade)}</td>
+
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.eng_raw)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); text-align:center;">-</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); color:#9b59b6; font-weight:bold;">${safeVal(item.eng_grade)}</td>
+
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); color:#2ecc71;">${shorten(item.tam1_name)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.tam1_raw)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); color:#2ecc71; font-weight:bold;">${safeVal(item.tam1_pct)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.tam1_grade)}</td>
+
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); color:#f1c40f;">${shorten(item.tam2_name)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.tam2_raw)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05); color:#f1c40f; font-weight:bold;">${safeVal(item.tam2_pct)}</td>
+        <td style="padding:8px; border:1px solid rgba(255,255,255,0.05);">${safeVal(item.tam2_grade)}</td>
+      </tr>
+    `;
+  });
+  tbody.innerHTML = htmlString;
+} 
+
 /**
  * 📈 [최종 통합 버전] 그래프 렌더링 + 모드 전환 + 과목 필터링 + 영어 원점수 30% 지원
  */
 function renderTrendChart_(items) {
   currentTrendItems = items; 
+  
+  // 💡 [추가] 차트를 그릴 때 누적 성적표도 함께 렌더링해둡니다!
+  renderAccumulatedGradeTable(items);
+
   const canvas = $("adminGradeTrendChart");
   const ctx = canvas.getContext('2d');
   if (window.adminChart) window.adminChart.destroy(); 
