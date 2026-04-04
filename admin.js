@@ -2815,6 +2815,44 @@ function renderVulnerabilityChart(unitsBySubject, token) {
       }
   };
 
+  // ✨ [신규 추가] 대시보드(바둑판)만 가볍고 부드럽게 다시 불러오는 함수
+  window.refreshClassDashboard = async function(btnElement) {
+      const sess = getAdminSession();
+      if (!sess?.adminToken) return;
+
+      // 버튼 시각적 효과 (로딩중)
+      btnElement.innerHTML = "⏳ 로딩중...";
+      btnElement.style.pointerEvents = "none";
+      btnElement.style.opacity = "0.6";
+
+      try {
+          // 서버에 '가벼운 대시보드 요약 정보'만 새로 요청! (성적/상세 캐시는 건드리지 않음)
+          const res = await apiPost("admin_class_summary", { 
+              adminToken: sess.adminToken,
+              role: sess.role,
+              adminName: sess.adminName 
+          });
+
+          if (res.ok) {
+              // 새로 받은 데이터로 주머니 업데이트 후, 화면 깜빡임 없이 즉시 재렌더링
+              window.__dashboardItems = res.items || [];
+              window.renderDashboardGrid(); 
+          } else {
+              alert("새로고침에 실패했습니다: " + res.error);
+          }
+      } catch (e) {
+          alert("네트워크 오류가 발생했습니다.");
+      } finally {
+          // 원래 버튼 상태로 복구
+          const newBtn = document.getElementById("btnRefreshDash");
+          if (newBtn) {
+              newBtn.innerHTML = "🔄 새로고침";
+              newBtn.style.pointerEvents = "auto";
+              newBtn.style.opacity = "1";
+          }
+      }
+  };
+
   // ✅ 데이터를 한 번만 가져오는 메인 함수
   async function loadClassDashboard() {
       const sess = getAdminSession();
