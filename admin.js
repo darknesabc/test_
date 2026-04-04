@@ -2974,7 +2974,7 @@ function renderVulnerabilityChart(unitsBySubject, token) {
     alert(`${st.studentName} 학생의 데이터가 최신 상태로 업데이트되었습니다.`);
   };
 
- /**
+/**
  * ✅ [기능 확장] 복귀 안 함(3회↑) 추가 및 스마트 알림판 안정화 버전
  * 💡 + 최근 지각 주의(2회 이상) 추가 및 취침(3회) 기준 변경 반영!
  */
@@ -3125,4 +3125,4 @@ window.undoSmartDismiss = function(studentId) {
   window.updateRiskNoticePanel(); // 즉시 새로고침
 };
 
-}); // 💡 핵심: 반드시 }); 로 끝나야 합니다!
+}); // 💡 핵심: 반드시 이 }); 로 문서가 끝나야 합니다!
