@@ -2606,8 +2606,194 @@ function renderVulnerabilityChart(unitsBySubject, token) {
 }
 
   // =========================================================================
-  // 💡 [최종] 우리 반 전체 현황(대시보드 홈) - 중간 생략 없는 완전판
+  // 💡 [최종] 우리 반 전체 현황(대시보드 홈) - 정렬 스위치 추가본
   // =========================================================================
+  window.__dashboardItems = [];
+  window.__dashboardSortMode = 'name'; // 초기 정렬 상태: 'name' (이름순) 또는 'seat' (자리순)
+
+  // ✅ 정렬 스위치 작동 함수 (버튼 누를 때 실행됨)
+  window.toggleDashboardSort = function() {
+      window.__dashboardSortMode = window.__dashboardSortMode === 'name' ? 'seat' : 'name';
+      window.renderDashboardGrid(); // 데이터를 새로 안 불러오고 화면만 즉시 다시 그립니다!
+  };
+
+  // ✅ 화면 그리기 전용 함수 (서버 요청 없이 주머니에서 꺼내 그림)
+  window.renderDashboardGrid = function() {
+      const dashDiv = document.getElementById("classDashboard");
+      if (!dashDiv) return;
+
+      const sess = getAdminSession();
+      const items = window.__dashboardItems; // 주머니에서 데이터 꺼내기
+
+      if (!items || items.length === 0) {
+          dashDiv.innerHTML = `<div style="color:rgba(255,255,255,0.5); padding:10px;">배정된 학생이 없습니다.</div>`; 
+          return;
+      }
+
+      const grouped = {};
+      items.forEach(st => {
+          const tName = String(st.teacher || "").trim() || "미배정";
+          if (!grouped[tName]) grouped[tName] = [];
+          grouped[tName].push(st);
+      });
+
+      const teacherNames = Object.keys(grouped).sort((a, b) => {
+          if (a === "미배정") return 1;
+          if (b === "미배정") return -1;
+          return a.localeCompare(b);
+      });
+
+      const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
+      
+      // 💡 현재 정렬 모드에 따라 버튼 텍스트를 다르게 보여줍니다.
+      const sortBtnText = window.__dashboardSortMode === 'name' ? '🔤 이름순' : '🔢 자리번호순';
+
+      let gridHtml = `
+             <div id="riskNoticePanel" style="margin-bottom: 24px; display: none; animation: fadeIn 0.6s ease-out;"></div>
+             <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
+               <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
+               <div style="display:flex; align-items:center; gap:10px;">
+                 <button onclick="event.stopPropagation(); window.toggleDashboardSort();" style="background:rgba(52, 152, 219, 0.2); color:#3498db; border:1px solid rgba(52, 152, 219, 0.5); padding:4px 10px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer; transition:all 0.2s;">${sortBtnText}</button>
+                 <span id="dashToggleIcon" style="font-size:13px; opacity:0.8; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">🔼 접기</span>
+               </div>
+             </div>
+             <div id="dashContent" style="display:block; animation: fadeIn 0.3s ease;">
+      `;
+
+      teacherNames.forEach(tName => {
+          const groupItems = grouped[tName];
+          
+          // 💡 [핵심] 선택된 모드에 따라 학생 배열을 미리 정렬합니다!
+          groupItems.sort((a, b) => {
+              if (window.__dashboardSortMode === 'seat') {
+                  const sA = a.seat || "zzzz"; // 자리가 없으면 맨 뒤로 보냄
+                  const sB = b.seat || "zzzz";
+                  // 자리번호(4-1G04 등) 내의 숫자까지 똑똑하게 비교
+                  return sA.localeCompare(sB, undefined, {numeric: true, sensitivity: 'base'});
+              } else {
+                  return a.name.localeCompare(b.name);
+              }
+          });
+
+          gridHtml += `
+            <div style="margin-top: 16px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
+              <span style="font-size:15px; font-weight:800; color:#3498db;">🧑‍🏫 ${escapeHtml(tName)} 선생님</span>
+              <span style="font-size:12px; opacity:0.6; margin-left:8px;">${groupItems.length}명</span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">
+          `;
+
+          groupItems.forEach(st => {
+              const bStyle = "font-size:9px; font-weight:900; padding:2px 6px; border-radius:6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space:nowrap; display:inline-flex; align-items:center;";
+              const isSunday = new Date().getDay() === 0;
+              const abs = Number(st.todayAbs || 0);
+              let badgeAtt = "";
+              if (!isSunday) {
+                  if (abs >= 6) badgeAtt = `<span style="${bStyle} background:#ff4757; color:white;">📅 위험 ${abs}</span>`;
+                  else if (abs >= 3) badgeAtt = `<span style="${bStyle} background:#ffa502; color:white;">📅 경고 ${abs}</span>`;
+              }
+              const sleep = Number(st.sleepToday || 0);
+              let badgeSleep = "";
+              if (sleep >= 6) badgeSleep = `<span style="${bStyle} background:#eb4d4b; color:white;">💤 위험 ${sleep}</span>`;
+              else if (sleep >= 3) badgeSleep = `<span style="${bStyle} background:#f9ca24; color:#111;">💤 경고 ${sleep}</span>`;
+
+              const edu = Number(st.monthTotal || 0);
+              let badgeEdu = "";
+              if (edu >= 15) badgeEdu = `<span style="${bStyle} background:#6c5ce7; color:white;">💯 위험 ${edu}</span>`;
+              else if (edu >= 10) badgeEdu = `<span style="${bStyle} background:#a29bfe; color:white;">💯 경고 ${edu}</span>`;
+
+              const late = Number(st.todayLate || 0);
+              let badgeLate = "";
+              if (late > 0) {
+                  badgeLate = `<span style="${bStyle} background:#e67e22; color:white;">⏰ 지각 ${late}</span>`;
+              }
+
+              const cs = String(st.currentStatus);
+              const reason = String(st.currentReason || "").trim(); 
+              let lampColor = "rgba(255,255,255,0.15)";
+              if (cs === "1") lampColor = "#2ecc71"; 
+              else if (cs === "3S") lampColor = reason === "화장실/정수기" ? "#2ecc71" : "#f39c12";
+              else if (cs === "3") lampColor = "#ff4757"; 
+              else if (cs === "2") lampColor = "#f1c40f"; 
+
+              const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor}; flex-shrink:0;"></div>`;
+
+              let reasonBadge = "";
+              if (cs !== "1" && reason !== "화장실/정수기") {
+                  let bg = lampColor;
+                  let textColor = bg === "#f1c40f" ? "#000" : "#fff"; 
+                  let shortReason = reason;
+                  if (!shortReason) {
+                      if (cs === "3S") shortReason = "이동중";
+                      else if (cs === "2") shortReason = "지각";
+                      else if (cs === "3") shortReason = "결석";
+                      else shortReason = "기타";
+                  } else {
+                      shortReason = shortReason.replace(/\[설문\]/g, "").trim();
+                      shortReason = shortReason.split('(')[0].trim();
+                      if (shortReason.length > 6) shortReason = shortReason.substring(0, 6) + "..";
+                  }
+                  let icon = "🏃";
+                  if (cs === "2") icon = "⏰";
+                  else if (cs === "3") icon = "❌";
+                  reasonBadge = `<span style="${bStyle} background:${bg}; color:${textColor}; border:1px solid rgba(255,255,255,0.2);" title="${escapeHtml(reason)}">${icon} ${escapeHtml(shortReason)}</span>`;
+              }
+
+              gridHtml += `
+                <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
+                     onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+                  <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
+                      ${reasonBadge} ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+                    <div style="font-weight:800; font-size:14px; display:flex; align-items:center; white-space:nowrap;">
+                      ${lampHtml} 
+                      <span>${escapeHtml(st.name)}</span>
+                    </div>
+                    <div style="font-size:11px; opacity:0.5; white-space:nowrap;">${escapeHtml(st.seat)}</div>
+                  </div>
+                  <div style="text-align:center; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
+                    <div style="font-size:11px; color:#3498db; font-weight:800;">🚰 화장실/정수기: ${st.restroomToday}회</div>
+                  </div>
+                </div>
+              `;
+          });
+          gridHtml += `</div>`;
+      });
+
+      gridHtml += `</div>`;
+      dashDiv.innerHTML = gridHtml;
+
+      // 💡 이벤트 리스너 다시 연결 (아코디언 토글, 호버 등)
+      const dashHeader = document.getElementById("dashHeader");
+      const dashContent = document.getElementById("dashContent");
+      const dashToggleIcon = document.getElementById("dashToggleIcon");
+      if (dashHeader && dashContent) {
+          dashHeader.onclick = () => {
+              if (dashContent.style.display === "none") {
+                  dashContent.style.display = "block";
+                  dashToggleIcon.textContent = "🔼 접기";
+                  dashHeader.style.opacity = "1";
+              } else {
+                  dashContent.style.display = "none";
+                  dashToggleIcon.textContent = "🔽 펼치기";
+                  dashHeader.style.opacity = "0.7";
+              }
+          };
+      }
+
+      document.querySelectorAll(".class-dash-card").forEach(card => {
+          card.onmouseover = () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; };
+          card.onmouseout = () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; };
+      });
+
+      // 집중관리대상 알림판 최신화 유지
+      if (typeof window.updateRiskNoticePanel === 'function') {
+          window.updateRiskNoticePanel();
+      }
+  };
+
+  // ✅ 데이터를 한 번만 가져오는 메인 함수
   async function loadClassDashboard() {
       const sess = getAdminSession();
       if (!sess?.adminToken) return;
@@ -2635,186 +2821,14 @@ function renderVulnerabilityChart(unitsBySubject, token) {
               return;
           }
 
-          const items = res.items || [];
-          if (items.length === 0) {
-              dashDiv.innerHTML = `<div style="color:rgba(255,255,255,0.5); padding:10px;">배정된 학생이 없습니다.</div>`; 
-              return;
+          // 💡 서버에서 받은 데이터를 주머니(__dashboardItems)에 저장하고, 화면 그리기 함수 호출!
+          window.__dashboardItems = res.items || [];
+          window.renderDashboardGrid();
+
+          // 💡 요약 데이터 백그라운드 로딩은 그대로 유지
+          if (window.__dashboardItems.length > 0 && typeof prefetchAllSummaries === 'function') {
+              prefetchAllSummaries(window.__dashboardItems);
           }
-
-          const grouped = {};
-          items.forEach(st => {
-              const tName = String(st.teacher || "").trim() || "미배정";
-              if (!grouped[tName]) grouped[tName] = [];
-              grouped[tName].push(st);
-          });
-
-          const teacherNames = Object.keys(grouped).sort((a, b) => {
-              if (a === "미배정") return 1;
-              if (b === "미배정") return -1;
-              return a.localeCompare(b);
-          });
-
-          const titleText = sess.role === "super" ? "📊 학원 전체 출결 현황" : "📊 오늘의 우리 반 현황";
-
-          let gridHtml = `
-                 <div id="riskNoticePanel" style="margin-bottom: 24px; display: none; animation: fadeIn 0.6s ease-out;"></div>
-                 <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
-                   <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
-                   <span id="dashToggleIcon" style="font-size:13px; opacity:0.8; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">🔼 접기</span>
-                 </div>
-                 <div id="dashContent" style="display:block; animation: fadeIn 0.3s ease;">
-          `;
-
-          teacherNames.forEach(tName => {
-              const groupItems = grouped[tName];
-              gridHtml += `
-                <div style="margin-top: 16px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; align-items: baseline;">
-                  <span style="font-size:15px; font-weight:800; color:#3498db;">🧑‍🏫 ${escapeHtml(tName)} 선생님</span>
-                  <span style="font-size:12px; opacity:0.6; margin-left:8px;">${groupItems.length}명</span>
-                </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">
-              `;
-
-              groupItems.forEach(st => {
-                  // 1. 공통 뱃지 스타일 (개별 위치 속성 제거, 디자인 통일)
-                  const bStyle = "font-size:9px; font-weight:900; padding:2px 6px; border-radius:6px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); white-space:nowrap; display:inline-flex; align-items:center;";
-
-                  // 2. 출결 뱃지 (badgeAtt) - 💡 일요일(0)에는 뱃지 생성 제외
-                  const isSunday = new Date().getDay() === 0;
-                  const abs = Number(st.todayAbs || 0);
-                  let badgeAtt = "";
-
-                  // 일요일이 아닐 때만 출결 경고 뱃지를 띄웁니다.
-                  if (!isSunday) {
-                  if (abs >= 6) badgeAtt = `<span style="${bStyle} background:#ff4757; color:white;">📅 위험 ${abs}</span>`;
-                  else if (abs >= 3) badgeAtt = `<span style="${bStyle} background:#ffa502; color:white;">📅 경고 ${abs}</span>`;
-                  }
-                  // 3. 취침 뱃지 (badgeSleep)
-                  const sleep = Number(st.sleepToday || 0);
-                  let badgeSleep = "";
-                  if (sleep >= 6) badgeSleep = `<span style="${bStyle} background:#eb4d4b; color:white;">💤 위험 ${sleep}</span>`;
-                  else if (sleep >= 3) badgeSleep = `<span style="${bStyle} background:#f9ca24; color:#111;">💤 경고 ${sleep}</span>`;
-
-                  // 4. 교육점수 뱃지 (badgeEdu)
-                  const edu = Number(st.monthTotal || 0);
-                  let badgeEdu = "";
-                  if (edu >= 15) badgeEdu = `<span style="${bStyle} background:#6c5ce7; color:white;">💯 위험 ${edu}</span>`;
-                  else if (edu >= 10) badgeEdu = `<span style="${bStyle} background:#a29bfe; color:white;">💯 경고 ${edu}</span>`;
-
-                  // 💡 4-1. [신규 추가] 지각 뱃지 (badgeLate)
-                  const late = Number(st.todayLate || 0);
-                  let badgeLate = "";
-                  if (late > 0) {
-                      // 지각은 1번만 해도 바로 눈에 띄게 주황색 뱃지로 표시!
-                      badgeLate = `<span style="${bStyle} background:#e67e22; color:white;">⏰ 지각 ${late}</span>`;
-                  }
-
-                  // 5. 실시간 상태 신호등 (수정 버전)
-                  const cs = String(st.currentStatus);
-                  const reason = String(st.currentReason || "").trim(); 
-                  let lampColor = "rgba(255,255,255,0.15)";
-
-                  if (cs === "1") {
-                    lampColor = "#2ecc71"; // 정상 출석 -> 초록색
-                  } 
-                  else if (cs === "3S") {
-                    if (reason === "화장실/정수기") {
-                      lampColor = "#2ecc71"; 
-                    } else {
-                      lampColor = "#f39c12"; // 주황색 (이동)
-                    }
-                  } 
-                  else if (cs === "3") {
-                    lampColor = "#ff4757"; // 무단 결석 -> 빨간색
-                  } 
-                  else if (cs === "2") {
-                    lampColor = "#f1c40f"; // 지각 -> 노란색
-                  }
-
-                  const lampHtml = `<div style="width:10px; height:10px; border-radius:50%; background:${lampColor}; display:inline-block; margin-right:8px; box-shadow: 0 0 6px ${lampColor}; flex-shrink:0;"></div>`;
-
-                  // 💡 5-1. [수정 완벽 버전] 사유 뱃지를 위쪽 경고 뱃지들과 똑같은 스타일로 만듭니다.
-                  let reasonBadge = "";
-                  if (cs !== "1" && reason !== "화장실/정수기") {
-                      let bg = lampColor;
-                      let textColor = bg === "#f1c40f" ? "#000" : "#fff"; 
-                      
-                      let shortReason = reason;
-                      
-                      if (!shortReason) {
-                          if (cs === "3S") shortReason = "이동중";
-                          else if (cs === "2") shortReason = "지각";
-                          else if (cs === "3") shortReason = "결석";
-                          else shortReason = "기타";
-                      } else {
-                          // 🌟 1. "[설문]" 글자를 찾아내서 깔끔하게 날려버립니다.
-                          shortReason = shortReason.replace(/\[설문\]/g, "").trim();
-                          // 🌟 2. 괄호 내용 삭제
-                          shortReason = shortReason.split('(')[0].trim();
-                          // 위쪽으로 올라가서 공간이 여유로우니 글자수를 조금 더 허용합니다 (6글자)
-                          if (shortReason.length > 6) shortReason = shortReason.substring(0, 6) + "..";
-                      }
-                      
-                      // 🌟 직관적인 아이콘 추가
-                      let icon = "🏃";
-                      if (cs === "2") icon = "⏰";
-                      else if (cs === "3") icon = "❌";
-
-                      reasonBadge = `<span style="${bStyle} background:${bg}; color:${textColor}; border:1px solid rgba(255,255,255,0.2);" title="${escapeHtml(reason)}">${icon} ${escapeHtml(shortReason)}</span>`;
-                  }
-
-                  // 6. 카드 조립 (뱃지들을 하나의 컨테이너로 묶음)
-                  gridHtml += `
-                    <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
-                         onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
-                      
-                      <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
-                          ${reasonBadge} ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
-                      </div>
-
-                      <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
-                        <div style="font-weight:800; font-size:14px; display:flex; align-items:center; white-space:nowrap;">
-                          ${lampHtml} 
-                          <span>${escapeHtml(st.name)}</span>
-                        </div>
-                        <div style="font-size:11px; opacity:0.5; white-space:nowrap;">${escapeHtml(st.seat)}</div>
-                      </div>
-                      <div style="text-align:center; padding: 6px 0; border-top: 1px dashed rgba(255,255,255,0.08); margin-top:2px;">
-                        <div style="font-size:11px; color:#3498db; font-weight:800;">🚰 화장실/정수기: ${st.restroomToday}회</div>
-                      </div>
-                    </div>
-                  `;
-              });
-              gridHtml += `</div>`;
-          });
-
-          gridHtml += `</div>`;
-          dashDiv.innerHTML = gridHtml;
-
-        // 💡 추가: 목록이 뜨자마자 백그라운드에서 전체 요약본 로딩 시작
-          prefetchAllSummaries(items);
-
-          const dashHeader = document.getElementById("dashHeader");
-          const dashContent = document.getElementById("dashContent");
-          const dashToggleIcon = document.getElementById("dashToggleIcon");
-          if (dashHeader && dashContent) {
-              dashHeader.onclick = () => {
-                  if (dashContent.style.display === "none") {
-                      dashContent.style.display = "block";
-                      dashToggleIcon.textContent = "🔼 접기";
-                      dashHeader.style.opacity = "1";
-                  } else {
-                      dashContent.style.display = "none";
-                      dashToggleIcon.textContent = "🔽 펼치기";
-                      dashHeader.style.opacity = "0.7";
-                  }
-              };
-          }
-
-          document.querySelectorAll(".class-dash-card").forEach(card => {
-              card.onmouseover = () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; };
-              card.onmouseout = () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; };
-          });
 
       } catch (e) {
           dashDiv.innerHTML = `<div style="color:#ff6b6b;">로딩 중 오류 발생: ${e.message}</div>`;
