@@ -3060,7 +3060,10 @@ window.updateRiskNoticePanel = function() {
               <div style="margin-top:6px; font-size:13px; line-height:2.2;">
                 ${list.map(s => `
                   <span style="display:inline-flex; align-items:center; margin-right:8px; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:6px;">
-                    <span style="cursor:pointer; text-decoration:underline;" onclick="document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click();">${escapeHtml(s.name)}(${s.val})</span>
+                    <span style="cursor:pointer; text-decoration:underline;" 
+                          onclick="const targetSt = window.__dashboardItems.find(x => x.studentId === '${s.id}'); if(targetSt){ window.__loadStudentDetail(targetSt); window.scrollTo({top:0, behavior:'smooth'}); } else { document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click(); }">
+                      ${escapeHtml(s.name)}(${s.val})
+                    </span>
                     <button onclick="smartDismissStudent('${s.id}', ${s.maxCurVal})" style="background:none; border:none; cursor:pointer; margin-left:4px; font-size:13px;" title="7일간 숨기기">✅</button>
                   </span>
                 `).join("")}
