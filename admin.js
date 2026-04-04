@@ -960,6 +960,9 @@ async function loadSummariesForStudent_(seat, studentId) {
 
   let __activeStudentKey = "";
 
+  // 💡 [추가] 외부(대시보드 카드)에서도 이 함수를 즉시 실행할 수 있도록 연결
+  window.__loadStudentDetail = loadStudentDetail;
+
   async function loadStudentDetail(st) {
     const sess = getAdminSession();
     if (!sess?.adminToken) return;
@@ -2740,8 +2743,8 @@ function renderVulnerabilityChart(unitsBySubject, token) {
               }
 
               gridHtml += `
-                <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
-                     onclick="document.getElementById('qInput').value='${st.studentId}'; document.getElementById('searchBtn').click();">
+  <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
+       onclick="window.__loadStudentDetail(window.__dashboardItems.find(x => x.studentId === '${st.studentId}')); window.scrollTo({top:0, behavior:'smooth'});">
                   <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
                       ${reasonBadge} ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
                   </div>
