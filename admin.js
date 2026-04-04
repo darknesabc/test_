@@ -1465,7 +1465,7 @@ async function loadSummariesForStudent_(seat, studentId) {
     const seat = st.seat || "";
     const studentId = st.studentId || "";
 
-    // 1️⃣ 상세 페이지 진입 즉시, 이 학생의 다른 기간(15, 30일) 데이터 예약 로딩 (엔진 2 가동)
+    // 1️⃣ 상세 페이지 진입 즉시, 이 학생의 다른 기간 데이터 예약 로딩 (엔진 2 가동)
     prefetchStudentDetails(seat, studentId);
 
     // 2️⃣ 캐시 열쇠 생성
@@ -1480,18 +1480,26 @@ async function loadSummariesForStudent_(seat, studentId) {
     if (isGrade && lifeContainer) lifeContainer.innerHTML = "";
     if (!isGrade && gradeContainer) gradeContainer.innerHTML = "";
 
-    // 💡 [수정 포인트] 성적 상세인 경우, 기존의 전용 렌더링 함수를 호출하고 즉시 리턴
+    // 성적 상세인 경우
     if (kind === "grade_detail") {
        const token = await issueStudentToken_(seat, studentId);
        loadAdminGradeDetailUI_(token); 
        return; 
     }
 
-    // 3️⃣ 캐시 확인 (항목/기간 전환 시 이미 본 적 있다면 즉시 출력)
+    // 3️⃣ 캐시 확인 (미리 가져온 데이터가 있으면 서버 통신 없이 0초 만에 렌더링!)
     const cachedData = getDetailCache(cacheKey);
     if (cachedData) {
       console.log(`[캐시 히트] ${kind} - ${days}일 데이터 표시`);
-      renderDetailView(kind, days, cachedData, targetEl);
+      
+      // 💡 [추가] 출결 캐시 렌더링 로직
+      if (kind === "attendance") {
+        const moveMap = (cachedData.mv && cachedData.mv.ok) ? buildMoveMapFromItems_(cachedData.mv.items) : {};
+        const surveyMap = buildSurveyMapFromItems_(cachedData.att.surveyItems || []);
+        targetEl.innerHTML = renderAttendanceDetail_(cachedData.att, moveMap, surveyMap);
+      } else {
+        renderDetailView(kind, days, cachedData, targetEl);
+      }
       return; 
     }
 
@@ -1501,7 +1509,7 @@ async function loadSummariesForStudent_(seat, studentId) {
     try {
       const token = await issueStudentToken_(seat, studentId);
       
-      // 출결(attendance)은 별도 로직
+      // 출결(attendance) 통신 및 캐시 저장
       if (kind === "attendance") {
         const [att, mv, edu] = await Promise.all([ 
           apiPost("attendance", { token }), 
@@ -1510,9 +1518,10 @@ async function loadSummariesForStudent_(seat, studentId) {
         ]);
         if (!att.ok) return showError(att, targetEl);
         
+        // 💡 [추가] 가장 무거운 출결 데이터도 캐시에 통째로 저장!
+        setDetailCache(cacheKey, { att, mv, edu });
+
         const moveMap = (mv && mv.ok) ? buildMoveMapFromItems_(mv.items) : {};
-        
-        // 백엔드의 att 안에 같이 딸려온 surveyItems로 맵을 만듭니다. (API 중복 호출 방지)
         const surveyMap = buildSurveyMapFromItems_(att.surveyItems || []); 
 
         targetEl.innerHTML = renderAttendanceDetail_(att, moveMap, surveyMap);
@@ -1618,14 +1627,27 @@ async function loadSummariesForStudent_(seat, studentId) {
   }
 
   /**
-   * ✅ [엔진 2] 선택된 학생의 15일/30일치 상세 데이터를 미리 로딩 (클릭 직후)
+   * ✅ [엔진 2] 선택된 학생의 상세 데이터(출결, 7/15/30일)를 미리 로딩 (클릭 직후)
    */
   async function prefetchStudentDetails(seat, studentId) {
     const kinds = ["move_detail", "sleep_detail", "eduscore_detail"];
-    const periods = [15, 30]; // 7일은 이미 요청했을 것이므로 15, 30만 미리 가져옴
+    const periods = [7, 15, 30]; // 💡 [수정] 7일 치 데이터도 미리 가져오도록 추가!
     
     try {
       const token = await issueStudentToken_(seat, studentId);
+
+      // 💡 [추가] 가장 덩치가 큰 '출결 상세' 데이터도 클릭 전에 미리 가져와서 캐시에 넣어둠
+      const attCacheKey = makeDetailCacheKey(seat, studentId, "attendance", 7);
+      if (!getDetailCache(attCacheKey)) {
+        Promise.all([
+          apiPost("attendance", { token }),
+          apiPost("move_detail", { token, days: 180 }),
+          apiPost("eduscore_detail", { token, days: 180 })
+        ]).then(([att, mv, edu]) => {
+          if (att.ok) setDetailCache(attCacheKey, { att, mv, edu });
+        }).catch(() => {});
+      }
+
       for (const kind of kinds) {
         for (const days of periods) {
           const cacheKey = makeDetailCacheKey(seat, studentId, kind, days);
