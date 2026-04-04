@@ -2678,6 +2678,8 @@ function renderVulnerabilityChart(unitsBySubject, token) {
              <div id="dashHeader" style="font-size:16px; font-weight:800; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding: 10px 14px; background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); transition: all 0.2s ease;">
                <span>${titleText} <span style="font-size:13px; color:rgba(255,255,255,0.6); font-weight:normal; margin-left:6px;">(총 ${items.length}명)</span></span>
                <div style="display:flex; align-items:center; gap:10px;">
+                 <button id="btnRefreshDash" onclick="event.stopPropagation(); window.refreshClassDashboard(this);" style="background:rgba(46, 204, 113, 0.15); color:#2ecc71; border:1px solid rgba(46, 204, 113, 0.4); padding:4px 10px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer; transition:all 0.2s;">🔄 새로고침</button>
+                 
                  <button onclick="event.stopPropagation(); window.toggleDashboardSort();" style="background:rgba(52, 152, 219, 0.2); color:#3498db; border:1px solid rgba(52, 152, 219, 0.5); padding:4px 10px; border-radius:6px; font-size:12px; font-weight:bold; cursor:pointer; transition:all 0.2s;">${sortBtnText}</button>
                  <span id="dashToggleIcon" style="font-size:13px; opacity:0.8; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">🔼 접기</span>
                </div>
@@ -2691,9 +2693,8 @@ function renderVulnerabilityChart(unitsBySubject, token) {
           // 💡 [핵심] 선택된 모드에 따라 학생 배열을 미리 정렬합니다!
           groupItems.sort((a, b) => {
               if (window.__dashboardSortMode === 'seat') {
-                  const sA = a.seat || "zzzz"; // 자리가 없으면 맨 뒤로 보냄
+                  const sA = a.seat || "zzzz"; 
                   const sB = b.seat || "zzzz";
-                  // 자리번호(4-1G04 등) 내의 숫자까지 똑똑하게 비교
                   return sA.localeCompare(sB, undefined, {numeric: true, sensitivity: 'base'});
               } else {
                   return a.name.localeCompare(b.name);
@@ -2765,8 +2766,8 @@ function renderVulnerabilityChart(unitsBySubject, token) {
               }
 
               gridHtml += `
-  <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
-       onclick="window.__loadStudentDetail(window.__dashboardItems.find(x => x.studentId === '${st.studentId}')); window.scrollTo({top:0, behavior:'smooth'});">
+                <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
+                     onclick="window.__loadStudentDetail(window.__dashboardItems.find(x => x.studentId === '${st.studentId}')); window.scrollTo({top:0, behavior:'smooth'});">
                   <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
                       ${reasonBadge} ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
                   </div>
@@ -2788,6 +2789,71 @@ function renderVulnerabilityChart(unitsBySubject, token) {
 
       gridHtml += `</div>`;
       dashDiv.innerHTML = gridHtml;
+
+      const dashHeader = document.getElementById("dashHeader");
+      const dashContent = document.getElementById("dashContent");
+      const dashToggleIcon = document.getElementById("dashToggleIcon");
+      if (dashHeader && dashContent) {
+          dashHeader.onclick = () => {
+              if (dashContent.style.display === "none") {
+                  dashContent.style.display = "block";
+                  dashToggleIcon.textContent = "🔼 접기";
+                  dashHeader.style.opacity = "1";
+              } else {
+                  dashContent.style.display = "none";
+                  dashToggleIcon.textContent = "🔽 펼치기";
+                  dashHeader.style.opacity = "0.7";
+              }
+          };
+      }
+
+      document.querySelectorAll(".class-dash-card").forEach(card => {
+          card.onmouseover = () => { card.style.background = "rgba(255,255,255,0.1)"; card.style.transform = "translateY(-2px)"; };
+          card.onmouseout = () => { card.style.background = "rgba(255,255,255,0.04)"; card.style.transform = "translateY(0)"; };
+      });
+
+      if (typeof window.updateRiskNoticePanel === 'function') {
+          window.updateRiskNoticePanel();
+      }
+  };
+
+  // ✨ [신규 추가] 대시보드(바둑판)만 가볍고 부드럽게 다시 불러오는 함수
+  window.refreshClassDashboard = async function(btnElement) {
+      const sess = getAdminSession();
+      if (!sess?.adminToken) return;
+
+      // 버튼 시각적 효과 (로딩중)
+      btnElement.innerHTML = "⏳ 로딩중...";
+      btnElement.style.pointerEvents = "none";
+      btnElement.style.opacity = "0.6";
+
+      try {
+          // 서버에 '가벼운 대시보드 요약 정보'만 새로 요청! (성적/상세 캐시는 건드리지 않음)
+          const res = await apiPost("admin_class_summary", { 
+              adminToken: sess.adminToken,
+              role: sess.role,
+              adminName: sess.adminName 
+          });
+
+          if (res.ok) {
+              // 새로 받은 데이터로 주머니 업데이트 후, 화면 깜빡임 없이 즉시 재렌더링
+              window.__dashboardItems = res.items || [];
+              window.renderDashboardGrid(); 
+          } else {
+              alert("새로고침에 실패했습니다: " + res.error);
+          }
+      } catch (e) {
+          alert("네트워크 오류가 발생했습니다.");
+      } finally {
+          // 원래 버튼 상태로 복구
+          const newBtn = document.getElementById("btnRefreshDash");
+          if (newBtn) {
+              newBtn.innerHTML = "🔄 새로고침";
+              newBtn.style.pointerEvents = "auto";
+              newBtn.style.opacity = "1";
+          }
+      }
+  };
 
       // 💡 이벤트 리스너 다시 연결 (아코디언 토글, 호버 등)
       const dashHeader = document.getElementById("dashHeader");
