@@ -539,10 +539,9 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기
+ * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
-  // 1. 학생의 현재 등급 프로필 추출 (숫자만, 빈칸은 9등급 처리)
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
   
   const mChoice = String(rawData?.math?.choice || "");
@@ -860,11 +859,14 @@ function getNonsulSimulationHtml_(rawData) {
           const tagBg = reqEval.tag.includes("🟢") ? "rgba(46, 204, 113, 0.2)" : reqEval.tag.includes("🔴") ? "rgba(231, 76, 60, 0.2)" : "rgba(241, 196, 15, 0.2)";
           const tagColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
+          // 💡 [핵심] 검색 카드 상단에 전형명(admName) 추가!
+          const admNameHtml = r.admName ? `${escapeHtml(r.admName)} · ` : "";
+
           html += `
             <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <div style="flex:1; min-width:250px;">
                     <div style="font-size:11px; color:#9b59b6; font-weight:bold; margin-bottom:4px; display:flex; gap:6px; align-items:center;">
-                        <span>[${r.track}] ${r.testType} · ${r.method}</span>
+                        <span>[${r.track}] ${admNameHtml}${r.testType} · ${r.method}</span>
                         ${r.examDate ? `<span style="background:#e74c3c; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">📅 ${escapeHtml(r.examDate)}</span>` : ""}
                     </div>
                     <div style="font-size:15px; font-weight:800; color:#fff; display:flex; align-items:center; gap:6px;">
@@ -898,7 +900,7 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = html;
   };
 
-  // 💡 [핵심] 6. UI 껍데기 반환 (과목 상세 표시 적용)
+  // 6. UI 껍데기 반환
   let mathShort = "공통";
   if (mChoice.includes("미적")) mathShort = "미적";
   else if (mChoice.includes("기하")) mathShort = "기하";
