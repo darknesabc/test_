@@ -680,6 +680,24 @@ function getNonsulSimulationHtml_(rawData) {
       ];
       
       const getUnivRank = (uName) => {
+          // 💡 1. 주요대 분캠/이원화 캠퍼스 전용 랭킹 (본캠과 섞이는 대참사 방지)
+          const branchRanks = {
+              "한양대(ERICA)": 25.1, "한양대학교(ERICA)": 25.1,
+              "중앙대(다빈치)": 25.2, "중앙대학교(다빈치)": 25.2,
+              "한국외대(글로벌)": 25.3, "한국외국어대학교(글로벌)": 25.3,
+              "단국대(천안)": 25.4, "단국대학교(천안)": 25.4,
+              "연세대(미래)": 35.1, "연세대학교(미래)": 35.1,
+              "고려대(세종)": 35.2, "고려대학교(세종)": 35.2,
+              "홍익대(세종)": 35.3, "홍익대학교(세종)": 35.3,
+              "건국대(글로컬)": 35.4, "건국대학교(글로컬)": 35.4,
+              "동국대(WISE)": 35.5, "동국대학교(WISE)": 35.5
+          };
+
+          for (const key in branchRanks) {
+              if (uName.includes(key)) return branchRanks[key];
+          }
+
+          // 💡 2. 일반 대학 매칭
           const idx = univRankOrder.findIndex(u => uName.includes(u));
           return idx !== -1 ? idx : 999; 
       };
@@ -696,17 +714,12 @@ function getNonsulSimulationHtml_(rawData) {
           const univ = String(r.univ || "");
           const dept = String(r.dept || "");
 
-          // 💡 1단계: 계급(Cat) 판별 (의예->치의예->한의예->수의예->약학 -> 서울 -> 경기 -> 지거국 -> 기타사립)
+          // 💡 1단계: 계급(Cat) 판별 (의예->치의예->한의예->수의예->약학 -> 서울 -> 경기 -> 주요분캠 -> 지거국 -> 기타사립)
           if (track.includes('자연')) {
-              // 치의예/치의학
               if (dept.includes("치의예") || dept.includes("치의학")) { cat = 11; medType = "치의예"; isMed = true; }
-              // 한의예/한의학
               else if (dept.includes("한의예") || dept.includes("한의학")) { cat = 12; medType = "한의예"; isMed = true; }
-              // 수의예/수의과
               else if (dept.includes("수의예") || dept.includes("수의과")) { cat = 13; medType = "수의예"; isMed = true; }
-              // 약학/약대 (신약, 제약 등은 제외)
               else if ((dept.includes("약학") || dept.includes("약대")) && !/(신약|제약|약과학|한약)/.test(dept)) { cat = 14; medType = "약학"; isMed = true; }
-              // 의예/의학 (식물의학, 의공학, 의생명 등은 제외)
               else if ((dept.includes("의예") || dept.includes("의학") || dept.includes("의과")) && !/(식물|의공|의생명|의료|의과학)/.test(dept)) { cat = 10; medType = "의예"; isMed = true; }
           } 
           
@@ -714,9 +727,15 @@ function getNonsulSimulationHtml_(rawData) {
               if (region.includes("서울")) cat = 20;
               else if (region.includes("경기") || region.includes("인천")) cat = 30;
               else if (flagshipUnivs.some(u => univ.includes(u))) cat = 40;
+              
+              // 💡 [핵심] 분교 및 이원화 캠퍼스 특별 상향! (강원, 충청에 있어도 지거국보다 높은 35로 특진)
+              if (/(ERICA|다빈치|글로벌|미래|세종|천안|글로컬|WISE)/i.test(univ)) {
+                  // 단, 에리카나 글로벌처럼 이미 경기권(Cat 30)인 애들은 35로 내리지 않음
+                  if (cat > 35) cat = 35; 
+              }
           }
 
-          // 2단계: 메디컬 카테고리까지 분리해서 그룹키 생성 (경북대 의예과와 경북대 일반학과를 찢어놓기 위함)
+          // 2단계: 메디컬 카테고리 분리 후 그룹키 생성
           const groupKey = `${cat}_${univ}`;
 
           if (!grouped[groupKey]) {
