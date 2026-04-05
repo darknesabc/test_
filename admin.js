@@ -1496,6 +1496,7 @@ async function loadSummariesForStudent_(seat, studentId) {
       }
     }
   }
+  
   /**
    * ✅ [최종] 항목/기간 전환 캐시 + 백그라운드 프리페칭 적용
    */
