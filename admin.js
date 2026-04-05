@@ -677,16 +677,26 @@ function getNonsulSimulationHtml_(rawData) {
           const tagBg = reqEval.tag.includes("🟢") ? "rgba(46, 204, 113, 0.2)" : reqEval.tag.includes("🔴") ? "rgba(231, 76, 60, 0.2)" : "rgba(241, 196, 15, 0.2)";
           const tagColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
+          // ✨ [신규] UI 렌더링: 일정 뱃지 & 3개년 경쟁률 블록 추가
           html += `
             <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                 <div style="flex:1; min-width:250px;">
-                    <div style="font-size:11px; color:#9b59b6; font-weight:bold; margin-bottom:2px;">[${r.track}] ${r.testType} · ${r.method}</div>
+                    <div style="font-size:11px; color:#9b59b6; font-weight:bold; margin-bottom:4px; display:flex; gap:6px; align-items:center;">
+                        <span>[${r.track}] ${r.testType} · ${r.method}</span>
+                        ${r.examDate ? `<span style="background:#e74c3c; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">📅 ${escapeHtml(r.examDate)}</span>` : ""}
+                    </div>
                     <div style="font-size:15px; font-weight:800; color:#fff; display:flex; align-items:center; gap:6px;">
                         ${escapeHtml(r.univ)} <span style="opacity:0.5; font-size:12px;">›</span> <span style="color:#f1c40f;">${escapeHtml(r.dept)}</span>
                     </div>
                     <div style="font-size:12px; color:rgba(255,255,255,0.6); margin-top:6px; line-height:1.4;">
                         <b>출제범위:</b> ${escapeHtml(r.scope)}<br>
                         <b>시험시간:</b> ${escapeHtml(r.timeInfo)}
+                    </div>
+                    
+                    <div style="margin-top:8px; display:flex; gap:6px; font-size:11px; flex-wrap:wrap; align-items:center;">
+                        ${r.comp2025 ? `<span style="background:rgba(52, 152, 219, 0.15); border:1px solid rgba(52, 152, 219, 0.4); color:#3498db; padding:3px 6px; border-radius:4px;">🎯 25' 경쟁률 <b style="font-size:12px;">${escapeHtml(r.comp2025)}</b></span>` : ""}
+                        ${r.comp2024 ? `<span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); padding:3px 6px; border-radius:4px;">24' <b>${escapeHtml(r.comp2024)}</b></span>` : ""}
+                        ${r.comp2023 ? `<span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); padding:3px 6px; border-radius:4px;">23' <b>${escapeHtml(r.comp2023)}</b></span>` : ""}
                     </div>
                 </div>
                 
