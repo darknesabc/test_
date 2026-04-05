@@ -603,8 +603,8 @@ function getNonsulSimulationHtml_(rawData) {
       let tag = "🟡 수동확인";
       let msg = "상세 요강 확인 요망";
 
-      // 정규식 1: "N개 합 M"
-      let m = reqStr.match(/(\d)[가-힣]*\s*합\s*(\d+)/);
+      // 정규식 1: "N개 합 M" (예: 2개 합 5, 2합5, 2개영역 합 5)
+      let m = reqStr.match(/(\d)[가-힣\s]*합\s*(\d+)/);
       if (m) {
           let num = parseInt(m[1]), targetSum = parseInt(m[2]);
           if (pool.length >= num) {
@@ -615,8 +615,8 @@ function getNonsulSimulationHtml_(rawData) {
           return { pass, tag, msg };
       }
 
-      // 정규식 2: "N개 각 M등급" 또는 "N개 M등급"
-      m = reqStr.match(/(\d)[가-힣]*\s*(?:각)?\s*(\d+)등급/);
+      // 💡 [수정됨] 정규식 2: "N개 각 M등급" 또는 "N개 M" (예: 1개 3등급, 2개 각 3, 1개3 등 모두 인식!)
+      m = reqStr.match(/(\d)[가-힣\s]*(?:각)?\s*(\d+)(?:등급)?/);
       if (m) {
           let num = parseInt(m[1]), targetGrade = parseInt(m[2]);
           if (pool.length >= num) {
@@ -630,7 +630,7 @@ function getNonsulSimulationHtml_(rawData) {
 
       return { pass, tag, msg };
   };
-
+  
   // 3. 논술 검색 및 화면 렌더링 로직
   window.searchNonsulData = async function() {
       const keyword = document.getElementById('nonsulSearchInput').value.trim();
