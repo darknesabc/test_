@@ -539,9 +539,10 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (메디컬 분리 & 서열 정렬 완벽 적용)
+ * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
+  // 1. 학생의 현재 등급 프로필 추출 (숫자만, 빈칸은 9등급 처리)
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
   
   const mChoice = String(rawData?.math?.choice || "");
@@ -649,7 +650,7 @@ function getNonsulSimulationHtml_(rawData) {
       }
   };
 
-  // 💡 [핵심 교체] 전체 요약 표 그리기 (의/치/한/수/약 완벽 분리 + 대학 서열 적용)
+  // 4. 전체 요약 표 그리기 (의치한수약 + 대학 서열 적용)
   window.renderNonsulSummaryTable = async function(track) {
       const resDiv = document.getElementById('nonsulResultArea');
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
@@ -671,7 +672,7 @@ function getNonsulSimulationHtml_(rawData) {
           return;
       }
 
-      // 💡 [랭킹 사전] 대한민국 주요 대학 선호도 서열 
+      // 대한민국 주요 대학 선호도 서열 
       const univRankOrder = [
           "서울대", "연세대", "고려대", "서강대", "성균관대", "한양대", "중앙대", "경희대", "이화여자대", 
           "이화여대", "한국외대", "한국외국어대", "서울시립대", "건국대", "동국대", "홍익대", "숙명여대", "숙명여자대", 
@@ -680,7 +681,6 @@ function getNonsulSimulationHtml_(rawData) {
       ];
       
       const getUnivRank = (uName) => {
-          // 💡 1. 주요대 분캠/이원화 캠퍼스 전용 랭킹 (본캠과 섞이는 대참사 방지)
           const branchRanks = {
               "한양대(ERICA)": 25.1, "한양대학교(ERICA)": 25.1,
               "중앙대(다빈치)": 25.2, "중앙대학교(다빈치)": 25.2,
@@ -697,7 +697,6 @@ function getNonsulSimulationHtml_(rawData) {
               if (uName.includes(key)) return branchRanks[key];
           }
 
-          // 💡 2. 일반 대학 매칭
           const idx = univRankOrder.findIndex(u => uName.includes(u));
           return idx !== -1 ? idx : 999; 
       };
@@ -706,7 +705,7 @@ function getNonsulSimulationHtml_(rawData) {
 
       const grouped = {};
       results.forEach(r => {
-          let cat = 50; // 50: 기타사립
+          let cat = 50; 
           let medType = "";
           let isMed = false;
           
@@ -714,7 +713,6 @@ function getNonsulSimulationHtml_(rawData) {
           const univ = String(r.univ || "");
           const dept = String(r.dept || "");
 
-          // 💡 1단계: 계급(Cat) 판별 (의예->치의예->한의예->수의예->약학 -> 서울 -> 경기 -> 주요분캠 -> 지거국 -> 기타사립)
           if (track.includes('자연')) {
               if (dept.includes("치의예") || dept.includes("치의학")) { cat = 11; medType = "치의예"; isMed = true; }
               else if (dept.includes("한의예") || dept.includes("한의학")) { cat = 12; medType = "한의예"; isMed = true; }
@@ -728,21 +726,17 @@ function getNonsulSimulationHtml_(rawData) {
               else if (region.includes("경기") || region.includes("인천")) cat = 30;
               else if (flagshipUnivs.some(u => univ.includes(u))) cat = 40;
               
-              // 💡 [핵심] 분교 및 이원화 캠퍼스 특별 상향! (강원, 충청에 있어도 지거국보다 높은 35로 특진)
               if (/(ERICA|다빈치|글로벌|미래|세종|천안|글로컬|WISE)/i.test(univ)) {
-                  // 단, 에리카나 글로벌처럼 이미 경기권(Cat 30)인 애들은 35로 내리지 않음
                   if (cat > 35) cat = 35; 
               }
           }
 
-          // 2단계: 메디컬 카테고리 분리 후 그룹키 생성
           const groupKey = `${cat}_${univ}`;
 
           if (!grouped[groupKey]) {
               grouped[groupKey] = { univ: univ, cat: cat, isMed: isMed, medType: medType, reqs: {} };
           }
 
-          // 3단계: 같은 수능최저끼리 학과 묶기
           const reqKey = r.req || "없음";
           if (!grouped[groupKey].reqs[reqKey]) {
               grouped[groupKey].reqs[reqKey] = {
@@ -754,7 +748,6 @@ function getNonsulSimulationHtml_(rawData) {
           grouped[groupKey].reqs[reqKey].depts.push(dept);
       });
 
-      // 4단계: 그룹 정렬 (계급순 -> 서열사전순 -> 가나다순)
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
           const gA = grouped[a];
           const gB = grouped[b];
@@ -808,7 +801,6 @@ function getNonsulSimulationHtml_(rawData) {
 
               const isNewUniv = (idx === 0);
               
-              // 💡 디테일: 메디컬 전용 뱃지에 전공 이름(의예, 약학 등) 확실하게 박기!
               let univDisplayName = escapeHtml(grpData.univ);
               if (isNewUniv && grpData.isMed) {
                   univDisplayName = `<span style="color:#e74c3c; font-size:10px; font-weight:900; border:1px solid rgba(231,76,60,0.5); background:rgba(231,76,60,0.1); padding:2px 4px; border-radius:4px; margin-bottom:4px; display:inline-block;">✚ ${grpData.medType}</span><br>${univDisplayName}`;
@@ -906,13 +898,21 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = html;
   };
 
-  // 6. UI 껍데기 반환
+  // 💡 [핵심] 6. UI 껍데기 반환 (과목 상세 표시 적용)
+  let mathShort = "공통";
+  if (mChoice.includes("미적")) mathShort = "미적";
+  else if (mChoice.includes("기하")) mathShort = "기하";
+  else if (mChoice.includes("확통") || mChoice.includes("확률")) mathShort = "확통";
+  
+  let displayTamType = tamType;
+  if (tamType === "사과탐") displayTamType = "사+과";
+
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
       <div style="background:#0a0f19; border-bottom:2px solid #9b59b6; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
         <div style="color:#fff; font-weight:800; font-size:14px;">📝 수시(논술) 지원 시뮬레이션 및 최저 판독기</div>
         <div style="background:#9b59b6; color:#fff; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
-            학생 등급: <span style="color:#f1c40f; margin-left:4px;">국${window.__currentNonsulProfile.kor} 수${window.__currentNonsulProfile.math} 영${window.__currentNonsulProfile.eng} 탐(${window.__currentNonsulProfile.tam1},${window.__currentNonsulProfile.tam2})</span>
+            학생 등급: <span style="color:#f1c40f; margin-left:4px;">국${window.__currentNonsulProfile.kor} 수(${mathShort})${window.__currentNonsulProfile.math} 영${window.__currentNonsulProfile.eng} ${displayTamType}(${window.__currentNonsulProfile.tam1},${window.__currentNonsulProfile.tam2})</span>
         </div>
       </div>
       
