@@ -566,7 +566,7 @@ function getNonsulSimulationHtml_(rawData) {
       tamType: tamType
   };
 
-  // 수능 최저 판독기 (기존 완벽 방어 버전)
+  // 수능 최저 판독기
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
@@ -625,7 +625,7 @@ function getNonsulSimulationHtml_(rawData) {
       return { pass, tag, msg };
   };
 
-  // 💡 [핵심 추가] 모드 전환 관리기 (9개의 탭 관리)
+  // 모드 전환 관리기
   window.switchSusiMode = async function(mode) {
       const resDiv = document.getElementById('susiResultArea');
       const searchBar = document.getElementById('susiSearchBarWrapper');
@@ -657,10 +657,11 @@ function getNonsulSimulationHtml_(rawData) {
 
       if (!window.__susiData) {
           try {
-              const res = await apiPost("susi_data", {});
+              // 💡 [버그 수정] 통신 암호를 nonsul_data로 맞춤!
+              const res = await apiPost("nonsul_data", {});
               if (res.ok && res.items) window.__susiData = res.items;
-              else return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패</div>`;
-          } catch(e) { return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류</div>`; }
+              else return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패: ${res.error || '응답 오류'}</div>`;
+          } catch(e) { return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류: ${e.message}</div>`; }
       }
 
       const results = window.__susiData.filter(d => d.source === sourceSheet);
@@ -749,7 +750,6 @@ function getNonsulSimulationHtml_(rawData) {
               else { oxMark = "△"; oxColor = "#f1c40f"; oxBg = "rgba(241,196,15,0.15)"; }
               const oxHtml = `<div style="font-weight:900; font-size:14px; color:${oxColor}; background:${oxBg}; width:24px; height:24px; line-height:24px; border-radius:50%; margin:0 auto; border:1px solid ${oxColor};" title="${escapeHtml(reqEval.msg)}">${oxMark}</div>`;
 
-              // 💡 전형명(admName)을 기준으로 학과들을 예쁘게 그룹화해서 보여줍니다.
               const deptsByAdm = {};
               grp.items.forEach(it => {
                   const adm = it.admName ? `[${it.track}] ${it.admName}` : `[${it.track}] 일반`;
@@ -788,33 +788,38 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = tableHtml;
   };
 
-  // 💡 검색 모드 (모든 정보 노출형 카드)
-  window.searchSusiData = async function() {
+  // 1. 수시 검색/필터 실행 로직
+  window.searchSusiData = async function(filterSource = null) {
       const keyword = document.getElementById('susiSearchInput').value.trim();
       const resDiv = document.getElementById('susiResultArea');
       
-      if (!keyword) return alert('검색할 대학교, 학과, 또는 전형명을 입력하세요.');
+      if (!keyword && filterSource === 'search') return alert('검색할 대학명, 학과, 또는 전형명을 입력하세요.');
       
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
 
       if (!window.__susiData) {
           try {
-              const res = await apiPost("susi_data", {});
+              // 💡 [버그 수정] 통신 암호를 nonsul_data로 맞춤!
+              const res = await apiPost("nonsul_data", {});
               if (res.ok && res.items) window.__susiData = res.items;
-              else { resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패</div>`; return; }
-          } catch(e) { resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류</div>`; return; }
+              else return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패: ${res.error || '응답 오류'}</div>`;
+          } catch(e) { return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류: ${e.message}</div>`; }
       }
 
-      const results = window.__susiData.filter(d => 
-          d.univ.includes(keyword) || d.dept.includes(keyword) || (d.admName && d.admName.includes(keyword))
-      );
+      let results = window.__susiData;
+      if (keyword) {
+          results = results.filter(d => d.univ.includes(keyword) || d.dept.includes(keyword) || (d.admName && d.admName.includes(keyword)));
+      }
 
-      if (results.length === 0) { resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">검색 결과가 없습니다.</div>`; return; }
+      if (results.length === 0) {
+          resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">검색 결과가 없습니다.</div>`;
+          return;
+      }
 
-      let html = `<div style="max-height: 500px; overflow-y: auto; padding-right: 5px;">`;
+      let html = `<div style="max-height: 600px; overflow-y: auto; padding-right: 5px;">`;
       results.forEach(r => {
-          const reqEval = window.evaluateNonsulReq(r.req);
-          const tagColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
+          const reqEval = window.evaluateNonsulReq(r.req); 
+          const statusColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
           html += `
             <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; margin-bottom: 12px; transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
@@ -831,10 +836,10 @@ function getNonsulSimulationHtml_(rawData) {
                         </div>
                     </div>
                     <div style="text-align:right; flex-shrink:0;">
-                        <div style="background:${tagColor}22; color:${tagColor}; border:1px solid ${tagColor}88; padding:6px 12px; border-radius:8px; font-weight:900; font-size:13px; display:inline-block;">
+                        <div style="background:${statusColor}22; color:${statusColor}; border:1px solid ${statusColor}88; padding:6px 12px; border-radius:8px; font-weight:900; font-size:13px; display:inline-block;">
                             ${reqEval.tag}
                         </div>
-                        <div style="font-size:10px; color:${tagColor}; margin-top:4px; opacity:0.8;">${reqEval.msg}</div>
+                        <div style="font-size:10px; color:${statusColor}; margin-top:4px; opacity:0.8;">${reqEval.msg}</div>
                     </div>
                 </div>
 
@@ -858,7 +863,7 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = html;
   };
 
-  // 💡 상단 시트 탭 자동 생성
+  // UI 생성 (탭 버튼들)
   const sheetTabs = ["논술", "의예", "치의예", "한의예", "수의예", "약학", "상위15개대", "과기원", "교대"];
   let tabsHtml = `<button id="susiMode_search" class="susi-tab-btn" onclick="window.switchSusiMode('search')" style="background:#9b59b6; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;">🔍 통합 검색</button>`;
   sheetTabs.forEach(t => {
@@ -876,27 +881,29 @@ function getNonsulSimulationHtml_(rawData) {
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
       <div style="background:#0a0f19; border-bottom:2px solid #9b59b6; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
-        <div style="color:#fff; font-weight:800; font-size:14px;">🎓 수시(종합/교과/논술) 지원 시뮬레이션 및 최저 판독기</div>
+        <div style="color:#fff; font-weight:800; font-size:14px;">📋 수시(종합/교과/논술) 지원 시뮬레이션</div>
         <div style="background:#9b59b6; color:#fff; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
             학생 등급: <span style="color:#f1c40f; margin-left:4px;">국${window.__currentNonsulProfile.kor} 수(${mathShort})${window.__currentNonsulProfile.math} 영${window.__currentNonsulProfile.eng} ${displayTamType}(${window.__currentNonsulProfile.tam1},${window.__currentNonsulProfile.tam2})</span>
         </div>
       </div>
       
-      <div style="display:flex; align-items:center; margin-top:12px; margin-bottom:8px; flex-wrap:wrap; gap:6px; background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
-          ${tabsHtml}
+      <div style="padding:12px; background:rgba(0,0,0,0.2); border-radius:0 0 8px 8px;">
+          <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:15px;">
+            ${tabsHtml}
+          </div>
+
+          <div id="susiSearchBarWrapper" style="display:flex; gap:10px; align-items:center;">
+            <input type="text" id="susiSearchInput" placeholder="대학명, 학과, 또는 전형명 검색 (예: 가천대, 컴퓨터공학)" 
+                   onkeydown="if(event.key==='Enter') window.searchSusiData('search')" 
+                   style="flex:1; background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.4); color:#fff; font-size:14px; padding:8px 12px; border-radius:6px; outline:none;" />
+            <button onclick="window.searchSusiData('search')" style="background:#9b59b6; color:#fff; border:none; padding:8px 20px; border-radius:6px; font-weight:bold; cursor:pointer;">🔍 검색</button>
+          </div>
       </div>
 
-      <div id="susiSearchBarWrapper" style="padding:12px; background:rgba(155, 89, 182, 0.1); border:1px dashed rgba(155, 89, 182, 0.4); border-radius:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <span style="font-weight:bold; color:#fff; font-size:13px;">🎓 대학/학과/전형 통합 검색:</span>
-        <input type="text" id="susiSearchInput" placeholder="예: 한양대, 컴퓨터공학, 학생부종합" 
-               onkeydown="if(event.key==='Enter') window.searchSusiData()" 
-               style="flex:1; min-width:200px; background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.6); color:#fff; font-size:14px; outline:none; padding:8px 12px; border-radius:6px;" />
-        <button onclick="window.searchSusiData()" 
-                style="background:#9b59b6; color:#fff; border:none; padding:8px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; box-shadow:0 2px 4px rgba(0,0,0,0.2);">🔍 검색</button>
-      </div>
-
-      <div id="susiResultArea" style="margin-top:10px;">
-         <div style="text-align:center; padding:30px; opacity:0.6; font-size:13px;">위 탭을 선택하거나 대학/학과/전형명을 검색해 주세요.</div>
+      <div id="susiResultArea" style="margin-top:15px;">
+         <div style="text-align:center; padding:40px; opacity:0.4; font-size:13px;">
+            상단의 카테고리 버튼을 누르거나 대학명을 검색해 보세요.
+         </div>
       </div>
     </div>
   `;
