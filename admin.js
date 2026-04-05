@@ -637,20 +637,6 @@ function getNonsulSimulationHtml_(rawData) {
       return { pass, tag, msg };
   };
 
-      m = reqStr.match(/(\d)[가-힣\s]*(?:각)?\s*(\d+)(?:등급)?/);
-      if (m) {
-          let num = parseInt(m[1]), targetGrade = parseInt(m[2]);
-          if (pool.length >= num) {
-              let allPass = true;
-              for(let i=0; i<num; i++) { if (pool[i] > targetGrade) allPass = false; }
-              if (allPass) { pass = true; tag = "🟢 충족"; msg = `상위 ${num}개`; }
-              else { pass = false; tag = "🔴 미달"; msg = "조건 미달"; }
-          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
-          return { pass, tag, msg };
-      }
-      return { pass, tag, msg };
-  };
-
   window.switchNonsulMode = async function(mode) {
       const btnSearch = document.getElementById('nonsulModeSearch');
       const btnInmun = document.getElementById('nonsulModeInmun');
