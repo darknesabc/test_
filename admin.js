@@ -539,7 +539,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (빅5 의대 서열 & 이원화 캠퍼스 완벽 반영)
+ * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (메디컬 분리 & 서열 정렬 완벽 적용)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -607,7 +607,7 @@ function getNonsulSimulationHtml_(rawData) {
               let sum = 0; for(let i=0; i<num; i++) sum += pool[i];
               if (sum <= targetSum) { pass = true; tag = "🟢 충족"; msg = `등급합 ${sum}`; }
               else { pass = false; tag = "🔴 미달"; msg = `등급합 ${sum}`; }
-          } else { tag = "🔴 미달"; msg = "응시부족"; }
+          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
           return { pass, tag, msg };
       }
 
@@ -619,7 +619,7 @@ function getNonsulSimulationHtml_(rawData) {
               for(let i=0; i<num; i++) { if (pool[i] > targetGrade) allPass = false; }
               if (allPass) { pass = true; tag = "🟢 충족"; msg = `상위 ${num}개`; }
               else { pass = false; tag = "🔴 미달"; msg = "조건 미달"; }
-          } else { tag = "🔴 미달"; msg = "응시부족"; }
+          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
           return { pass, tag, msg };
       }
       return { pass, tag, msg };
@@ -670,7 +670,6 @@ function getNonsulSimulationHtml_(rawData) {
           return;
       }
 
-      // 💡 일반 대학 선호도 서열 (기본 랭킹)
       const univRankOrder = [
           "서울대", "연세대", "고려대", "서강대", "성균관대", "한양대", "중앙대", "경희대", "이화여자대", 
           "이화여대", "한국외대", "한국외국어대", "서울시립대", "건국대", "동국대", "홍익대", "숙명여대", "숙명여자대", 
@@ -690,9 +689,11 @@ function getNonsulSimulationHtml_(rawData) {
               "건국대(글로컬)": 35.4, "건국대학교(글로컬)": 35.4,
               "동국대(WISE)": 35.5, "동국대학교(WISE)": 35.5
           };
+
           for (const key in branchRanks) {
               if (uName.includes(key)) return branchRanks[key];
           }
+
           const idx = univRankOrder.findIndex(u => uName.includes(u));
           return idx !== -1 ? idx : 999; 
       };
@@ -718,7 +719,6 @@ function getNonsulSimulationHtml_(rawData) {
           } 
           
           if (!isMed) {
-              // 💡 [핵심 교체 1] 성균관대(수원), 경희대(용인) 등 이원화 캠퍼스는 무조건 서울권(Cat 20)으로 강제 격상!
               if (region.includes("서울") || /(성균관대|경희대)/.test(univ)) {
                   cat = 20;
               }
@@ -743,7 +743,7 @@ function getNonsulSimulationHtml_(rawData) {
           grouped[groupKey].reqs[reqKey].depts.push(dept);
       });
 
-      // 💡 [핵심 교체 2] 그룹 정렬 시 '의예과(Cat 10)' 한정 빅5 서열 특별 적용!
+      // 💡 [핵심 교체 2] 그룹 정렬 시 '의예과(Cat 10)' 한정 빅5 서열 특별 적용 및 미래캠퍼스 컷팅!
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
           const gA = grouped[a];
           const gB = grouped[b];
@@ -753,14 +753,19 @@ function getNonsulSimulationHtml_(rawData) {
           let rankA = getUnivRank(gA.univ);
           let rankB = getUnivRank(gB.univ);
 
-          // 의예과(Cat 10)일 경우에만 작동하는 '메디컬 랭킹 사전'
           if (gA.cat === 10) {
-              const medRank = ["서울대", "연세대", "가톨릭대", "성균관대", "울산대", "고려대", "한양대", "경희대", "이화여대", "중앙대", "아주대", "인하대", "가천대"];
-              const mIdxA = medRank.findIndex(u => gA.univ.includes(u));
-              const mIdxB = medRank.findIndex(u => gB.univ.includes(u));
-              // 빅5 안에 있으면 최상단, 없으면 일반 랭킹+100점 페널티
-              rankA = mIdxA !== -1 ? mIdxA : rankA + 100;
-              rankB = mIdxB !== -1 ? mIdxB : rankB + 100;
+              // 💡 [수정] 중앙대 다음 이화여대 배치
+              const medRank = ["서울대", "연세대", "가톨릭대", "성균관대", "울산대", "고려대", "한양대", "경희대", "중앙대", "이화여대", "이화여자대학교", "이화여자대", "아주대", "인하대", "가천대"];
+              
+              let mIdxA = medRank.findIndex(u => gA.univ.includes(u));
+              let mIdxB = medRank.findIndex(u => gB.univ.includes(u));
+              
+              // 💡 [수정] "연세대(미래)"가 "연세대"로 인식되어 1등 먹는 대참사 방지!
+              if (gA.univ.includes("미래")) mIdxA = 999;
+              if (gB.univ.includes("미래")) mIdxB = 999;
+
+              rankA = mIdxA !== -1 && mIdxA !== 999 ? mIdxA : rankA + 100;
+              rankB = mIdxB !== -1 && mIdxB !== 999 ? mIdxB : rankB + 100;
           }
 
           if (rankA !== rankB) return rankA - rankB; 
