@@ -1337,7 +1337,6 @@ async function loadSummariesForStudent_(seat, studentId) {
     const gradeSel = $("gradeSummarySelect");
     if (gradeSel) {
       gradeSel.addEventListener("change", async () => {
-        // 기존 try 블록 안의 코드를 아래처럼 수정해 주세요. (gs2 데이터를 추가로 넘겨줍니다)
         try {
           const seat2 = String(st.seat || "").trim();
           const studentId2 = String(st.studentId || "").trim();
@@ -1345,13 +1344,29 @@ async function loadSummariesForStudent_(seat, studentId) {
           const exam = String(gradeSel.value || "");
           const labelHost = $("gradeSummaryLabel");
           const tableHost = $("gradeSummaryTable");
+          
+          // 💡 1. 캐시 열쇠 만들기 (학생+성적요약+시험명)
+          const cacheKey = makeDetailCacheKey(seat2, studentId2, "grade_summary", exam);
+          const cachedGs = getDetailCache(cacheKey);
+
+          // 💡 2. 보관함에 해당 시험 성적이 있으면 서버 통신 없이 0초 만에 렌더링!
+          if (cachedGs) {
+            console.log(`[캐시 히트] 성적 요약 - ${exam}`);
+            if (labelHost) labelHost.innerHTML = `(${escapeHtml(cachedGs.sheetName || "")})`;
+            if (tableHost) tableHost.innerHTML = renderGradeTableHtml_(buildGradeTableRows_(cachedGs), cachedGs);
+            return;
+          }
+
+          // 💡 3. 보관함에 없을 때만 서버에 실시간 요청
           if (tableHost) tableHost.innerHTML = `<div style="opacity:.8;">불러오는 중…</div>`;
           const token2 = await issueStudentToken_(seat2, studentId2);
           const gs2 = await apiPost("grade_summary", { token: token2, exam });
           if (!gs2.ok) throw new Error(gs2.error || "grade_summary 실패");
-          if (labelHost) labelHost.innerHTML = `(${escapeHtml(gs2.sheetName || "")})`;
           
-          // 💡 [수정] 콤마 뒤에 gs2를 추가했습니다.
+          // 💡 4. 서버에서 방금 가져온 성적을 보관함에 쏙 저장 (1시간 유지)
+          setDetailCache(cacheKey, gs2);
+
+          if (labelHost) labelHost.innerHTML = `(${escapeHtml(gs2.sheetName || "")})`;
           if (tableHost) tableHost.innerHTML = renderGradeTableHtml_(buildGradeTableRows_(gs2), gs2);
         } catch (e) {
           const tableHost = $("gradeSummaryTable");
