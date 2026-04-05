@@ -976,6 +976,16 @@ async function loadSummariesForStudent_(seat, studentId) {
     detailSub.textContent = `${name} · ${seat} · ${studentId}`.trim();
     detailResult.innerHTML = "";
 
+    // ✨ [신규 추가] 학생 상세 영역으로 부드럽게 자동 스크롤!
+    setTimeout(() => {
+      const detailArea = document.getElementById("detailSub");
+      if (detailArea) {
+        // 상단 메뉴바에 가려지지 않도록 70px 정도 여백을 두고 스크롤합니다.
+        const targetY = detailArea.getBoundingClientRect().top + window.scrollY - 70;
+        window.scrollTo({ top: targetY, behavior: 'smooth' });
+      }
+    }, 100);
+
     // 💡 상세 데이터 프리페치 엔진 가동
     prefetchStudentDetails(seat, studentId);
 
@@ -2764,7 +2774,7 @@ function renderVulnerabilityChart(unitsBySubject, token) {
 
               gridHtml += `
                 <div class="class-dash-card" style="position:relative; background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px 12px; cursor: pointer; display:flex; flex-direction:column; gap:8px; transition: all 0.2s ease;"
-                     onclick="window.__loadStudentDetail(window.__dashboardItems.find(x => x.studentId === '${st.studentId}')); window.scrollTo({top:0, behavior:'smooth'});">
+                     onclick="window.__loadStudentDetail(window.__dashboardItems.find(x => x.studentId === '${st.studentId}'));">
                   <div style="position:absolute; top:-10px; left:8px; display:flex; gap:4px; z-index:12;">
                       ${reasonBadge} ${badgeLate} ${badgeAtt} ${badgeSleep} ${badgeEdu}
                   </div>
@@ -3030,7 +3040,7 @@ window.updateRiskNoticePanel = function() {
                 ${list.map(s => `
                   <span style="display:inline-flex; align-items:center; margin-right:8px; background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:6px;">
                     <span style="cursor:pointer; text-decoration:underline;" 
-                          onclick="const targetSt = window.__dashboardItems.find(x => x.studentId === '${s.id}'); if(targetSt){ window.__loadStudentDetail(targetSt); window.scrollTo({top:0, behavior:'smooth'}); } else { document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click(); }">
+                          onclick="const targetSt = window.__dashboardItems.find(x => x.studentId === '${s.id}'); if(targetSt){ window.__loadStudentDetail(targetSt);} else { document.getElementById('qInput').value='${s.id}'; document.getElementById('searchBtn').click(); }">
                       ${escapeHtml(s.name)}(${s.val})
                     </span>
                     <button onclick="smartDismissStudent('${s.id}', ${s.maxCurVal})" style="background:none; border:none; cursor:pointer; margin-left:4px; font-size:13px;" title="7일간 숨기기">✅</button>
