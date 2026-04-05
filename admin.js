@@ -309,8 +309,9 @@ function getUniversityLineHtml_(placement) {
   window.__currentPlacement = placement;
 
   window.renderDepartmentListHelper = function(deptDataList, keyword = "") {
-    const limit = keyword ? 10 : 4; 
-    return deptDataList.slice(0, limit).map(d => {
+    // 💡 [핵심 수정] 검색어가 있을 때는 10개 제한을 풀고 999개(전체 학과)를 다 가져옵니다!
+    const limit = keyword ? 999 : 4; 
+    const htmlStr = deptDataList.slice(0, limit).map(d => {
         const name = typeof d === 'string' ? d : (d.name || "");
         const badges = d.badges || []; 
         const deptScore = d.score ? d.score : ""; 
@@ -326,8 +327,8 @@ function getUniversityLineHtml_(placement) {
         badges.forEach(b => {
             let bg = "#7f8c8d"; 
             if (b === "과1") bg = "#3498db";         
-            else if (b === "사1") bg = "#9b59b6";    
-            else if (b === "탐1") bg = "#e67e22";    
+            else if (b === "사1") bg = "#9b59b6";   
+            else if (b === "탐1") bg = "#e67e22";   
             else if (b === "지역인재") bg = "#27ae60"; 
             else if (b === "지역균형") bg = "#16a085"; 
             badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
@@ -340,6 +341,18 @@ function getUniversityLineHtml_(placement) {
           </div>
         `;
     }).join("");
+
+    // ✨ [신규 추가] 학과가 6개가 넘어가면 표가 길어지지 않게 내부에 부드러운 스크롤을 만들어줍니다!
+    if (keyword && deptDataList.length > 6) {
+        return `<div class="dept-scroll" style="max-height: 250px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; margin-right: -4px;">
+                  <style>
+                    .dept-scroll::-webkit-scrollbar { width: 4px; }
+                    .dept-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+                  </style>
+                  ${htmlStr}
+                </div>`;
+    }
+    return htmlStr;
   };
 
   window.renderSingleGroupDataHelper = function(univDataObj, keyword = "") {
@@ -349,7 +362,9 @@ function getUniversityLineHtml_(placement) {
 
     let univHeaders = '';
     let deptCells = '';
-    const limit = keyword ? 10 : 6;
+    
+    // 💡 [수정] 검색 시 노출되는 대학 개수도 10개에서 20개로 넉넉하게 늘려줍니다.
+    const limit = keyword ? 20 : 6; 
     const univKeys = Object.keys(univDataObj).slice(0, limit);
 
     univKeys.forEach(u => {
@@ -357,7 +372,7 @@ function getUniversityLineHtml_(placement) {
       const headerBg = isUnivMatch ? "rgba(52, 152, 219, 0.5)" : "rgba(255,255,255,0.1)";
       const headerColor = isUnivMatch ? "#fff" : "rgba(255,255,255,0.8)";
 
-      univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:${headerBg}; color:${headerColor}; font-size:12px; font-weight:bold; min-width:90px;">${escapeHtml(u)}</th>`;
+      univHeaders += `<th style="border:1px solid rgba(255,255,255,0.2); padding:6px; background:${headerBg}; color:${headerColor}; font-size:12px; font-weight:bold; min-width:90px; position:sticky; top:0; z-index:2;">${escapeHtml(u)}</th>`;
       deptCells += `<td style="border:1px solid rgba(255,255,255,0.1); padding:6px; font-size:11px; vertical-align:top; color:rgba(255,255,255,0.8);">${window.renderDepartmentListHelper(univDataObj[u], keyword)}</td>`;
     });
 
