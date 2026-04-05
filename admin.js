@@ -539,7 +539,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (의치한수약 + 서열 정렬 완벽 적용)
+ * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (메디컬 분리 & 서열 정렬 완벽 적용)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -649,7 +649,7 @@ function getNonsulSimulationHtml_(rawData) {
       }
   };
 
-  // 💡 [핵심] 전체 요약 표 그리기 (의치한수약 + 대학 서열 적용)
+  // 💡 [핵심 교체] 전체 요약 표 그리기 (의/치/한/수/약 완벽 분리 + 대학 서열 적용)
   window.renderNonsulSummaryTable = async function(track) {
       const resDiv = document.getElementById('nonsulResultArea');
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
@@ -671,25 +671,24 @@ function getNonsulSimulationHtml_(rawData) {
           return;
       }
 
-      // 💡 [랭킹 사전] 대한민국 주요 대학 선호도 서열 (필요시 위치 변경 가능)
+      // 💡 [랭킹 사전] 대한민국 주요 대학 선호도 서열 
       const univRankOrder = [
-          "서울대", "연세대", "고려대", "서강대", "성균관대", "한양대", 
-          "이화여대", "중앙대", "경희대", "한국외대", "서울시립대", 
-          "건국대", "동국대", "홍익대", "숙명여대", 
-          "국민대", "숭실대", "세종대", "단국대", 
-          "인하대", "아주대", "항공대", "가천대", "가톨릭대", "광운대", "명지대", "상명대", "서울과기대", "성신여대", "동덕여대", "덕성여대", "서울여대"
+          "서울대", "연세대", "고려대", "서강대", "성균관대", "한양대", "중앙대", "경희대", "이화여자대", 
+          "이화여대", "한국외대", "한국외국어대", "서울시립대", "건국대", "동국대", "홍익대", "숙명여대", "숙명여자대", 
+          "국민대", "숭실대", "세종대", "단국대", "인하대", "아주대", "항공대", "가천대", "가톨릭대", 
+          "광운대", "명지대", "상명대", "서울과기대", "성신여대", "성신여자대", "동덕여대", "동덕여자대", "덕성여대", "덕성여자대", "서울여대", "서울여자대", "삼육대", "한성대", "서경대"
       ];
       
       const getUnivRank = (uName) => {
           const idx = univRankOrder.findIndex(u => uName.includes(u));
-          return idx !== -1 ? idx : 999; // 사전에 없으면 맨 밑으로
+          return idx !== -1 ? idx : 999; 
       };
 
       const flagshipUnivs = ["부산대", "경북대", "전남대", "충남대", "전북대", "충북대", "강원대", "경상국립대", "제주대"];
 
       const grouped = {};
       results.forEach(r => {
-          let cat = 50; // 기본값: 기타사립
+          let cat = 50; // 50: 기타사립
           let medType = "";
           let isMed = false;
           
@@ -697,23 +696,27 @@ function getNonsulSimulationHtml_(rawData) {
           const univ = String(r.univ || "");
           const dept = String(r.dept || "");
 
-          // 1단계: 계급(Cat) 판별 (의->치->한->수->약 -> 서울 -> 경기 -> 지거국 -> 사립)
-          if (track.includes('자연') && /(의예|치의예|한의예|수의예|약학|의학|치의학|한의학|수의과|약대)/.test(dept)) {
-              isMed = true;
-              if (dept.includes("의예") || dept.includes("의학")) { cat = 10; medType = "의예"; }
-              else if (dept.includes("치의예") || dept.includes("치의학")) { cat = 11; medType = "치의예"; }
-              else if (dept.includes("한의예") || dept.includes("한의학")) { cat = 12; medType = "한의예"; }
-              else if (dept.includes("수의예") || dept.includes("수의과")) { cat = 13; medType = "수의예"; }
-              else if (dept.includes("약학") || dept.includes("약대")) { cat = 14; medType = "약학"; }
-          } else if (region.includes("서울")) {
-              cat = 20;
-          } else if (region.includes("경기") || region.includes("인천")) {
-              cat = 30;
-          } else if (flagshipUnivs.some(u => univ.includes(u))) {
-              cat = 40;
+          // 💡 1단계: 계급(Cat) 판별 (의예->치의예->한의예->수의예->약학 -> 서울 -> 경기 -> 지거국 -> 기타사립)
+          if (track.includes('자연')) {
+              // 치의예/치의학
+              if (dept.includes("치의예") || dept.includes("치의학")) { cat = 11; medType = "치의예"; isMed = true; }
+              // 한의예/한의학
+              else if (dept.includes("한의예") || dept.includes("한의학")) { cat = 12; medType = "한의예"; isMed = true; }
+              // 수의예/수의과
+              else if (dept.includes("수의예") || dept.includes("수의과")) { cat = 13; medType = "수의예"; isMed = true; }
+              // 약학/약대 (신약, 제약 등은 제외)
+              else if ((dept.includes("약학") || dept.includes("약대")) && !/(신약|제약|약과학|한약)/.test(dept)) { cat = 14; medType = "약학"; isMed = true; }
+              // 의예/의학 (식물의학, 의공학, 의생명 등은 제외)
+              else if ((dept.includes("의예") || dept.includes("의학") || dept.includes("의과")) && !/(식물|의공|의생명|의료|의과학)/.test(dept)) { cat = 10; medType = "의예"; isMed = true; }
+          } 
+          
+          if (!isMed) {
+              if (region.includes("서울")) cat = 20;
+              else if (region.includes("경기") || region.includes("인천")) cat = 30;
+              else if (flagshipUnivs.some(u => univ.includes(u))) cat = 40;
           }
 
-          // 2단계: 메디컬과 비메디컬 분리 + 대학별 그룹키 생성
+          // 2단계: 메디컬 카테고리까지 분리해서 그룹키 생성 (경북대 의예과와 경북대 일반학과를 찢어놓기 위함)
           const groupKey = `${cat}_${univ}`;
 
           if (!grouped[groupKey]) {
@@ -732,18 +735,18 @@ function getNonsulSimulationHtml_(rawData) {
           grouped[groupKey].reqs[reqKey].depts.push(dept);
       });
 
-      // 4단계: 그룹 정렬 (카테고리 -> 대학서열 -> 가나다순)
+      // 4단계: 그룹 정렬 (계급순 -> 서열사전순 -> 가나다순)
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
           const gA = grouped[a];
           const gB = grouped[b];
           
-          if (gA.cat !== gB.cat) return gA.cat - gB.cat; // 1순위: 계급
+          if (gA.cat !== gB.cat) return gA.cat - gB.cat; 
           
           const rankA = getUnivRank(gA.univ);
           const rankB = getUnivRank(gB.univ);
-          if (rankA !== rankB) return rankA - rankB; // 2순위: 서열 사전
+          if (rankA !== rankB) return rankA - rankB; 
           
-          return gA.univ.localeCompare(gB.univ); // 3순위: 가나다순
+          return gA.univ.localeCompare(gB.univ); 
       });
 
       let tableHtml = `
@@ -752,8 +755,8 @@ function getNonsulSimulationHtml_(rawData) {
               <thead style="position:sticky; top:0; z-index:2; background:#1e272e; border-bottom: 2px solid rgba(255,255,255,0.2);">
                   <tr>
                       <th style="padding:10px; width:15%; color:#fff;">대학명</th>
-                      <th style="padding:10px; width:25%; color:#fff;">모집단위</th>
-                      <th style="padding:10px; width:35%; color:#fff;">수능최저기준</th>
+                      <th style="padding:10px; width:30%; color:#fff;">모집단위</th>
+                      <th style="padding:10px; width:30%; color:#fff;">수능최저기준</th>
                       <th style="padding:10px; width:10%; color:#fff;">충족여부</th>
                       <th style="padding:10px; width:15%; color:#fff;">논술일정</th>
                   </tr>
@@ -786,7 +789,7 @@ function getNonsulSimulationHtml_(rawData) {
 
               const isNewUniv = (idx === 0);
               
-              // 💡 디테일: 메디컬 전용 뱃지에 전공 이름(의예, 약학 등) 박기
+              // 💡 디테일: 메디컬 전용 뱃지에 전공 이름(의예, 약학 등) 확실하게 박기!
               let univDisplayName = escapeHtml(grpData.univ);
               if (isNewUniv && grpData.isMed) {
                   univDisplayName = `<span style="color:#e74c3c; font-size:10px; font-weight:900; border:1px solid rgba(231,76,60,0.5); background:rgba(231,76,60,0.1); padding:2px 4px; border-radius:4px; margin-bottom:4px; display:inline-block;">✚ ${grpData.medType}</span><br>${univDisplayName}`;
