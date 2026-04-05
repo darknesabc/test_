@@ -539,7 +539,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (메디컬 분리 & 서열 정렬 완벽 적용)
+ * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -566,7 +566,7 @@ function getNonsulSimulationHtml_(rawData) {
       tamType: tamType
   };
 
-  // 2. 수능 최저 자동 판독 로직 (자연어 번역기 - 의대 특수조건 및 정규식 완벽 패치)
+  // 수능 최저 판독기 (기존 완벽 방어 버전)
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
@@ -576,40 +576,30 @@ function getNonsulSimulationHtml_(rawData) {
       const p = window.__currentNonsulProfile;
       let pool = [];
 
-      // 과목 필터링
       if (reqStr.includes("국")) pool.push(p.kor);
       if (reqStr.includes("수")) {
-          if ((reqStr.includes("미/기") || reqStr.includes("미기")) && p.mathType !== "미기") {
-              // 미기 필수인데 확통 응시자면 패스
-          } else {
-              pool.push(p.math);
-          }
+          if ((reqStr.includes("미/기") || reqStr.includes("미기")) && p.mathType !== "미기") {} 
+          else { pool.push(p.math); }
       }
       if (reqStr.includes("영")) pool.push(p.eng);
-      
       if (reqStr.includes("탐") || reqStr.includes("과") || reqStr.includes("사")) {
           let t1 = p.tam1, t2 = p.tam2;
           if (reqStr.includes("과") && p.tamType === "사탐") { t1 = 9; t2 = 9; }
           if (reqStr.includes("사") && p.tamType === "과탐") { t1 = 9; t2 = 9; }
           
-          // 💡 [핵심 수정 1] 의대 특수조건: 과1, 과2를 각각 별개의 과목으로 취급할 때!
           if (reqStr.includes("과1,과2") || reqStr.includes("과1, 과2") || reqStr.includes("탐1,탐2") || reqStr.includes("탐1, 탐2") || reqStr.includes("각각")) {
-              pool.push(t1);
-              pool.push(t2);
+              pool.push(t1); pool.push(t2);
           } else {
-              let tamScore = Math.min(t1, t2); // 기본 탐구 1과목 반영
-              if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; // 탐구 2과목 평균 반영
+              let tamScore = Math.min(t1, t2); 
+              if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; 
               pool.push(tamScore);
           }
       }
 
-      pool.sort((a,b) => a - b); // 등급이 낮은(좋은) 순으로 정렬
+      pool.sort((a,b) => a - b); 
 
-      let pass = false;
-      let tag = "🟡 수동확인";
-      let msg = "상세 요강 확인 요망";
+      let pass = false; let tag = "🟡 수동확인"; let msg = "요강 확인 요망";
 
-      // 💡 [핵심 수정 2] 정규식 1: N합 M (예: 3합4, 3개 합 4) - "과2"의 숫자에 낚이지 않게 완벽 방어!
       let m = reqStr.match(/(\d)\s*(?:개[가-힣\s]*합|합)\s*(\d+)/);
       if (m) {
           let num = parseInt(m[1]), targetSum = parseInt(m[2]);
@@ -621,7 +611,6 @@ function getNonsulSimulationHtml_(rawData) {
           return { pass, tag, msg };
       }
 
-      // 💡 [핵심 수정 3] 정규식 2: N개 M등급 (예: 3개 1등급, 3개 각 1)
       m = reqStr.match(/(\d)\s*개\s*(?:영역\s*)?(?:등급\s*)?(?:각\s*)?(\d+)\s*(?:등급)?/);
       if (m) {
           let num = parseInt(m[1]), targetGrade = parseInt(m[2]);
@@ -633,79 +622,66 @@ function getNonsulSimulationHtml_(rawData) {
           } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
           return { pass, tag, msg };
       }
-
       return { pass, tag, msg };
   };
 
-  window.switchNonsulMode = async function(mode) {
-      const btnSearch = document.getElementById('nonsulModeSearch');
-      const btnInmun = document.getElementById('nonsulModeInmun');
-      const btnJayeon = document.getElementById('nonsulModeJayeon');
-      const searchBar = document.getElementById('nonsulSearchBarWrapper');
-      const resDiv = document.getElementById('nonsulResultArea');
-
-      [btnSearch, btnInmun, btnJayeon].forEach(b => {
-          if(b) { b.style.background = 'transparent'; b.style.color = 'rgba(255,255,255,0.5)'; }
+  // 💡 [핵심 추가] 모드 전환 관리기 (9개의 탭 관리)
+  window.switchSusiMode = async function(mode) {
+      const resDiv = document.getElementById('susiResultArea');
+      const searchBar = document.getElementById('susiSearchBarWrapper');
+      
+      document.querySelectorAll('.susi-tab-btn').forEach(b => {
+          b.style.background = 'transparent'; 
+          b.style.color = 'rgba(255,255,255,0.5)';
       });
 
+      const activeBtn = document.getElementById('susiMode_' + mode);
+      if (activeBtn) {
+          activeBtn.style.background = mode === 'search' ? '#9b59b6' : '#2ecc71';
+          activeBtn.style.color = '#fff';
+      }
+
       if (mode === 'search') {
-          if(btnSearch) { btnSearch.style.background = '#9b59b6'; btnSearch.style.color = '#fff'; }
-          if(searchBar) searchBar.style.display = 'flex';
-          resDiv.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.6;">위 탭을 선택하거나 대학/학과를 검색해 주세요.</div>';
+          if (searchBar) searchBar.style.display = 'flex';
+          resDiv.innerHTML = '<div style="text-align:center; padding:20px; opacity:0.6;">위 탭을 선택하거나 대학/학과/전형명을 검색해 주세요.</div>';
       } else {
-          if (mode === '인문') { if(btnInmun) { btnInmun.style.background = '#e67e22'; btnInmun.style.color = '#fff'; } }
-          if (mode === '자연') { if(btnJayeon) { btnJayeon.style.background = '#2ecc71'; btnJayeon.style.color = '#fff'; } }
-          if(searchBar) searchBar.style.display = 'none'; 
-          
-          await window.renderNonsulSummaryTable(mode);
+          if (searchBar) searchBar.style.display = 'none'; 
+          await window.renderSusiSummaryTable(mode);
       }
   };
 
-  window.renderNonsulSummaryTable = async function(track) {
-      const resDiv = document.getElementById('nonsulResultArea');
+  // 💡 [표 그리기] 선택된 시트의 데이터를 그룹화하여 보여줌
+  window.renderSusiSummaryTable = async function(sourceSheet) {
+      const resDiv = document.getElementById('susiResultArea');
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
 
-      if (!window.__nonsulData) {
+      if (!window.__susiData) {
           try {
-              const res = await apiPost("nonsul_data", {});
-              if (res.ok && res.items) window.__nonsulData = res.items;
+              const res = await apiPost("susi_data", {});
+              if (res.ok && res.items) window.__susiData = res.items;
               else return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패</div>`;
-          } catch(e) {
-              return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류</div>`;
-          }
+          } catch(e) { return resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류</div>`; }
       }
 
-      const results = window.__nonsulData.filter(d => d.track && d.track.includes(track));
+      const results = window.__susiData.filter(d => d.source === sourceSheet);
 
       if (results.length === 0) {
-          resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">해당 계열 데이터가 없습니다.</div>`;
-          return;
+          return resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">해당 시트에 데이터가 없습니다.</div>`;
       }
 
       const univRankOrder = [
-          "서울대", "연세대", "고려대", "서강대", "성균관대", "한양대", "중앙대", "경희대", "이화여자대", 
-          "이화여대", "한국외대", "한국외국어대", "서울시립대", "건국대", "동국대", "홍익대", "숙명여대", "숙명여자대", 
-          "국민대", "숭실대", "세종대", "단국대", "인하대", "아주대", "항공대", "가천대", "가톨릭대", 
-          "광운대", "명지대", "상명대", "서울과기대", "성신여대", "성신여자대", "동덕여대", "동덕여자대", "덕성여대", "덕성여자대", "서울여대", "서울여자대", "삼육대", "한성대", "서경대"
+          "서울대", "연세대", "가톨릭대", "성균관대", "울산대", "고려대", "한양대", "경희대", "이화여대", "이화여자대", "중앙대", 
+          "서강대", "한국외대", "한국외국어대", "서울시립대", "건국대", "동국대", "홍익대", "숙명여대", "숙명여자대", 
+          "국민대", "숭실대", "세종대", "단국대", "인하대", "아주대", "항공대", "가천대", 
+          "광운대", "명지대", "상명대", "서울과기대", "성신여대", "동덕여대", "덕성여대", "서울여대", "삼육대", "한성대", "서경대"
       ];
       
       const getUnivRank = (uName) => {
           const branchRanks = {
-              "한양대(ERICA)": 25.1, "한양대학교(ERICA)": 25.1,
-              "중앙대(다빈치)": 25.2, "중앙대학교(다빈치)": 25.2,
-              "한국외대(글로벌)": 25.3, "한국외국어대학교(글로벌)": 25.3,
-              "단국대(천안)": 25.4, "단국대학교(천안)": 25.4,
-              "연세대(미래)": 35.1, "연세대학교(미래)": 35.1,
-              "고려대(세종)": 35.2, "고려대학교(세종)": 35.2,
-              "홍익대(세종)": 35.3, "홍익대학교(세종)": 35.3,
-              "건국대(글로컬)": 35.4, "건국대학교(글로컬)": 35.4,
-              "동국대(WISE)": 35.5, "동국대학교(WISE)": 35.5
+              "한양대(ERICA)": 25.1, "중앙대(다빈치)": 25.2, "한국외대(글로벌)": 25.3, "단국대(천안)": 25.4,
+              "연세대(미래)": 35.1, "고려대(세종)": 35.2, "홍익대(세종)": 35.3, "건국대(글로컬)": 35.4, "동국대(WISE)": 35.5
           };
-
-          for (const key in branchRanks) {
-              if (uName.includes(key)) return branchRanks[key];
-          }
-
+          for (const key in branchRanks) if (uName.includes(key)) return branchRanks[key];
           const idx = univRankOrder.findIndex(u => uName.includes(u));
           return idx !== -1 ? idx : 999; 
       };
@@ -715,73 +691,32 @@ function getNonsulSimulationHtml_(rawData) {
       const grouped = {};
       results.forEach(r => {
           let cat = 50; 
-          let medType = "";
-          let isMed = false;
-          
           const region = String(r.region || "");
           const univ = String(r.univ || "");
-          const dept = String(r.dept || "");
-
-          if (track.includes('자연')) {
-              if (dept.includes("치의예") || dept.includes("치의학")) { cat = 11; medType = "치의예"; isMed = true; }
-              else if (dept.includes("한의예") || dept.includes("한의학")) { cat = 12; medType = "한의예"; isMed = true; }
-              else if (dept.includes("수의예") || dept.includes("수의과")) { cat = 13; medType = "수의예"; isMed = true; }
-              else if ((dept.includes("약학") || dept.includes("약대")) && !/(신약|제약|약과학|한약)/.test(dept)) { cat = 14; medType = "약학"; isMed = true; }
-              else if ((dept.includes("의예") || dept.includes("의학") || dept.includes("의과")) && !/(식물|의공|의생명|의료|의과학)/.test(dept)) { cat = 10; medType = "의예"; isMed = true; }
-          } 
           
-          if (!isMed) {
-              if (region.includes("서울") || /(성균관대|경희대)/.test(univ)) {
-                  cat = 20;
-              }
-              else if (region.includes("경기") || region.includes("인천")) cat = 30;
-              else if (flagshipUnivs.some(u => univ.includes(u))) cat = 40;
-              
-              if (/(ERICA|다빈치|글로벌|미래|세종|천안|글로컬|WISE)/i.test(univ)) {
-                  if (cat > 35) cat = 35; 
-              }
+          if (region.includes("서울") || /(성균관대|경희대)/.test(univ)) cat = 20;
+          else if (region.includes("경기") || region.includes("인천")) cat = 30;
+          else if (flagshipUnivs.some(u => univ.includes(u))) cat = 40;
+          
+          if (/(ERICA|다빈치|글로벌|미래|세종|천안|글로컬|WISE)/i.test(univ)) {
+              if (cat > 35) cat = 35; 
           }
 
           const groupKey = `${cat}_${univ}`;
-
-          if (!grouped[groupKey]) {
-              grouped[groupKey] = { univ: univ, cat: cat, isMed: isMed, medType: medType, reqs: {} };
-          }
+          if (!grouped[groupKey]) grouped[groupKey] = { univ: univ, cat: cat, reqs: {} };
 
           const reqKey = r.req || "없음";
           if (!grouped[groupKey].reqs[reqKey]) {
-              grouped[groupKey].reqs[reqKey] = { depts: [], req: r.req, date: r.examDate || "-" };
+              grouped[groupKey].reqs[reqKey] = { items: [], req: r.req };
           }
-          grouped[groupKey].reqs[reqKey].depts.push(dept);
+          grouped[groupKey].reqs[reqKey].items.push(r);
       });
 
-      // 💡 [핵심 교체 2] 그룹 정렬 시 '의예과(Cat 10)' 한정 빅5 서열 특별 적용 및 미래캠퍼스 컷팅!
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
-          const gA = grouped[a];
-          const gB = grouped[b];
-          
+          const gA = grouped[a]; const gB = grouped[b];
           if (gA.cat !== gB.cat) return gA.cat - gB.cat; 
-          
-          let rankA = getUnivRank(gA.univ);
-          let rankB = getUnivRank(gB.univ);
-
-          if (gA.cat === 10) {
-              // 💡 [수정] 중앙대 다음 이화여대 배치
-              const medRank = ["서울대", "연세대", "가톨릭대", "성균관대", "울산대", "고려대", "한양대", "경희대", "중앙대", "이화여대", "이화여자대학교", "이화여자대", "아주대", "인하대", "가천대"];
-              
-              let mIdxA = medRank.findIndex(u => gA.univ.includes(u));
-              let mIdxB = medRank.findIndex(u => gB.univ.includes(u));
-              
-              // 💡 [수정] "연세대(미래)"가 "연세대"로 인식되어 1등 먹는 대참사 방지!
-              if (gA.univ.includes("미래")) mIdxA = 999;
-              if (gB.univ.includes("미래")) mIdxB = 999;
-
-              rankA = mIdxA !== -1 && mIdxA !== 999 ? mIdxA : rankA + 100;
-              rankB = mIdxB !== -1 && mIdxB !== 999 ? mIdxB : rankB + 100;
-          }
-
+          const rankA = getUnivRank(gA.univ); const rankB = getUnivRank(gB.univ);
           if (rankA !== rankB) return rankA - rankB; 
-          
           return gA.univ.localeCompare(gB.univ); 
       });
 
@@ -791,10 +726,9 @@ function getNonsulSimulationHtml_(rawData) {
               <thead style="position:sticky; top:0; z-index:2; background:#1e272e; border-bottom: 2px solid rgba(255,255,255,0.2);">
                   <tr>
                       <th style="padding:10px; width:15%; color:#fff;">대학명</th>
-                      <th style="padding:10px; width:30%; color:#fff;">모집단위</th>
-                      <th style="padding:10px; width:30%; color:#fff;">수능최저기준</th>
+                      <th style="padding:10px; width:35%; color:#fff;">전형 및 모집단위</th>
+                      <th style="padding:10px; width:40%; color:#fff;">수능최저기준</th>
                       <th style="padding:10px; width:10%; color:#fff;">충족여부</th>
-                      <th style="padding:10px; width:15%; color:#fff;">논술일정</th>
                   </tr>
               </thead>
               <tbody>
@@ -813,23 +747,25 @@ function getNonsulSimulationHtml_(rawData) {
               if (reqEval.tag.includes("🟢")) { oxMark = "O"; oxColor = "#2ecc71"; oxBg = "rgba(46,204,113,0.15)"; }
               else if (reqEval.tag.includes("🔴")) { oxMark = "X"; oxColor = "#e74c3c"; oxBg = "rgba(231,76,60,0.15)"; }
               else { oxMark = "△"; oxColor = "#f1c40f"; oxBg = "rgba(241,196,15,0.15)"; }
-
               const oxHtml = `<div style="font-weight:900; font-size:14px; color:${oxColor}; background:${oxBg}; width:24px; height:24px; line-height:24px; border-radius:50%; margin:0 auto; border:1px solid ${oxColor};" title="${escapeHtml(reqEval.msg)}">${oxMark}</div>`;
 
+              // 💡 전형명(admName)을 기준으로 학과들을 예쁘게 그룹화해서 보여줍니다.
+              const deptsByAdm = {};
+              grp.items.forEach(it => {
+                  const adm = it.admName ? `[${it.track}] ${it.admName}` : `[${it.track}] 일반`;
+                  if(!deptsByAdm[adm]) deptsByAdm[adm] = [];
+                  deptsByAdm[adm].push(it.dept);
+              });
+
               let displayDept = "";
-              if (grp.depts.length > 2) {
-                  displayDept = escapeHtml(grp.depts.slice(0,2).join(", ")) + `<br><span style="opacity:0.6; font-size:11px;">외 ${grp.depts.length - 2}개 학과</span>`;
-              } else {
-                  displayDept = escapeHtml(grp.depts.join(", "));
-              }
+              Object.keys(deptsByAdm).forEach(adm => {
+                  let dList = deptsByAdm[adm];
+                  let dStr = dList.length > 2 ? `${escapeHtml(dList.slice(0,2).join(", "))} <span style="opacity:0.6;font-size:11px;">외 ${dList.length-2}개</span>` : escapeHtml(dList.join(", "));
+                  displayDept += `<div style="margin-bottom:6px; text-align:left;"><span style="background:rgba(155,89,182,0.2); color:#e056fd; padding:2px 4px; border-radius:4px; font-size:10px; margin-right:4px;">${escapeHtml(adm)}</span><span style="font-size:11px; color:#f1c40f;">${dStr}</span></div>`;
+              });
 
               const isNewUniv = (idx === 0);
-              
-              let univDisplayName = escapeHtml(grpData.univ);
-              if (isNewUniv && grpData.isMed) {
-                  univDisplayName = `<span style="color:#e74c3c; font-size:10px; font-weight:900; border:1px solid rgba(231,76,60,0.5); background:rgba(231,76,60,0.1); padding:2px 4px; border-radius:4px; margin-bottom:4px; display:inline-block;">✚ ${grpData.medType}</span><br>${univDisplayName}`;
-              }
-              const univNameHtml = isNewUniv ? `<strong style="color:#fff; font-size:13px; line-height:1.4;">${univDisplayName}</strong>` : `<span style="opacity:0.2;">"</span>`;
+              const univNameHtml = isNewUniv ? `<strong style="color:#fff; font-size:13px; line-height:1.4;">${escapeHtml(grpData.univ)}</strong>` : `<span style="opacity:0.2;">"</span>`;
 
               const borderBottom = idx === rowspan - 1 ? `border-bottom:1px solid rgba(255,255,255,0.1);` : `border-bottom:1px dashed rgba(255,255,255,0.05);`;
               const borderTop = isNewUniv ? `border-top:1px solid rgba(255,255,255,0.1);` : ``;
@@ -841,10 +777,9 @@ function getNonsulSimulationHtml_(rawData) {
               }
               
               tableHtml += `
-                  <td style="padding:8px; text-align:center; border-right:1px solid rgba(255,255,255,0.03); color:#f1c40f; font-weight:600; word-break:keep-all; line-height:1.4;">${displayDept}</td>
+                  <td style="padding:8px; border-right:1px solid rgba(255,255,255,0.03);">${displayDept}</td>
                   <td style="padding:8px; text-align:left; border-right:1px solid rgba(255,255,255,0.03); opacity:0.9; word-break:keep-all; font-size:11px;">${escapeHtml(grp.req || "없음")}</td>
-                  <td style="padding:8px; border-right:1px solid rgba(255,255,255,0.03);">${oxHtml}</td>
-                  <td style="padding:8px; opacity:0.8; font-size:11px;">${escapeHtml(grp.date)}</td>
+                  <td style="padding:8px;">${oxHtml}</td>
               </tr>`;
           });
       });
@@ -853,75 +788,82 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = tableHtml;
   };
 
-  window.searchNonsulData = async function() {
-      const keyword = document.getElementById('nonsulSearchInput').value.trim();
-      const btn = document.getElementById('nonsulSearchBtn');
-      const resDiv = document.getElementById('nonsulResultArea');
+  // 💡 검색 모드 (모든 정보 노출형 카드)
+  window.searchSusiData = async function() {
+      const keyword = document.getElementById('susiSearchInput').value.trim();
+      const resDiv = document.getElementById('susiResultArea');
       
-      if (!keyword) return alert('검색할 대학교나 학과를 입력하세요.');
+      if (!keyword) return alert('검색할 대학교, 학과, 또는 전형명을 입력하세요.');
       
-      btn.innerText = '검색 중...';
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
 
-      if (!window.__nonsulData) {
+      if (!window.__susiData) {
           try {
-              const res = await apiPost("nonsul_data", {});
-              if (res.ok && res.items) window.__nonsulData = res.items;
-              else { resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패</div>`; btn.innerText = '🔍 검색'; return; }
-          } catch(e) { resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류</div>`; btn.innerText = '🔍 검색'; return; }
+              const res = await apiPost("susi_data", {});
+              if (res.ok && res.items) window.__susiData = res.items;
+              else { resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패</div>`; return; }
+          } catch(e) { resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류</div>`; return; }
       }
 
-      btn.innerText = '🔍 검색';
-      
-      const results = window.__nonsulData.filter(d => d.univ.includes(keyword) || d.dept.includes(keyword));
+      const results = window.__susiData.filter(d => 
+          d.univ.includes(keyword) || d.dept.includes(keyword) || (d.admName && d.admName.includes(keyword))
+      );
 
       if (results.length === 0) { resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">검색 결과가 없습니다.</div>`; return; }
 
-      let html = `<div style="max-height: 400px; overflow-y: auto; padding-right: 5px;">`;
+      let html = `<div style="max-height: 500px; overflow-y: auto; padding-right: 5px;">`;
       results.forEach(r => {
           const reqEval = window.evaluateNonsulReq(r.req);
-          const tagBg = reqEval.tag.includes("🟢") ? "rgba(46, 204, 113, 0.2)" : reqEval.tag.includes("🔴") ? "rgba(231, 76, 60, 0.2)" : "rgba(241, 196, 15, 0.2)";
           const tagColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
-          const admNameHtml = r.admName ? `${escapeHtml(r.admName)} · ` : "";
-
           html += `
-            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <div style="flex:1; min-width:250px;">
-                    <div style="font-size:11px; color:#9b59b6; font-weight:bold; margin-bottom:4px; display:flex; gap:6px; align-items:center;">
-                        <span>[${r.track}] ${admNameHtml}${r.testType} · ${r.method}</span>
-                        ${r.examDate ? `<span style="background:#e74c3c; color:#fff; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:800;">📅 ${escapeHtml(r.examDate)}</span>` : ""}
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; margin-bottom: 12px; transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:200px;">
+                        <span style="background:rgba(155, 89, 182, 0.2); color:#e056fd; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold; margin-right:5px;">[${r.source}] ${r.track}</span>
+                        <span style="color:rgba(255,255,255,0.6); font-size:11px; font-weight:bold;">${escapeHtml(r.admName || r.type)}</span>
+                        <div style="font-size:16px; font-weight:900; color:#fff; margin-top:6px; letter-spacing:-0.5px;">
+                            ${escapeHtml(r.univ)} <span style="color:#f1c40f; font-size:15px; margin-left:2px;">${escapeHtml(r.dept)}</span>
+                        </div>
+                        <div style="color:rgba(255,255,255,0.5); font-size:11px; margin-top:4px;">
+                            ${r.qual ? `<b>지원자격:</b> ${escapeHtml(r.qual)} ` : ""}
+                            ${r.slots ? `(모집: ${escapeHtml(r.slots)}명)` : ""}
+                        </div>
                     </div>
-                    <div style="font-size:15px; font-weight:800; color:#fff; display:flex; align-items:center; gap:6px;">
-                        ${escapeHtml(r.univ)} <span style="opacity:0.5; font-size:12px;">›</span> <span style="color:#f1c40f;">${escapeHtml(r.dept)}</span>
-                    </div>
-                    <div style="font-size:12px; color:rgba(255,255,255,0.6); margin-top:6px; line-height:1.4;">
-                        <b>출제범위:</b> ${escapeHtml(r.scope)}<br>
-                        <b>시험시간:</b> ${escapeHtml(r.timeInfo)}
-                    </div>
-                    
-                    <div style="margin-top:8px; display:flex; gap:6px; font-size:11px; flex-wrap:wrap; align-items:center;">
-                        ${r.comp2025 ? `<span style="background:rgba(52, 152, 219, 0.15); border:1px solid rgba(52, 152, 219, 0.4); color:#3498db; padding:3px 6px; border-radius:4px;">🎯 25' 경쟁률 <b style="font-size:12px;">${escapeHtml(r.comp2025)}</b></span>` : ""}
-                        ${r.comp2024 ? `<span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); padding:3px 6px; border-radius:4px;">24' <b>${escapeHtml(r.comp2024)}</b></span>` : ""}
-                        ${r.comp2023 ? `<span style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:rgba(255,255,255,0.6); padding:3px 6px; border-radius:4px;">23' <b>${escapeHtml(r.comp2023)}</b></span>` : ""}
-                    </div>
-                </div>
-                
-                <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:10px; width:220px; text-align:center;">
-                    <div style="font-size:11px; opacity:0.6; margin-bottom:4px;">수능 최저 학력 기준</div>
-                    <div style="font-size:12px; font-weight:bold; color:#fff; margin-bottom:6px; word-break:keep-all;">${escapeHtml(r.req || "없음")}</div>
-                    
-                    <div style="display:flex; justify-content:center; align-items:center; gap:6px; background:${tagBg}; border:1px solid ${tagColor}; border-radius:6px; padding:4px 8px;">
-                        <span style="font-weight:900; color:${tagColor}; font-size:13px;">${reqEval.tag}</span>
-                        <span style="font-size:11px; color:${tagColor}; opacity:0.8;">(${reqEval.msg})</span>
+                    <div style="text-align:right; flex-shrink:0;">
+                        <div style="background:${tagColor}22; color:${tagColor}; border:1px solid ${tagColor}88; padding:6px 12px; border-radius:8px; font-weight:900; font-size:13px; display:inline-block;">
+                            ${reqEval.tag}
+                        </div>
+                        <div style="font-size:10px; color:${tagColor}; margin-top:4px; opacity:0.8;">${reqEval.msg}</div>
                     </div>
                 </div>
+
+                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; background:rgba(0,0,0,0.3); padding:10px 12px; border-radius:8px; font-size:11px;">
+                    <div style="border-right:1px solid rgba(255,255,255,0.1); padding-right:10px;">
+                        <div style="color:rgba(255,255,255,0.4); margin-bottom:4px; font-weight:bold;">📋 전형방법 및 최저</div>
+                        <div style="color:#fff; line-height:1.4; word-break:keep-all;">${escapeHtml(r.method)}</div>
+                        <div style="color:#fff; font-weight:bold; margin-top:6px;">최저: ${escapeHtml(r.req || "없음")}</div>
+                    </div>
+                    <div style="padding-left:4px;">
+                        <div style="color:rgba(255,255,255,0.4); margin-bottom:4px; font-weight:bold;">📈 입결/경쟁률 (25'→24'→23')</div>
+                        <div style="color:#2ecc71; margin-bottom:4px;">입결: <b style="font-size:13px;">${escapeHtml(r.cut2025 || '-')}</b> → ${escapeHtml(r.cut2024 || '-')} → ${escapeHtml(r.cut2023 || '-')}</div>
+                        <div style="color:#3498db;">경쟁: <b style="font-size:13px;">${escapeHtml(r.comp2025 || '-')}</b> → ${escapeHtml(r.comp2024 || '-')} → ${escapeHtml(r.comp2023 || '-')}</div>
+                    </div>
+                </div>
+                ${r.examDate && r.examDate !== "-" ? `<div style="margin-top:10px; font-size:11px; font-weight:bold; color:#ff4757; background:rgba(231, 76, 60, 0.1); padding:4px 8px; border-radius:4px; display:inline-block;">📅 고사일정: ${escapeHtml(r.examDate)}</div>` : ""}
             </div>
           `;
       });
       html += `</div>`;
       resDiv.innerHTML = html;
   };
+
+  // 💡 상단 시트 탭 자동 생성
+  const sheetTabs = ["논술", "의예", "치의예", "한의예", "수의예", "약학", "상위15개대", "과기원", "교대"];
+  let tabsHtml = `<button id="susiMode_search" class="susi-tab-btn" onclick="window.switchSusiMode('search')" style="background:#9b59b6; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;">🔍 통합 검색</button>`;
+  sheetTabs.forEach(t => {
+      tabsHtml += `<button id="susiMode_${t}" class="susi-tab-btn" onclick="window.switchSusiMode('${t}')" style="background:transparent; color:rgba(255,255,255,0.5); border:1px solid rgba(255,255,255,0.2); padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;" onmouseover="this.style.borderColor='#2ecc71'; this.style.color='#2ecc71';" onmouseout="if(this.style.background==='transparent') { this.style.borderColor='rgba(255,255,255,0.2)'; this.style.color='rgba(255,255,255,0.5)'; }">📋 ${t}</button>`;
+  });
 
   let mathShort = "공통";
   if (mChoice.includes("미적")) mathShort = "미적";
@@ -934,31 +876,27 @@ function getNonsulSimulationHtml_(rawData) {
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
       <div style="background:#0a0f19; border-bottom:2px solid #9b59b6; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
-        <div style="color:#fff; font-weight:800; font-size:14px;">📝 수시(논술) 지원 시뮬레이션 및 최저 판독기</div>
+        <div style="color:#fff; font-weight:800; font-size:14px;">🎓 수시(종합/교과/논술) 지원 시뮬레이션 및 최저 판독기</div>
         <div style="background:#9b59b6; color:#fff; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
             학생 등급: <span style="color:#f1c40f; margin-left:4px;">국${window.__currentNonsulProfile.kor} 수(${mathShort})${window.__currentNonsulProfile.math} 영${window.__currentNonsulProfile.eng} ${displayTamType}(${window.__currentNonsulProfile.tam1},${window.__currentNonsulProfile.tam2})</span>
         </div>
       </div>
       
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; margin-bottom:8px; flex-wrap:wrap; gap:10px;">
-          <div style="display:flex; gap:4px; background:rgba(255,255,255,0.05); padding:3px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
-              <button id="nonsulModeSearch" onclick="window.switchNonsulMode('search')" style="background:#9b59b6; color:#fff; border:none; padding:5px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;">🔍 대학/학과 검색</button>
-              <button id="nonsulModeInmun" onclick="window.switchNonsulMode('인문')" style="background:transparent; color:rgba(255,255,255,0.5); border:none; padding:5px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;">📋 인문 전체보기</button>
-              <button id="nonsulModeJayeon" onclick="window.switchNonsulMode('자연')" style="background:transparent; color:rgba(255,255,255,0.5); border:none; padding:5px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;">📋 자연 전체보기</button>
-          </div>
+      <div style="display:flex; align-items:center; margin-top:12px; margin-bottom:8px; flex-wrap:wrap; gap:6px; background:rgba(255,255,255,0.03); padding:8px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+          ${tabsHtml}
       </div>
 
-      <div id="nonsulSearchBarWrapper" style="padding:12px; background:rgba(155, 89, 182, 0.1); border:1px dashed rgba(155, 89, 182, 0.4); border-radius:6px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <span style="font-weight:bold; color:#fff; font-size:13px;">🎓 논술 전형 대학/학과 검색:</span>
-        <input type="text" id="nonsulSearchInput" placeholder="예: 가천대, 경영학과" 
-               onkeydown="if(event.key==='Enter') window.searchNonsulData()" 
-               style="flex:1; min-width:150px; background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.6); color:#fff; font-size:14px; outline:none; padding:6px 10px; border-radius:4px;" />
-        <button id="nonsulSearchBtn" onclick="window.searchNonsulData()" 
-                style="background:#9b59b6; color:#fff; border:none; padding:6px 14px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:13px;">🔍 검색</button>
+      <div id="susiSearchBarWrapper" style="padding:12px; background:rgba(155, 89, 182, 0.1); border:1px dashed rgba(155, 89, 182, 0.4); border-radius:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-weight:bold; color:#fff; font-size:13px;">🎓 대학/학과/전형 통합 검색:</span>
+        <input type="text" id="susiSearchInput" placeholder="예: 한양대, 컴퓨터공학, 학생부종합" 
+               onkeydown="if(event.key==='Enter') window.searchSusiData()" 
+               style="flex:1; min-width:200px; background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.6); color:#fff; font-size:14px; outline:none; padding:8px 12px; border-radius:6px;" />
+        <button onclick="window.searchSusiData()" 
+                style="background:#9b59b6; color:#fff; border:none; padding:8px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; box-shadow:0 2px 4px rgba(0,0,0,0.2);">🔍 검색</button>
       </div>
 
-      <div id="nonsulResultArea" style="margin-top:10px;">
-         <div style="text-align:center; padding:20px; opacity:0.6;">위 탭을 선택하거나 대학/학과를 검색해 주세요.</div>
+      <div id="susiResultArea" style="margin-top:10px;">
+         <div style="text-align:center; padding:30px; opacity:0.6; font-size:13px;">위 탭을 선택하거나 대학/학과/전형명을 검색해 주세요.</div>
       </div>
     </div>
   `;
