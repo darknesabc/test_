@@ -566,6 +566,7 @@ function getNonsulSimulationHtml_(rawData) {
       tamType: tamType
   };
 
+  // 2. 수능 최저 자동 판독 로직 (자연어 번역기 - 의대 특수조건 및 정규식 완벽 패치)
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
@@ -575,41 +576,66 @@ function getNonsulSimulationHtml_(rawData) {
       const p = window.__currentNonsulProfile;
       let pool = [];
 
+      // 과목 필터링
       if (reqStr.includes("국")) pool.push(p.kor);
       if (reqStr.includes("수")) {
           if ((reqStr.includes("미/기") || reqStr.includes("미기")) && p.mathType !== "미기") {
-              // 미기 필수인데 확통 응시
+              // 미기 필수인데 확통 응시자면 패스
           } else {
               pool.push(p.math);
           }
       }
       if (reqStr.includes("영")) pool.push(p.eng);
+      
       if (reqStr.includes("탐") || reqStr.includes("과") || reqStr.includes("사")) {
           let t1 = p.tam1, t2 = p.tam2;
           if (reqStr.includes("과") && p.tamType === "사탐") { t1 = 9; t2 = 9; }
           if (reqStr.includes("사") && p.tamType === "과탐") { t1 = 9; t2 = 9; }
           
-          let tamScore = Math.min(t1, t2); 
-          if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; 
-          pool.push(tamScore);
+          // 💡 [핵심 수정 1] 의대 특수조건: 과1, 과2를 각각 별개의 과목으로 취급할 때!
+          if (reqStr.includes("과1,과2") || reqStr.includes("과1, 과2") || reqStr.includes("탐1,탐2") || reqStr.includes("탐1, 탐2") || reqStr.includes("각각")) {
+              pool.push(t1);
+              pool.push(t2);
+          } else {
+              let tamScore = Math.min(t1, t2); // 기본 탐구 1과목 반영
+              if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; // 탐구 2과목 평균 반영
+              pool.push(tamScore);
+          }
       }
 
-      pool.sort((a,b) => a - b); 
+      pool.sort((a,b) => a - b); // 등급이 낮은(좋은) 순으로 정렬
 
       let pass = false;
       let tag = "🟡 수동확인";
       let msg = "상세 요강 확인 요망";
 
-      let m = reqStr.match(/(\d)[가-힣\s]*합\s*(\d+)/);
+      // 💡 [핵심 수정 2] 정규식 1: N합 M (예: 3합4, 3개 합 4) - "과2"의 숫자에 낚이지 않게 완벽 방어!
+      let m = reqStr.match(/(\d)\s*(?:개[가-힣\s]*합|합)\s*(\d+)/);
       if (m) {
           let num = parseInt(m[1]), targetSum = parseInt(m[2]);
           if (pool.length >= num) {
               let sum = 0; for(let i=0; i<num; i++) sum += pool[i];
               if (sum <= targetSum) { pass = true; tag = "🟢 충족"; msg = `등급합 ${sum}`; }
-              else { pass = false; tag = "🔴 미달"; msg = `등급합 ${sum}`; }
+              else { pass = false; tag = "🔴 미달"; msg = `등급합 ${sum} (목표:${targetSum})`; }
           } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
           return { pass, tag, msg };
       }
+
+      // 💡 [핵심 수정 3] 정규식 2: N개 M등급 (예: 3개 1등급, 3개 각 1)
+      m = reqStr.match(/(\d)\s*개\s*(?:영역\s*)?(?:등급\s*)?(?:각\s*)?(\d+)\s*(?:등급)?/);
+      if (m) {
+          let num = parseInt(m[1]), targetGrade = parseInt(m[2]);
+          if (pool.length >= num) {
+              let allPass = true;
+              for(let i=0; i<num; i++) { if (pool[i] > targetGrade) allPass = false; }
+              if (allPass) { pass = true; tag = "🟢 충족"; msg = `상위 ${num}개`; }
+              else { pass = false; tag = "🔴 미달"; msg = "조건 미달"; }
+          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
+          return { pass, tag, msg };
+      }
+
+      return { pass, tag, msg };
+  };
 
       m = reqStr.match(/(\d)[가-힣\s]*(?:각)?\s*(\d+)(?:등급)?/);
       if (m) {
