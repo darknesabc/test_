@@ -1507,8 +1507,8 @@ async function loadSummariesForStudent_(seat, studentId) {
 
     // 성적 상세인 경우
     if (kind === "grade_detail") {
-       const token = await issueStudentToken_(seat, studentId);
-       loadAdminGradeDetailUI_(token); 
+       // 💡 토큰 통신 대기 없이 바로 UI 함수로 직행! (내부에서 캐시 먼저 확인)
+       loadAdminGradeDetailUI_(seat, studentId); 
        return; 
     }
 
@@ -1652,16 +1652,16 @@ async function loadSummariesForStudent_(seat, studentId) {
   }
 
   /**
-   * ✅ [엔진 2] 선택된 학생의 상세 데이터(출결, 7/15/30일)를 미리 로딩 (클릭 직후)
+   * ✅ [엔진 2] 선택된 학생의 상세 데이터(출결, 7/15/30일, 성적 정오표)를 미리 로딩
    */
   async function prefetchStudentDetails(seat, studentId) {
     const kinds = ["move_detail", "sleep_detail", "eduscore_detail"];
-    const periods = [7, 15, 30]; // 💡 [수정] 7일 치 데이터도 미리 가져오도록 추가!
+    const periods = [7, 15, 30]; 
     
     try {
       const token = await issueStudentToken_(seat, studentId);
 
-      // 💡 [추가] 가장 덩치가 큰 '출결 상세' 데이터도 클릭 전에 미리 가져와서 캐시에 넣어둠
+      // 1. 가장 덩치가 큰 '출결 상세' 몰래 가져오기
       const attCacheKey = makeDetailCacheKey(seat, studentId, "attendance", 7);
       if (!getDetailCache(attCacheKey)) {
         Promise.all([
@@ -1673,12 +1673,26 @@ async function loadSummariesForStudent_(seat, studentId) {
         }).catch(() => {});
       }
 
+      // ✨ [신규 추가] '성적 상세(정오표)' 최신본 몰래 가져오기
+      const key = makeStudentKey(seat, studentId);
+      const summaryData = getSummaryCache(key);
+      if (summaryData && summaryData.grade && summaryData.grade.exam) {
+          const latestExam = summaryData.grade.exam;
+          const errataCacheKey = makeDetailCacheKey(seat, studentId, "grade_errata", latestExam);
+          if (!getDetailCache(errataCacheKey)) {
+              apiPost("grade_errata", { token, exam: latestExam }).then(errata => {
+                  if (errata && errata.ok) setDetailCache(errataCacheKey, errata);
+              }).catch(() => {});
+          }
+      }
+
+      // 3. 이동, 취침, 벌점 기간별 몰래 가져오기
       for (const kind of kinds) {
         for (const days of periods) {
           const cacheKey = makeDetailCacheKey(seat, studentId, kind, days);
-          if (getDetailCache(cacheKey)) continue; // 이미 있으면 패스
+          if (getDetailCache(cacheKey)) continue; 
 
-          await new Promise(res => setTimeout(res, 300)); // 0.3초 간격
+          await new Promise(res => setTimeout(res, 300)); 
           apiPost(kind, { token, days: days }).then(data => {
             if (data.ok) setDetailCache(cacheKey, data);
           }).catch(() => {});
