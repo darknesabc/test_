@@ -1377,11 +1377,11 @@ async function loadSummariesForStudent_(seat, studentId) {
     loadAdminGradeTrend(st.seat, st.studentId);
   }
 
-  async function loadAdminGradeDetailUI_(token, initialExam) {
+  // 💡 [수정] 파라미터를 (token)에서 (seat, studentId)로 변경하고 완벽 캐싱 적용
+  async function loadAdminGradeDetailUI_(seat, studentId, initialExam) {
     const host = $("detailResult");
     if (!host) return;
 
-    // ✅ 정오표 밑에 취약 영역 분석 캔버스 영역 추가
     host.innerHTML = `
       <div class="card" style="padding:14px;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
@@ -1409,19 +1409,39 @@ async function loadSummariesForStudent_(seat, studentId) {
     const loading = $("adminGradeLoading");
     const error = $("adminGradeError");
     const wrap = $("adminGradeTableWrap");
-    const vulnWrapper = $("vulnChartWrapper"); // ✅ 추가
+    const vulnWrapper = $("vulnChartWrapper");
+
+    // 💡 [추가] 토큰이 꼭 필요한 순간에만 발급받는 지연 함수 (서버 요청 최소화)
+    let _token = null;
+    const getToken = async () => {
+       if (!_token) _token = await issueStudentToken_(seat, studentId);
+       return _token;
+    };
 
     try {
-      const exams = await apiPost("grade_exams", { token });
-      if (!exams.ok || !Array.isArray(exams.items) || !exams.items.length) { throw new Error(exams.error || "시험 목록이 없습니다."); }
-      sel.innerHTML = exams.items.map(it => {
+      // 💡 1. 요약본 주머니에서 이미 가져온 시험 목록 훔쳐오기 (통신 0초)
+      const key = makeStudentKey(seat, studentId);
+      const summaryData = getSummaryCache(key) || {};
+      
+      let examsItems = [];
+      if (summaryData.grade && Array.isArray(summaryData.grade.exams)) {
+         examsItems = summaryData.grade.exams; // 이미 대시보드 그릴 때 가져온 목록 재활용
+      } else {
+         const token = await getToken();
+         const exams = await apiPost("grade_exams", { token });
+         if (exams.ok && Array.isArray(exams.items)) examsItems = exams.items;
+      }
+
+      if (!examsItems.length) { throw new Error("시험 목록이 없습니다."); }
+      
+      sel.innerHTML = examsItems.map(it => {
         const v = String(it.exam || "");
         const lab = String(it.label || it.name || it.sheetName || v);
         return `<option value="${escapeHtml(v)}">${escapeHtml(lab)}</option>`;
       }).join("");
 
       const preferred = (initialExam != null) ? String(initialExam).trim() : "";
-      const fallback = String(exams.items[exams.items.length - 1].exam || "");
+      const fallback = String(examsItems[examsItems.length - 1].exam || "");
       if (preferred && Array.from(sel.options).some(o => o.value === preferred)) { sel.value = preferred; } 
       else { sel.value = fallback; }
 
@@ -1440,29 +1460,31 @@ async function loadSummariesForStudent_(seat, studentId) {
         error.textContent = "";
         wrap.style.display = "none";
         wrap.innerHTML = "";
-        if (vulnWrapper) vulnWrapper.style.display = "none"; // ✅ 로딩 중 숨김
+        if (vulnWrapper) vulnWrapper.style.display = "none";
 
-        const data = await apiPost("grade_summary", { token, exam: String(exam || "") });
-        if (!data.ok) throw new Error(data.error || "성적 불러오기 실패");
+        const errataCacheKey = makeDetailCacheKey(seat, studentId, "grade_errata", exam);
 
-        let errata = null;
-        try {
-          const e2 = await apiPost("grade_errata", { token, exam: String(exam || "") });
-          if (e2 && e2.ok) {
-            errata = e2;
-          }
-        } catch (_) { /* ignore */ }
+        // 💡 2. 정오표(Errata) 캐시 확인 (백그라운드 조수가 미리 가져다 둠!)
+        let errata = getDetailCache(errataCacheKey);
+        if (!errata) {
+           try {
+             const token = await getToken();
+             errata = await apiPost("grade_errata", { token, exam: String(exam || "") });
+             if (errata && errata.ok) setDetailCache(errataCacheKey, errata);
+           } catch (_) { /* ignore */ }
+        }
 
-        // ✅ 1. 정오표만 그리기 (상세 화면에 표 중복 제거)
+        // ✅ 불필요했던 grade_summary(성적 표) 중복 로딩 완전 제거! (속도 대폭 향상)
+
         const errataHtml = errata ? renderErrataHtml_(errata) : `<div class="muted" style="margin-top:15px;">정오표 데이터가 없습니다.</div>`;
         
         wrap.innerHTML = errataHtml;
         wrap.style.display = "block";
         loading.textContent = "";
 
-        // ✅ 2. 취약 영역 분석 그리기
         if (errata && errata.analysis && errata.analysis.units) {
-          if (vulnWrapper) vulnWrapper.style.display = "block"; // 분석 결과가 있으면 보이기
+          if (vulnWrapper) vulnWrapper.style.display = "block";
+          const token = await getToken(); // 누적 버튼 클릭을 대비해 토큰 발급
           renderVulnerabilityChart(errata.analysis.units, token);
         }
 
@@ -1474,7 +1496,6 @@ async function loadSummariesForStudent_(seat, studentId) {
       }
     }
   }
-
   /**
    * ✅ [최종] 항목/기간 전환 캐시 + 백그라운드 프리페칭 적용
    */
