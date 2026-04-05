@@ -539,10 +539,9 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (정렬/그룹화 완벽 적용)
+ * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (의치한수약 + 서열 정렬 완벽 적용)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
-  // 1. 학생의 현재 등급 프로필 추출 (숫자만, 빈칸은 9등급 처리)
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
   
   const mChoice = String(rawData?.math?.choice || "");
@@ -567,7 +566,6 @@ function getNonsulSimulationHtml_(rawData) {
       tamType: tamType
   };
 
-  // 2. 수능 최저 자동 판독 로직 (자연어 번역기)
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
@@ -577,11 +575,10 @@ function getNonsulSimulationHtml_(rawData) {
       const p = window.__currentNonsulProfile;
       let pool = [];
 
-      // 과목 필터링
       if (reqStr.includes("국")) pool.push(p.kor);
       if (reqStr.includes("수")) {
           if ((reqStr.includes("미/기") || reqStr.includes("미기")) && p.mathType !== "미기") {
-              // 미기 필수인데 확통 응시자면 수학 활용 불가 (패스)
+              // 미기 필수인데 확통 응시
           } else {
               pool.push(p.math);
           }
@@ -592,46 +589,42 @@ function getNonsulSimulationHtml_(rawData) {
           if (reqStr.includes("과") && p.tamType === "사탐") { t1 = 9; t2 = 9; }
           if (reqStr.includes("사") && p.tamType === "과탐") { t1 = 9; t2 = 9; }
           
-          let tamScore = Math.min(t1, t2); // 기본 탐구 1과목 반영
-          if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; // 탐구 2과목 평균 반영
+          let tamScore = Math.min(t1, t2); 
+          if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; 
           pool.push(tamScore);
       }
 
-      pool.sort((a,b) => a - b); // 등급이 낮은(좋은) 순으로 정렬
+      pool.sort((a,b) => a - b); 
 
       let pass = false;
       let tag = "🟡 수동확인";
       let msg = "상세 요강 확인 요망";
 
-      // 정규식 1: "N개 합 M"
       let m = reqStr.match(/(\d)[가-힣\s]*합\s*(\d+)/);
       if (m) {
           let num = parseInt(m[1]), targetSum = parseInt(m[2]);
           if (pool.length >= num) {
               let sum = 0; for(let i=0; i<num; i++) sum += pool[i];
-              if (sum <= targetSum) { pass = true; tag = "🟢 충족"; msg = `내 등급합 ${sum}`; }
-              else { pass = false; tag = "🔴 미달"; msg = `내 등급합 ${sum}`; }
-          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
+              if (sum <= targetSum) { pass = true; tag = "🟢 충족"; msg = `등급합 ${sum}`; }
+              else { pass = false; tag = "🔴 미달"; msg = `등급합 ${sum}`; }
+          } else { tag = "🔴 미달"; msg = "응시부족"; }
           return { pass, tag, msg };
       }
 
-      // 정규식 2: "N개 각 M등급" 또는 "N개 M"
       m = reqStr.match(/(\d)[가-힣\s]*(?:각)?\s*(\d+)(?:등급)?/);
       if (m) {
           let num = parseInt(m[1]), targetGrade = parseInt(m[2]);
           if (pool.length >= num) {
               let allPass = true;
               for(let i=0; i<num; i++) { if (pool[i] > targetGrade) allPass = false; }
-              if (allPass) { pass = true; tag = "🟢 충족"; msg = `상위 ${num}개 통과`; }
+              if (allPass) { pass = true; tag = "🟢 충족"; msg = `상위 ${num}개`; }
               else { pass = false; tag = "🔴 미달"; msg = "조건 미달"; }
-          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
+          } else { tag = "🔴 미달"; msg = "응시부족"; }
           return { pass, tag, msg };
       }
-
       return { pass, tag, msg };
   };
 
-  // 3. 모드 전환기 (검색 모드 vs 전체 요약 모드)
   window.switchNonsulMode = async function(mode) {
       const btnSearch = document.getElementById('nonsulModeSearch');
       const btnInmun = document.getElementById('nonsulModeInmun');
@@ -639,7 +632,6 @@ function getNonsulSimulationHtml_(rawData) {
       const searchBar = document.getElementById('nonsulSearchBarWrapper');
       const resDiv = document.getElementById('nonsulResultArea');
 
-      // 버튼 색상 초기화
       [btnSearch, btnInmun, btnJayeon].forEach(b => {
           if(b) { b.style.background = 'transparent'; b.style.color = 'rgba(255,255,255,0.5)'; }
       });
@@ -651,13 +643,13 @@ function getNonsulSimulationHtml_(rawData) {
       } else {
           if (mode === '인문') { if(btnInmun) { btnInmun.style.background = '#e67e22'; btnInmun.style.color = '#fff'; } }
           if (mode === '자연') { if(btnJayeon) { btnJayeon.style.background = '#2ecc71'; btnJayeon.style.color = '#fff'; } }
-          if(searchBar) searchBar.style.display = 'none'; // 요약 모드일 땐 검색바 숨김
+          if(searchBar) searchBar.style.display = 'none'; 
           
           await window.renderNonsulSummaryTable(mode);
       }
   };
 
-  // 💡 [핵심 교체] 4. 전체 요약 표 그리기 (입시 정렬: 메디컬 -> 서울 -> 경기 -> 지거국 -> 사립)
+  // 💡 [핵심] 전체 요약 표 그리기 (의치한수약 + 대학 서열 적용)
   window.renderNonsulSummaryTable = async function(track) {
       const resDiv = document.getElementById('nonsulResultArea');
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
@@ -672,7 +664,6 @@ function getNonsulSimulationHtml_(rawData) {
           }
       }
 
-      // 계열 필터링
       const results = window.__nonsulData.filter(d => d.track && d.track.includes(track));
 
       if (results.length === 0) {
@@ -680,38 +671,56 @@ function getNonsulSimulationHtml_(rawData) {
           return;
       }
 
-      // 💡 [핵심] 대학 카테고리 분류용 지표 설정
+      // 💡 [랭킹 사전] 대한민국 주요 대학 선호도 서열 (필요시 위치 변경 가능)
+      const univRankOrder = [
+          "서울대", "연세대", "고려대", "서강대", "성균관대", "한양대", 
+          "이화여대", "중앙대", "경희대", "한국외대", "서울시립대", 
+          "건국대", "동국대", "홍익대", "숙명여대", 
+          "국민대", "숭실대", "세종대", "단국대", 
+          "인하대", "아주대", "항공대", "가천대", "가톨릭대", "광운대", "명지대", "상명대", "서울과기대", "성신여대", "동덕여대", "덕성여대", "서울여대"
+      ];
+      
+      const getUnivRank = (uName) => {
+          const idx = univRankOrder.findIndex(u => uName.includes(u));
+          return idx !== -1 ? idx : 999; // 사전에 없으면 맨 밑으로
+      };
+
       const flagshipUnivs = ["부산대", "경북대", "전남대", "충남대", "전북대", "충북대", "강원대", "경상국립대", "제주대"];
-      const medKeywords = ["의예", "치의예", "한의예", "수의예", "약학", "의학", "치의학", "한의학", "수의과", "약대"];
 
       const grouped = {};
       results.forEach(r => {
-          let cat = 4; // 4: 기본 기타사립
+          let cat = 50; // 기본값: 기타사립
+          let medType = "";
           let isMed = false;
+          
           const region = String(r.region || "");
           const univ = String(r.univ || "");
           const dept = String(r.dept || "");
 
-          // 1단계: 계급(Cat) 판별 (메디컬 > 서울 > 경인 > 지거국 > 기타)
-          if (track.includes('자연') && medKeywords.some(m => dept.includes(m))) {
-              cat = 0; // 최상단 메디컬
+          // 1단계: 계급(Cat) 판별 (의->치->한->수->약 -> 서울 -> 경기 -> 지거국 -> 사립)
+          if (track.includes('자연') && /(의예|치의예|한의예|수의예|약학|의학|치의학|한의학|수의과|약대)/.test(dept)) {
               isMed = true;
+              if (dept.includes("의예") || dept.includes("의학")) { cat = 10; medType = "의예"; }
+              else if (dept.includes("치의예") || dept.includes("치의학")) { cat = 11; medType = "치의예"; }
+              else if (dept.includes("한의예") || dept.includes("한의학")) { cat = 12; medType = "한의예"; }
+              else if (dept.includes("수의예") || dept.includes("수의과")) { cat = 13; medType = "수의예"; }
+              else if (dept.includes("약학") || dept.includes("약대")) { cat = 14; medType = "약학"; }
           } else if (region.includes("서울")) {
-              cat = 1;
+              cat = 20;
           } else if (region.includes("경기") || region.includes("인천")) {
-              cat = 2;
+              cat = 30;
           } else if (flagshipUnivs.some(u => univ.includes(u))) {
-              cat = 3;
+              cat = 40;
           }
 
-          // 2단계: 대학이 달라도, 같은 대학 내 메디컬/비메디컬 분리를 위해 그룹키 생성
+          // 2단계: 메디컬과 비메디컬 분리 + 대학별 그룹키 생성
           const groupKey = `${cat}_${univ}`;
 
           if (!grouped[groupKey]) {
-              grouped[groupKey] = { univ: univ, cat: cat, isMed: isMed, reqs: {} };
+              grouped[groupKey] = { univ: univ, cat: cat, isMed: isMed, medType: medType, reqs: {} };
           }
 
-          // 3단계: 같은 조건(수능최저)끼리 학과 묶기
+          // 3단계: 같은 수능최저끼리 학과 묶기
           const reqKey = r.req || "없음";
           if (!grouped[groupKey].reqs[reqKey]) {
               grouped[groupKey].reqs[reqKey] = {
@@ -723,12 +732,18 @@ function getNonsulSimulationHtml_(rawData) {
           grouped[groupKey].reqs[reqKey].depts.push(dept);
       });
 
-      // 💡 4단계: 만들어진 그룹을 Cat 순서(0->4)대로 정렬 후, 같은 Cat 내에선 가나다순 정렬
+      // 4단계: 그룹 정렬 (카테고리 -> 대학서열 -> 가나다순)
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
-          const catA = grouped[a].cat;
-          const catB = grouped[b].cat;
-          if (catA !== catB) return catA - catB;
-          return grouped[a].univ.localeCompare(grouped[b].univ);
+          const gA = grouped[a];
+          const gB = grouped[b];
+          
+          if (gA.cat !== gB.cat) return gA.cat - gB.cat; // 1순위: 계급
+          
+          const rankA = getUnivRank(gA.univ);
+          const rankB = getUnivRank(gB.univ);
+          if (rankA !== rankB) return rankA - rankB; // 2순위: 서열 사전
+          
+          return gA.univ.localeCompare(gB.univ); // 3순위: 가나다순
       });
 
       let tableHtml = `
@@ -737,8 +752,8 @@ function getNonsulSimulationHtml_(rawData) {
               <thead style="position:sticky; top:0; z-index:2; background:#1e272e; border-bottom: 2px solid rgba(255,255,255,0.2);">
                   <tr>
                       <th style="padding:10px; width:15%; color:#fff;">대학명</th>
-                      <th style="padding:10px; width:30%; color:#fff;">모집단위</th>
-                      <th style="padding:10px; width:30%; color:#fff;">수능최저기준</th>
+                      <th style="padding:10px; width:25%; color:#fff;">모집단위</th>
+                      <th style="padding:10px; width:35%; color:#fff;">수능최저기준</th>
                       <th style="padding:10px; width:10%; color:#fff;">충족여부</th>
                       <th style="padding:10px; width:15%; color:#fff;">논술일정</th>
                   </tr>
@@ -755,7 +770,6 @@ function getNonsulSimulationHtml_(rawData) {
               const grp = grpData.reqs[reqKey];
               const reqEval = window.evaluateNonsulReq(grp.req);
               
-              // 💡 동그라미(O, X, △) 마크 디자인
               let oxMark = ""; let oxColor = ""; let oxBg = "";
               if (reqEval.tag.includes("🟢")) { oxMark = "O"; oxColor = "#2ecc71"; oxBg = "rgba(46,204,113,0.15)"; }
               else if (reqEval.tag.includes("🔴")) { oxMark = "X"; oxColor = "#e74c3c"; oxBg = "rgba(231,76,60,0.15)"; }
@@ -763,7 +777,6 @@ function getNonsulSimulationHtml_(rawData) {
 
               const oxHtml = `<div style="font-weight:900; font-size:14px; color:${oxColor}; background:${oxBg}; width:24px; height:24px; line-height:24px; border-radius:50%; margin:0 auto; border:1px solid ${oxColor};" title="${escapeHtml(reqEval.msg)}">${oxMark}</div>`;
 
-              // 💡 학과명 묶어서 줄이기 (예: 간호학과 외 3개)
               let displayDept = "";
               if (grp.depts.length > 2) {
                   displayDept = escapeHtml(grp.depts.slice(0,2).join(", ")) + `<br><span style="opacity:0.6; font-size:11px;">외 ${grp.depts.length - 2}개 학과</span>`;
@@ -773,10 +786,10 @@ function getNonsulSimulationHtml_(rawData) {
 
               const isNewUniv = (idx === 0);
               
-              // 💡 메디컬 전용 뱃지 달아주기
+              // 💡 디테일: 메디컬 전용 뱃지에 전공 이름(의예, 약학 등) 박기
               let univDisplayName = escapeHtml(grpData.univ);
               if (isNewUniv && grpData.isMed) {
-                  univDisplayName = `<span style="color:#e74c3c; font-size:10px; font-weight:900; border:1px solid rgba(231,76,60,0.5); background:rgba(231,76,60,0.1); padding:2px 4px; border-radius:4px; margin-bottom:4px; display:inline-block;">메디컬</span><br>${univDisplayName}`;
+                  univDisplayName = `<span style="color:#e74c3c; font-size:10px; font-weight:900; border:1px solid rgba(231,76,60,0.5); background:rgba(231,76,60,0.1); padding:2px 4px; border-radius:4px; margin-bottom:4px; display:inline-block;">✚ ${grpData.medType}</span><br>${univDisplayName}`;
               }
               const univNameHtml = isNewUniv ? `<strong style="color:#fff; font-size:13px; line-height:1.4;">${univDisplayName}</strong>` : `<span style="opacity:0.2;">"</span>`;
 
