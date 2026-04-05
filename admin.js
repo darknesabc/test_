@@ -539,7 +539,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 
+ * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기 (빅5 의대 서열 & 이원화 캠퍼스 완벽 반영)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -649,7 +649,6 @@ function getNonsulSimulationHtml_(rawData) {
       }
   };
 
-  // 4. 전체 요약 표 그리기 (의치한수약 + 대학 서열 적용)
   window.renderNonsulSummaryTable = async function(track) {
       const resDiv = document.getElementById('nonsulResultArea');
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
@@ -671,7 +670,7 @@ function getNonsulSimulationHtml_(rawData) {
           return;
       }
 
-      // 대한민국 주요 대학 선호도 서열 
+      // 💡 일반 대학 선호도 서열 (기본 랭킹)
       const univRankOrder = [
           "서울대", "연세대", "고려대", "서강대", "성균관대", "한양대", "중앙대", "경희대", "이화여자대", 
           "이화여대", "한국외대", "한국외국어대", "서울시립대", "건국대", "동국대", "홍익대", "숙명여대", "숙명여자대", 
@@ -691,11 +690,9 @@ function getNonsulSimulationHtml_(rawData) {
               "건국대(글로컬)": 35.4, "건국대학교(글로컬)": 35.4,
               "동국대(WISE)": 35.5, "동국대학교(WISE)": 35.5
           };
-
           for (const key in branchRanks) {
               if (uName.includes(key)) return branchRanks[key];
           }
-
           const idx = univRankOrder.findIndex(u => uName.includes(u));
           return idx !== -1 ? idx : 999; 
       };
@@ -721,7 +718,10 @@ function getNonsulSimulationHtml_(rawData) {
           } 
           
           if (!isMed) {
-              if (region.includes("서울")) cat = 20;
+              // 💡 [핵심 교체 1] 성균관대(수원), 경희대(용인) 등 이원화 캠퍼스는 무조건 서울권(Cat 20)으로 강제 격상!
+              if (region.includes("서울") || /(성균관대|경희대)/.test(univ)) {
+                  cat = 20;
+              }
               else if (region.includes("경기") || region.includes("인천")) cat = 30;
               else if (flagshipUnivs.some(u => univ.includes(u))) cat = 40;
               
@@ -738,23 +738,31 @@ function getNonsulSimulationHtml_(rawData) {
 
           const reqKey = r.req || "없음";
           if (!grouped[groupKey].reqs[reqKey]) {
-              grouped[groupKey].reqs[reqKey] = {
-                  depts: [],
-                  req: r.req,
-                  date: r.examDate || "-"
-              };
+              grouped[groupKey].reqs[reqKey] = { depts: [], req: r.req, date: r.examDate || "-" };
           }
           grouped[groupKey].reqs[reqKey].depts.push(dept);
       });
 
+      // 💡 [핵심 교체 2] 그룹 정렬 시 '의예과(Cat 10)' 한정 빅5 서열 특별 적용!
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
           const gA = grouped[a];
           const gB = grouped[b];
           
           if (gA.cat !== gB.cat) return gA.cat - gB.cat; 
           
-          const rankA = getUnivRank(gA.univ);
-          const rankB = getUnivRank(gB.univ);
+          let rankA = getUnivRank(gA.univ);
+          let rankB = getUnivRank(gB.univ);
+
+          // 의예과(Cat 10)일 경우에만 작동하는 '메디컬 랭킹 사전'
+          if (gA.cat === 10) {
+              const medRank = ["서울대", "연세대", "가톨릭대", "성균관대", "울산대", "고려대", "한양대", "경희대", "이화여대", "중앙대", "아주대", "인하대", "가천대"];
+              const mIdxA = medRank.findIndex(u => gA.univ.includes(u));
+              const mIdxB = medRank.findIndex(u => gB.univ.includes(u));
+              // 빅5 안에 있으면 최상단, 없으면 일반 랭킹+100점 페널티
+              rankA = mIdxA !== -1 ? mIdxA : rankA + 100;
+              rankB = mIdxB !== -1 ? mIdxB : rankB + 100;
+          }
+
           if (rankA !== rankB) return rankA - rankB; 
           
           return gA.univ.localeCompare(gB.univ); 
@@ -828,7 +836,6 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = tableHtml;
   };
 
-  // 5. 논술 검색 모드
   window.searchNonsulData = async function() {
       const keyword = document.getElementById('nonsulSearchInput').value.trim();
       const btn = document.getElementById('nonsulSearchBtn');
@@ -859,7 +866,6 @@ function getNonsulSimulationHtml_(rawData) {
           const tagBg = reqEval.tag.includes("🟢") ? "rgba(46, 204, 113, 0.2)" : reqEval.tag.includes("🔴") ? "rgba(231, 76, 60, 0.2)" : "rgba(241, 196, 15, 0.2)";
           const tagColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
-          // 💡 [핵심] 검색 카드 상단에 전형명(admName) 추가!
           const admNameHtml = r.admName ? `${escapeHtml(r.admName)} · ` : "";
 
           html += `
@@ -900,7 +906,6 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = html;
   };
 
-  // 6. UI 껍데기 반환
   let mathShort = "공통";
   if (mChoice.includes("미적")) mathShort = "미적";
   else if (mChoice.includes("기하")) mathShort = "기하";
