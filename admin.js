@@ -542,7 +542,7 @@ function getUniversityLineHtml_(placement) {
  * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
-  // 1. 학생의 현재 등급 프로필 추출 (숫자만, 빈칸은 9등급 처리)
+  // 1. 학생의 현재 등급 프로필 추출
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
   
   const mChoice = String(rawData?.math?.choice || "");
@@ -567,7 +567,7 @@ function getNonsulSimulationHtml_(rawData) {
       tamType: tamType
   };
 
-  // 2. 수능 최저 자동 판독 로직 (자연어 번역기)
+  // 2. 수능 최저 자동 판독 로직
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
@@ -577,11 +577,10 @@ function getNonsulSimulationHtml_(rawData) {
       const p = window.__currentNonsulProfile;
       let pool = [];
 
-      // 과목 필터링
       if (reqStr.includes("국")) pool.push(p.kor);
       if (reqStr.includes("수")) {
           if ((reqStr.includes("미/기") || reqStr.includes("미기")) && p.mathType !== "미기") {
-              // 미기 필수인데 확통 응시자면 수학 활용 불가
+              // 미기 필수인데 확통 응시
           } else {
               pool.push(p.math);
           }
@@ -592,18 +591,17 @@ function getNonsulSimulationHtml_(rawData) {
           if (reqStr.includes("과") && p.tamType === "사탐") { t1 = 9; t2 = 9; }
           if (reqStr.includes("사") && p.tamType === "과탐") { t1 = 9; t2 = 9; }
           
-          let tamScore = Math.min(t1, t2); // 기본 탐구 1과목 반영
-          if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; // 탐구 2과목 평균 반영
+          let tamScore = Math.min(t1, t2); 
+          if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; 
           pool.push(tamScore);
       }
 
-      pool.sort((a,b) => a - b); // 등급이 낮은(좋은) 순으로 정렬
+      pool.sort((a,b) => a - b); 
 
       let pass = false;
       let tag = "🟡 수동확인";
       let msg = "상세 요강 확인 요망";
 
-      // 정규식 1: "N개 합 M"
       let m = reqStr.match(/(\d)[가-힣\s]*합\s*(\d+)/);
       if (m) {
           let num = parseInt(m[1]), targetSum = parseInt(m[2]);
@@ -615,7 +613,6 @@ function getNonsulSimulationHtml_(rawData) {
           return { pass, tag, msg };
       }
 
-      // 정규식 2: "N개 각 M등급" 또는 "N개 M"
       m = reqStr.match(/(\d)[가-힣\s]*(?:각)?\s*(\d+)(?:등급)?/);
       if (m) {
           let num = parseInt(m[1]), targetGrade = parseInt(m[2]);
@@ -627,11 +624,10 @@ function getNonsulSimulationHtml_(rawData) {
           } else { tag = "🔴 미달"; msg = "응시부족"; }
           return { pass, tag, msg };
       }
-
       return { pass, tag, msg };
   };
 
-  // 3. 모드 전환기 (검색 모드 vs 전체 요약 모드)
+  // 3. 모드 전환기 (검색 모드 vs 요약 모드)
   window.switchNonsulMode = async function(mode) {
       const btnSearch = document.getElementById('nonsulModeSearch');
       const btnInmun = document.getElementById('nonsulModeInmun');
@@ -639,7 +635,6 @@ function getNonsulSimulationHtml_(rawData) {
       const searchBar = document.getElementById('nonsulSearchBarWrapper');
       const resDiv = document.getElementById('nonsulResultArea');
 
-      // 버튼 색상 초기화
       [btnSearch, btnInmun, btnJayeon].forEach(b => {
           if(b) { b.style.background = 'transparent'; b.style.color = 'rgba(255,255,255,0.5)'; }
       });
@@ -651,13 +646,13 @@ function getNonsulSimulationHtml_(rawData) {
       } else {
           if (mode === '인문') { if(btnInmun) { btnInmun.style.background = '#e67e22'; btnInmun.style.color = '#fff'; } }
           if (mode === '자연') { if(btnJayeon) { btnJayeon.style.background = '#2ecc71'; btnJayeon.style.color = '#fff'; } }
-          if(searchBar) searchBar.style.display = 'none'; // 요약 모드일 땐 검색바 숨김
+          if(searchBar) searchBar.style.display = 'none'; 
           
           await window.renderNonsulSummaryTable(mode);
       }
   };
 
-  // 4. 전체 요약 표 그리기 함수
+  // 💡 [핵심 교체] 4. 전체 요약 표 그리기 (그룹화 기능 탑재)
   window.renderNonsulSummaryTable = async function(track) {
       const resDiv = document.getElementById('nonsulResultArea');
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
@@ -672,55 +667,90 @@ function getNonsulSimulationHtml_(rawData) {
           }
       }
 
-      // 인문 / 자연 계열 필터링
+      // 계열 필터링
       const results = window.__nonsulData.filter(d => d.track && d.track.includes(track));
 
+      if (results.length === 0) {
+          resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">해당 계열 데이터가 없습니다.</div>`;
+          return;
+      }
+
+      // 💡 [핵심] 같은 대학 & 같은 수능최저기준을 가진 학과끼리 묶어줍니다(Grouping)
+      const grouped = {};
+      results.forEach(r => {
+          if (!grouped[r.univ]) grouped[r.univ] = {};
+          const reqKey = r.req || "없음";
+          if (!grouped[r.univ][reqKey]) {
+              grouped[r.univ][reqKey] = {
+                  depts: [],
+                  req: r.req,
+                  date: r.examDate || "-"
+              };
+          }
+          grouped[r.univ][reqKey].depts.push(r.dept);
+      });
+
       let tableHtml = `
-      <div style="max-height: 400px; overflow-y: auto; padding-right: 4px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+      <div style="max-height: 500px; overflow-y: auto; padding-right: 4px; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
           <table style="width:100%; border-collapse:collapse; text-align:center; font-size:12px;">
-              <thead style="position:sticky; top:0; z-index:2; background:#2a2d35; border-bottom: 2px solid rgba(255,255,255,0.2);">
+              <thead style="position:sticky; top:0; z-index:2; background:#1e272e; border-bottom: 2px solid rgba(255,255,255,0.2);">
                   <tr>
                       <th style="padding:10px; width:15%; color:#fff;">대학명</th>
-                      <th style="padding:10px; width:35%; color:#fff;">모집단위</th>
+                      <th style="padding:10px; width:25%; color:#fff;">모집단위</th>
                       <th style="padding:10px; width:35%; color:#fff;">수능최저기준</th>
-                      <th style="padding:10px; width:15%; color:#fff;">충족 여부</th>
+                      <th style="padding:10px; width:10%; color:#fff;">충족여부</th>
+                      <th style="padding:10px; width:15%; color:#fff;">논술일정</th>
                   </tr>
               </thead>
               <tbody>
       `;
 
-      if (results.length === 0) {
-          tableHtml += `<tr><td colspan="4" style="padding:20px; opacity:0.5;">해당 계열 데이터가 없습니다.</td></tr>`;
-      } else {
-          let currentUniv = "";
-          results.forEach(r => {
-              const reqEval = window.evaluateNonsulReq(r.req);
-              let tagHtml = "";
-              if (reqEval.tag.includes("🟢")) tagHtml = `<span style="color:#2ecc71; font-weight:900; background:rgba(46,204,113,0.15); padding:4px 8px; border-radius:6px; border:1px solid rgba(46,204,113,0.3);">O 충족</span>`;
-              else if (reqEval.tag.includes("🔴")) tagHtml = `<span style="color:#e74c3c; font-weight:900; background:rgba(231,76,60,0.15); padding:4px 8px; border-radius:6px; border:1px solid rgba(231,76,60,0.3);">X 미달</span>`;
-              else tagHtml = `<span style="color:#f1c40f; font-weight:900; background:rgba(241,196,15,0.15); padding:4px 8px; border-radius:6px; border:1px solid rgba(241,196,15,0.3);">△ 확인</span>`;
+      Object.keys(grouped).forEach(univ => {
+          const reqKeys = Object.keys(grouped[univ]);
+          const rowspan = reqKeys.length;
+          
+          reqKeys.forEach((reqKey, idx) => {
+              const grp = grouped[univ][reqKey];
+              const reqEval = window.evaluateNonsulReq(grp.req);
+              
+              // 💡 동그라미(O, X, △) 마크 디자인
+              let oxMark = ""; let oxColor = ""; let oxBg = "";
+              if (reqEval.tag.includes("🟢")) { oxMark = "O"; oxColor = "#2ecc71"; oxBg = "rgba(46,204,113,0.15)"; }
+              else if (reqEval.tag.includes("🔴")) { oxMark = "X"; oxColor = "#e74c3c"; oxBg = "rgba(231,76,60,0.15)"; }
+              else { oxMark = "△"; oxColor = "#f1c40f"; oxBg = "rgba(241,196,15,0.15)"; }
 
-              const isNewUniv = r.univ !== currentUniv;
-              const univName = isNewUniv ? `<strong style="color:#fff; font-size:13px;">${escapeHtml(r.univ)}</strong>` : `<span style="opacity:0.2;">"</span>`;
-              currentUniv = r.univ;
+              const oxHtml = `<div style="font-weight:900; font-size:14px; color:${oxColor}; background:${oxBg}; width:24px; height:24px; line-height:24px; border-radius:50%; margin:0 auto; border:1px solid ${oxColor};" title="${escapeHtml(reqEval.msg)}">${oxMark}</div>`;
 
-              const borderTop = isNewUniv ? `border-top:1px solid rgba(255,255,255,0.1);` : ``;
+              // 💡 학과명 묶어서 줄이기 (예: 간호학과 외 3개)
+              let displayDept = "";
+              if (grp.depts.length > 2) {
+                  displayDept = escapeHtml(grp.depts.slice(0,2).join(", ")) + `<br><span style="opacity:0.6; font-size:11px;">외 ${grp.depts.length - 2}개 학과</span>`;
+              } else {
+                  displayDept = escapeHtml(grp.depts.join(", "));
+              }
 
+              const borderBottom = idx === rowspan - 1 ? `border-bottom:1px solid rgba(255,255,255,0.1);` : `border-bottom:1px dashed rgba(255,255,255,0.05);`;
+
+              tableHtml += `<tr style="transition:background 0.1s; ${borderBottom}" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">`;
+              
+              if (idx === 0) {
+                  tableHtml += `<td rowspan="${rowspan}" style="padding:8px; border-right:1px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.1); font-weight:900; font-size:13px; color:#fff; background:rgba(0,0,0,0.2);">${escapeHtml(univ)}</td>`;
+              }
+              
               tableHtml += `
-              <tr style="border-bottom: 1px solid rgba(255,255,255,0.03); transition:background 0.1s; ${borderTop}" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">
-                  <td style="padding:8px; border-right:1px solid rgba(255,255,255,0.03);">${univName}</td>
-                  <td style="padding:8px; text-align:left; border-right:1px solid rgba(255,255,255,0.03); color:#f1c40f; font-weight:600; word-break:keep-all;">${escapeHtml(r.dept)}</td>
-                  <td style="padding:8px; text-align:left; border-right:1px solid rgba(255,255,255,0.03); opacity:0.8; word-break:keep-all;">${escapeHtml(r.req || "-")}</td>
-                  <td style="padding:8px;">${tagHtml}</td>
-              </tr>
-              `;
+                  <td style="padding:8px; text-align:center; border-right:1px solid rgba(255,255,255,0.03); color:#f1c40f; font-weight:600; word-break:keep-all; line-height:1.4;">${displayDept}</td>
+                  <td style="padding:8px; text-align:left; border-right:1px solid rgba(255,255,255,0.03); opacity:0.9; word-break:keep-all; font-size:11px;">${escapeHtml(grp.req || "없음")}</td>
+                  <td style="padding:8px; border-right:1px solid rgba(255,255,255,0.03);">${oxHtml}</td>
+                  <td style="padding:8px; opacity:0.8; font-size:11px;">${escapeHtml(grp.date)}</td>
+              </tr>`;
           });
-      }
+      });
+
       tableHtml += `</tbody></table></div>`;
       resDiv.innerHTML = tableHtml;
   };
 
-  // 5. 논술 검색 실행 로직
+  // 5. 논술 검색 모드
   window.searchNonsulData = async function() {
       const keyword = document.getElementById('nonsulSearchInput').value.trim();
       const btn = document.getElementById('nonsulSearchBtn');
