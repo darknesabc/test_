@@ -281,10 +281,13 @@ function renderGradeTableHtml_(rows, rawData) {
     </div>
   `;
 
-  // 💡 표 밑에 대학 라인 예측 상자 부착
+  // 💡 정시 시뮬레이션 패널
   const universityLineHtml = (rawData && rawData.placement) ? getUniversityLineHtml_(rawData.placement) : "";
   
-  return tableHtml + universityLineHtml;
+  // 💡 [신규 추가] 수시(논술) 시뮬레이션 패널
+  const nonsulHtml = (rawData) ? getNonsulSimulationHtml_(rawData) : "";
+  
+  return tableHtml + universityLineHtml + nonsulHtml;
 }
 
 /** =========================
@@ -531,6 +534,199 @@ function getUniversityLineHtml_(placement) {
       <div style="margin-top:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.2); border-radius:6px; overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse;"><tbody>${rowsHtml}</tbody></table>
       </div>
+    </div>
+  `;
+}
+
+/** =========================
+ * 📝 [프론트엔드 NEW] 수시/논술 지원 시뮬레이션 및 최저 판독기
+ * ========================= */
+function getNonsulSimulationHtml_(rawData) {
+  // 1. 학생의 현재 등급 프로필 추출 (숫자만, 빈칸은 9등급 처리)
+  const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
+  
+  const mChoice = String(rawData?.math?.choice || "");
+  const t1Name = String(rawData?.tam1?.name || "");
+  const t2Name = String(rawData?.tam2?.name || "");
+  const sciSubj = ["물리", "화학", "생명", "지구", "물", "화", "생", "지"];
+  const socSubj = ["윤리", "지리", "역사", "사회", "경제", "법", "사문", "생윤", "정법"];
+
+  let tamType = "사과탐";
+  let isSci = sciSubj.some(s => t1Name.includes(s) || t2Name.includes(s));
+  let isSoc = socSubj.some(s => t1Name.includes(s) || t2Name.includes(s));
+  if (isSci && !isSoc) tamType = "과탐";
+  if (!isSci && isSoc) tamType = "사탐";
+
+  window.__currentNonsulProfile = {
+      kor: getG(rawData?.kor?.expected_grade),
+      math: getG(rawData?.math?.expected_grade),
+      eng: getG(rawData?.eng?.grade),
+      tam1: getG(rawData?.tam1?.expected_grade),
+      tam2: getG(rawData?.tam2?.expected_grade),
+      mathType: (mChoice.includes("미적") || mChoice.includes("기하")) ? "미기" : "확통",
+      tamType: tamType
+  };
+
+  // 2. 수능 최저 자동 판독 로직 (자연어 번역기)
+  window.evaluateNonsulReq = function(reqStr) {
+      reqStr = String(reqStr || "").trim();
+      if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
+          return { pass: true, tag: "🟢 최저없음", msg: "수능 최저 미적용" };
+      }
+
+      const p = window.__currentNonsulProfile;
+      let pool = [];
+
+      // 과목 필터링
+      if (reqStr.includes("국")) pool.push(p.kor);
+      if (reqStr.includes("수")) {
+          if ((reqStr.includes("미/기") || reqStr.includes("미기")) && p.mathType !== "미기") {
+              // 미기 필수인데 확통 응시자면 수학 활용 불가 (패스)
+          } else {
+              pool.push(p.math);
+          }
+      }
+      if (reqStr.includes("영")) pool.push(p.eng);
+      if (reqStr.includes("탐") || reqStr.includes("과") || reqStr.includes("사")) {
+          let t1 = p.tam1, t2 = p.tam2;
+          if (reqStr.includes("과") && p.tamType === "사탐") { t1 = 9; t2 = 9; }
+          if (reqStr.includes("사") && p.tamType === "과탐") { t1 = 9; t2 = 9; }
+          
+          let tamScore = Math.min(t1, t2); // 기본 탐구 1과목 반영
+          if (reqStr.includes("(2)")) tamScore = (t1 + t2) / 2.0; // 탐구 2과목 평균 반영
+          pool.push(tamScore);
+      }
+
+      pool.sort((a,b) => a - b); // 등급이 낮은(좋은) 순으로 정렬
+
+      let pass = false;
+      let tag = "🟡 수동확인";
+      let msg = "상세 요강 확인 요망";
+
+      // 정규식 1: "N개 합 M"
+      let m = reqStr.match(/(\d)[가-힣]*\s*합\s*(\d+)/);
+      if (m) {
+          let num = parseInt(m[1]), targetSum = parseInt(m[2]);
+          if (pool.length >= num) {
+              let sum = 0; for(let i=0; i<num; i++) sum += pool[i];
+              if (sum <= targetSum) { pass = true; tag = "🟢 충족"; msg = `내 등급합 ${sum} (목표:${targetSum})`; }
+              else { pass = false; tag = "🔴 미달"; msg = `내 등급합 ${sum} (목표:${targetSum})`; }
+          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
+          return { pass, tag, msg };
+      }
+
+      // 정규식 2: "N개 각 M등급" 또는 "N개 M등급"
+      m = reqStr.match(/(\d)[가-힣]*\s*(?:각)?\s*(\d+)등급/);
+      if (m) {
+          let num = parseInt(m[1]), targetGrade = parseInt(m[2]);
+          if (pool.length >= num) {
+              let allPass = true;
+              for(let i=0; i<num; i++) { if (pool[i] > targetGrade) allPass = false; }
+              if (allPass) { pass = true; tag = "🟢 충족"; msg = `상위 ${num}개 통과`; }
+              else { pass = false; tag = "🔴 미달"; msg = "조건 미달"; }
+          } else { tag = "🔴 미달"; msg = "응시과목 부족"; }
+          return { pass, tag, msg };
+      }
+
+      return { pass, tag, msg };
+  };
+
+  // 3. 논술 검색 및 화면 렌더링 로직
+  window.searchNonsulData = async function() {
+      const keyword = document.getElementById('nonsulSearchInput').value.trim();
+      const btn = document.getElementById('nonsulSearchBtn');
+      const resDiv = document.getElementById('nonsulResultArea');
+      
+      if (!keyword) return alert('검색할 대학교나 학과를 입력하세요.');
+      
+      btn.innerText = '검색 중...';
+      resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
+
+      // 논술 데이터 최초 1회 로드 (캐싱)
+      if (!window.__nonsulData) {
+          try {
+              const res = await apiPost("nonsul_data", {});
+              if (res.ok && res.items) {
+                  window.__nonsulData = res.items;
+              } else {
+                  resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">데이터 로드 실패</div>`;
+                  btn.innerText = '🔍 검색';
+                  return;
+              }
+          } catch(e) {
+              resDiv.innerHTML = `<div style="color:#ff6b6b; padding:10px;">통신 오류</div>`;
+              btn.innerText = '🔍 검색';
+              return;
+          }
+      }
+
+      btn.innerText = '🔍 검색';
+      
+      const results = window.__nonsulData.filter(d => 
+          d.univ.includes(keyword) || d.dept.includes(keyword)
+      );
+
+      if (results.length === 0) {
+          resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">검색 결과가 없습니다.</div>`;
+          return;
+      }
+
+      let html = `<div style="max-height: 400px; overflow-y: auto; padding-right: 5px;">`;
+      results.forEach(r => {
+          const reqEval = window.evaluateNonsulReq(r.req);
+          const tagBg = reqEval.tag.includes("🟢") ? "rgba(46, 204, 113, 0.2)" : reqEval.tag.includes("🔴") ? "rgba(231, 76, 60, 0.2)" : "rgba(241, 196, 15, 0.2)";
+          const tagColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
+
+          html += `
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <div style="flex:1; min-width:250px;">
+                    <div style="font-size:11px; color:#9b59b6; font-weight:bold; margin-bottom:2px;">[${r.track}] ${r.testType} · ${r.method}</div>
+                    <div style="font-size:15px; font-weight:800; color:#fff; display:flex; align-items:center; gap:6px;">
+                        ${escapeHtml(r.univ)} <span style="opacity:0.5; font-size:12px;">›</span> <span style="color:#f1c40f;">${escapeHtml(r.dept)}</span>
+                    </div>
+                    <div style="font-size:12px; color:rgba(255,255,255,0.6); margin-top:6px; line-height:1.4;">
+                        <b>출제범위:</b> ${escapeHtml(r.scope)}<br>
+                        <b>시험시간:</b> ${escapeHtml(r.timeInfo)}
+                    </div>
+                </div>
+                
+                <div style="background:rgba(0,0,0,0.3); border-radius:8px; padding:10px; width:220px; text-align:center;">
+                    <div style="font-size:11px; opacity:0.6; margin-bottom:4px;">수능 최저 학력 기준</div>
+                    <div style="font-size:12px; font-weight:bold; color:#fff; margin-bottom:6px; word-break:keep-all;">${escapeHtml(r.req || "없음")}</div>
+                    
+                    <div style="display:flex; justify-content:center; align-items:center; gap:6px; background:${tagBg}; border:1px solid ${tagColor}; border-radius:6px; padding:4px 8px;">
+                        <span style="font-weight:900; color:${tagColor}; font-size:13px;">${reqEval.tag}</span>
+                        <span style="font-size:11px; color:${tagColor}; opacity:0.8;">(${reqEval.msg})</span>
+                    </div>
+                </div>
+            </div>
+          `;
+      });
+      html += `</div>`;
+      resDiv.innerHTML = html;
+  };
+
+  // 4. UI 껍데기 반환
+  return `
+    <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
+      <div style="background:#0a0f19; border-bottom:2px solid #9b59b6; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
+        <div style="color:#fff; font-weight:800; font-size:14px;">📝 수시(논술) 지원 시뮬레이션 및 최저 판독기</div>
+        <div style="background:#9b59b6; color:#fff; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
+            학생 등급: <span style="color:#f1c40f; margin-left:4px;">국${window.__currentNonsulProfile.kor} 수${window.__currentNonsulProfile.math} 영${window.__currentNonsulProfile.eng} 탐(${window.__currentNonsulProfile.tam1},${window.__currentNonsulProfile.tam2})</span>
+        </div>
+      </div>
+      
+      <div style="padding:12px; background:rgba(155, 89, 182, 0.1); border:1px dashed rgba(155, 89, 182, 0.4); border-radius:6px; margin-top:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-weight:bold; color:#fff; font-size:13px;">🎓 논술 전형 대학/학과 검색:</span>
+        <input type="text" id="nonsulSearchInput" placeholder="예: 가천대, 경영학과" 
+               onkeydown="if(event.key==='Enter') window.searchNonsulData()" 
+               style="flex:1; min-width:150px; background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.6); color:#fff; font-size:14px; outline:none; padding:6px 10px; border-radius:4px;" />
+        <button id="nonsulSearchBtn" onclick="window.searchNonsulData()" 
+                style="background:#9b59b6; color:#fff; border:none; padding:6px 14px; border-radius:4px; font-weight:bold; cursor:pointer; font-size:13px;">🔍 검색</button>
+      </div>
+
+      <div id="nonsulResultArea" style="margin-top:10px;">
+        </div>
     </div>
   `;
 }
