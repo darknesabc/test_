@@ -326,10 +326,10 @@ function getUniversityLineHtml_(placement) {
 
           let scoreHtml = deptScore ? `<span style="color:#f39c12; font-size:11px; font-weight:900; margin-left:4px;">(${deptScore})</span>` : "";
 
-          // 유불리 및 가산점 뱃지
+          // 💡 [초슬림 뱃지 UI] 패딩과 갭을 쫙 줄여서 부피를 최소화!
           let badgeHtmlStr = "";
           badges.forEach(b => {
-              let bg = ""; 
+              let bg = "#7f8c8d"; 
               let co = "#fff";
               let bo = "none";
               
@@ -342,10 +342,15 @@ function getUniversityLineHtml_(placement) {
                   bo = "1px solid rgba(255, 255, 255, 0.15)"; 
               }
               
-              badgeHtmlStr += `<span style="background:${bg}; color:${co}; border:${bo}; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
+              // 합쳐진 '미기' 키워드에 대한 색상 반영
+              if (b.includes("미적") || b.includes("기하") || b.includes("미기")) bg = "rgba(231, 76, 60, 0.15)"; // 빨강계열 톤다운
+              else if (b.includes("과탐")) bg = "rgba(52, 152, 219, 0.15)"; 
+              else if (b.includes("사탐")) bg = "rgba(155, 89, 182, 0.15)"; 
+              
+              // 💡 패딩을 1px 4px로 줄이고, 글자 크기를 9.5px, 자간을 좁혀 초밀착형 뱃지로 만듭니다!
+              badgeHtmlStr += `<span style="background:${bg}; color:${co}; border:${bo}; border-radius:3px; padding:1px 4px; font-size:9.5px; font-weight:800; letter-spacing:-0.5px; white-space:nowrap; box-shadow: 0 1px 1px rgba(0,0,0,0.2); display:inline-block;">${b}</span>`;
           });
           
-          // 비율 툴팁 (숨김 처리)
           let tooltipHtml = "";
           if (d.combo || d.ratio) {
               tooltipHtml = `
@@ -355,21 +360,19 @@ function getUniversityLineHtml_(placement) {
               `;
           }
 
-          // 💡 [핵심 변경] onmouseover/out을 지우고 onclick으로 스마트하게 토글되도록 변경
+          // 💡 마진과 갭을 확 줄였습니다. (margin-bottom:4px, gap:2px)
           return `
-            <div style="position:relative; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:2px; word-break:keep-all; cursor:pointer;"
+            <div style="position:relative; margin-bottom:4px; padding-bottom:3px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:1px; word-break:keep-all; cursor:pointer;"
                  onclick="
                     const t = this.querySelector('.ratio-tooltip');
                     if(t) {
                         const isBlock = (t.style.display === 'block');
-                        // 다른 열려있는 모든 툴팁을 닫아줌
                         document.querySelectorAll('.ratio-tooltip').forEach(e => e.style.display='none');
-                        // 내가 누른 게 닫혀있던 거라면 열어줌 (이미 열려있던 거면 위에서 닫히고 끝)
                         if(!isBlock) t.style.display='block';
                     }
                  ">
-              <span style="font-weight:600; line-height:1.3; color:#f8f9fa; text-align:center;">${displayName}${scoreHtml}</span>
-              ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin-top:3px;">${badgeHtmlStr}</div>` : ""}
+              <span style="font-weight:600; line-height:1.2; font-size:11.5px; color:#f8f9fa; text-align:center;">${displayName}${scoreHtml}</span>
+              ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:2px; justify-content:center; margin-top:1px;">${badgeHtmlStr}</div>` : ""}
               ${tooltipHtml}
             </div>
           `;
@@ -386,6 +389,7 @@ function getUniversityLineHtml_(placement) {
       }
       return htmlStr;
   };
+  
   window.renderSingleGroupDataHelper = function(univDataObj, keyword = "") {
     if (!univDataObj || Object.keys(univDataObj).length === 0) {
         return `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.3); font-size:12px; font-style:italic;">매칭 대학 없음</div>`;
