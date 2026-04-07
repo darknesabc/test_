@@ -540,7 +540,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (한국사 & 사과탐 버그 완벽 패치)
+ * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (기본탭 검색 모드 적용)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -548,8 +548,6 @@ function getNonsulSimulationHtml_(rawData) {
   const mChoice = String(rawData?.math?.choice || "");
   const t1Name = String(rawData?.tam1?.name || "");
   const t2Name = String(rawData?.tam2?.name || "");
-  
-  // 💡 [핵심 픽스 1] '생'윤이 '생'명과학으로 둔갑하지 않도록 과목명 정밀 타겟팅!
   const sciSubj = ["물리", "물1", "물2", "화학", "화1", "화2", "생명", "생1", "생2", "지구", "지1", "지2"];
   const socSubj = ["윤리", "생윤", "윤사", "지리", "한지", "세지", "역사", "동사", "세계사", "세사", "사회", "사문", "경제", "법", "정법", "정치"];
 
@@ -563,14 +561,13 @@ function getNonsulSimulationHtml_(rawData) {
       kor: getG(rawData?.kor?.expected_grade),
       math: getG(rawData?.math?.expected_grade),
       eng: getG(rawData?.eng?.expected_grade || rawData?.eng?.grade),
-      hist: getG(rawData?.hist?.expected_grade || rawData?.hist?.grade), // 💡 한국사 추가
+      hist: getG(rawData?.hist?.expected_grade || rawData?.hist?.grade),
       tam1: getG(rawData?.tam1?.expected_grade),
       tam2: getG(rawData?.tam2?.expected_grade),
       mathType: (mChoice.includes("미적") || mChoice.includes("기하")) ? "미기" : "확통",
       tamType: tamType
   };
 
-  // 💡 [핵심 픽스 2] 한국사 최저 조건 완벽 판독 로직 추가
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
@@ -580,7 +577,6 @@ function getNonsulSimulationHtml_(rawData) {
       const p = window.__currentNonsulProfile;
       let pool = [];
 
-      // 한국사 별도 체크 로직 ("한4", "한국사 4등급 이내" 등을 잡아냄)
       let histFail = false;
       let histMsg = "";
       let histReqMatch = reqStr.match(/(?:한국사|한)\s*(\d)/); 
@@ -637,13 +633,11 @@ function getNonsulSimulationHtml_(rawData) {
           }
       }
 
-      // 💡 한국사 미달이면 무조건 '최저 미달'로 덮어쓰기!
       if (histFail) {
           pass = false;
           tag = "🔴 미달";
           msg = (msg !== "요강 확인 요망" && !msg.includes("조건 미달")) ? `${msg}, ${histMsg}` : histMsg;
       } else if (pass && histReqMatch) {
-          // 메인 조건 통과 + 한국사도 통과한 경우
           msg += `, 한${p.hist}통과`;
       }
 
@@ -695,13 +689,14 @@ function getNonsulSimulationHtml_(rawData) {
       if (sheet === 'global_search') {
           subTabs.style.display = 'none'; 
           searchBar.style.display = 'flex';
-          searchInput.placeholder = "전체 시트 통합 검색어 입력 (대학명/학과/전형명)";
+          if (searchInput) { searchInput.placeholder = "전체 시트 통합 검색어 입력 (대학명/학과/전형명)"; searchInput.value = ""; }
           if (trackFilter) trackFilter.value = "전체";
           if (typeFilter) typeFilter.value = "전체";
           resDiv.innerHTML = '<div style="text-align:center; padding:30px; opacity:0.6;">전체 탭 통합 검색입니다. 검색어와 필터를 조절해주세요.</div>';
       } else {
           subTabs.style.display = 'flex'; 
-          window.switchSusiSubMode('인문');
+          // 💡 [핵심 변경] 탭을 누르면 '인문'이 아니라 'search(이 시트에서 검색)'가 기본 활성화 되도록 변경!
+          window.switchSusiSubMode('search');
       }
   };
 
@@ -725,7 +720,7 @@ function getNonsulSimulationHtml_(rawData) {
 
       if (mode === 'search') {
           searchBar.style.display = 'flex';
-          searchInput.placeholder = `[${window.__activeSusiSheet}] 시트 내에서 검색어를 입력하세요.`;
+          if (searchInput) { searchInput.placeholder = `[${window.__activeSusiSheet}] 시트 내에서 검색어를 입력하세요.`; searchInput.value = ""; }
           if (trackFilter) trackFilter.value = "전체";
           if (typeFilter) typeFilter.value = "전체";
           resDiv.innerHTML = `<div style="text-align:center; padding:30px; opacity:0.6;">[${window.__activeSusiSheet}] 시트 전용 검색입니다. 검색어와 필터를 조절하세요.</div>`;
