@@ -292,7 +292,7 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면 (시뮬레이션 스위치 100% 작동 픽스!)
+ * ✅ [프론트엔드 NEW] 대학 라인 예측 화면 (가산점 뱃지 및 반영조합 텍스트 탑재)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
@@ -313,50 +313,58 @@ function getUniversityLineHtml_(placement) {
   window.__currentPlacement = placement;
 
   window.renderDepartmentListHelper = function(deptDataList, keyword = "") {
-    // 💡 [핵심 수정] 검색어가 있을 때는 10개 제한을 풀고 999개(전체 학과)를 다 가져옵니다!
-    const limit = keyword ? 999 : 4; 
-    const htmlStr = deptDataList.slice(0, limit).map(d => {
-        const name = typeof d === 'string' ? d : (d.name || "");
-        const badges = d.badges || []; 
-        const deptScore = d.score ? d.score : ""; 
-        
-        let displayName = escapeHtml(name);
-        if (keyword && name.includes(keyword)) {
-            displayName = `<span style="background:#f1c40f; color:#000; padding:0 2px; border-radius:2px; font-weight:900;">${escapeHtml(name)}</span>`;
-        }
+      const limit = keyword ? 999 : 4; 
+      const htmlStr = deptDataList.slice(0, limit).map(d => {
+          const name = typeof d === 'string' ? d : (d.name || "");
+          const badges = d.badges || []; 
+          const deptScore = d.score ? d.score : ""; 
+          
+          let displayName = escapeHtml(name);
+          if (keyword && name.includes(keyword)) {
+              displayName = `<span style="background:#f1c40f; color:#000; padding:0 2px; border-radius:2px; font-weight:900;">${escapeHtml(name)}</span>`;
+          }
 
-        let scoreHtml = deptScore ? `<span style="color:#f39c12; font-size:11px; font-weight:900; margin-left:4px;">(${deptScore})</span>` : "";
+          let scoreHtml = deptScore ? `<span style="color:#f39c12; font-size:11px; font-weight:900; margin-left:4px;">(${deptScore})</span>` : "";
 
-        let badgeHtmlStr = "";
-        badges.forEach(b => {
-            let bg = "#7f8c8d"; 
-            if (b === "과1") bg = "#3498db";         
-            else if (b === "사1") bg = "#9b59b6";   
-            else if (b === "탐1") bg = "#e67e22";   
-            else if (b === "지역인재") bg = "#27ae60"; 
-            else if (b === "지역균형") bg = "#16a085"; 
-            badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
-        });
-        
-        return `
-          <div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:4px; word-break:keep-all;">
-            <span style="font-weight:600; line-height:1.3; color:#f8f9fa; text-align:center;">${displayName}${scoreHtml}</span>
-            ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center;">${badgeHtmlStr}</div>` : ""}
-          </div>
-        `;
-    }).join("");
+          // 💡 [뱃지 처리] 새로운 가산점 뱃지 색상 추가
+          let badgeHtmlStr = "";
+          badges.forEach(b => {
+              let bg = "#7f8c8d"; 
+              if (b === "과1") bg = "#3498db";         
+              else if (b === "사1") bg = "#9b59b6";   
+              else if (b === "탐1") bg = "#e67e22";   
+              else if (b === "지역인재") bg = "#27ae60"; 
+              else if (b === "지역균형") bg = "#16a085"; 
+              else if (b.includes("미적") || b.includes("기하")) bg = "#e74c3c"; // 수학은 빨간색
+              else if (b.includes("과탐")) bg = "#3498db"; // 과탐은 파란색
+              else if (b.includes("사탐")) bg = "#9b59b6"; // 사탐은 보라색
+              
+              badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
+          });
+          
+          // 💡 [텍스트 처리] 조합명(예: 국수영탐(3))과 반영비율 텍스트 함께 출력
+          const comboHtml = d.combo ? `<span style="color:#f39c12; margin-right:4px;">[${escapeHtml(d.combo)}]</span>` : "";
+          const ratioHtml = d.ratio ? `<div style="font-size:10px; color:#bdc3c7; font-weight:bold; margin-top:2px; margin-bottom:2px; letter-spacing:-0.5px;">${comboHtml}${escapeHtml(d.ratio)}</div>` : "";
 
-    // ✨ [신규 추가] 학과가 6개가 넘어가면 표가 길어지지 않게 내부에 부드러운 스크롤을 만들어줍니다!
-    if (keyword && deptDataList.length > 6) {
-        return `<div class="dept-scroll" style="max-height: 250px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; margin-right: -4px;">
-                  <style>
-                    .dept-scroll::-webkit-scrollbar { width: 4px; }
-                    .dept-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-                  </style>
-                  ${htmlStr}
-                </div>`;
-    }
-    return htmlStr;
+          return `
+            <div style="margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:2px; word-break:keep-all;">
+              <span style="font-weight:600; line-height:1.3; color:#f8f9fa; text-align:center;">${displayName}${scoreHtml}</span>
+              ${ratioHtml}
+              ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin-top:2px;">${badgeHtmlStr}</div>` : ""}
+            </div>
+          `;
+      }).join("");
+
+      if (keyword && deptDataList.length > 6) {
+          return `<div class="dept-scroll" style="max-height: 250px; overflow-y: auto; overflow-x: hidden; padding-right: 4px; margin-right: -4px;">
+                    <style>
+                      .dept-scroll::-webkit-scrollbar { width: 4px; }
+                      .dept-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+                    </style>
+                    ${htmlStr}
+                  </div>`;
+      }
+      return htmlStr;
   };
 
   window.renderSingleGroupDataHelper = function(univDataObj, keyword = "") {
@@ -367,7 +375,6 @@ function getUniversityLineHtml_(placement) {
     let univHeaders = '';
     let deptCells = '';
     
-    // 💡 [수정] 검색 시 노출되는 대학 개수도 10개에서 20개로 넉넉하게 늘려줍니다.
     const limit = keyword ? 20 : 6; 
     const univKeys = Object.keys(univDataObj).slice(0, limit);
 
@@ -398,7 +405,6 @@ function getUniversityLineHtml_(placement) {
     const keyword = (status.search || "").trim();
     
     placeData.allMatches.forEach(m => {
-      // 💡 [수정] 프론트엔드에서 수신한 조건(mathReq, tamTypeReq)으로 완벽하게 필터링!
       if (m.mathReq === "미기" && status.math !== "미기") return;
       if (m.mathReq === "확통" && status.math !== "확통") return;
 
@@ -421,7 +427,7 @@ function getUniversityLineHtml_(placement) {
       if (!isMatch) return;
 
       if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
-      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score });
+      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo }); // 💡 콤보 전송
     });
 
     ALL_GROUPS.forEach(gun => {
@@ -444,7 +450,6 @@ function getUniversityLineHtml_(placement) {
       window.runUniversitySimulation();
   };
 
-  // 💡 [수정] 왼쪽 '내 점수' 파트도 학생의 '초기 응시 과목' 기준으로 정확히 필터링해서 보여줍니다!
   const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
   placement.allMatches.forEach(m => {
     if (m.score >= placement.myScore - 1 && m.score <= placement.myScore + 1) {
@@ -462,7 +467,7 @@ function getUniversityLineHtml_(placement) {
       }
 
       if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
-      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score });
+      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo }); // 💡 콤보 전송
     }
   });
 
