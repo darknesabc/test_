@@ -540,7 +540,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (검색 계열 필터 추가)
+ * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (전형유형 필터 탑재)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -567,7 +567,6 @@ function getNonsulSimulationHtml_(rawData) {
       tamType: tamType
   };
 
-  // 수능 최저 판독기
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
@@ -626,11 +625,9 @@ function getNonsulSimulationHtml_(rawData) {
       return { pass, tag, msg };
   };
 
-  // 💡 상태 변수 저장
   window.__activeSusiSheet = 'global_search';
   window.__activeSusiMode = 'search';
 
-  // 💡 데이터 로드 공통 함수
   window.ensureSusiDataLoaded = async function(resDiv) {
       if (window.__susiData) return true;
       try {
@@ -664,13 +661,20 @@ function getNonsulSimulationHtml_(rawData) {
       const resDiv = document.getElementById('susiResultArea');
       const searchInput = document.getElementById('susiSearchInput');
       const trackFilter = document.getElementById('susiTrackFilter');
+      const typeFilter = document.getElementById('susiTypeFilter');
+
+      // 💡 [핵심 추가] 논술 탭일 경우 "전형유형" 드롭다운 필터를 숨깁니다!
+      if (typeFilter) {
+          typeFilter.style.display = (sheet === '논술') ? 'none' : 'inline-block';
+      }
 
       if (sheet === 'global_search') {
           subTabs.style.display = 'none'; 
           searchBar.style.display = 'flex';
-          searchInput.placeholder = "전체 시트에서 대학명, 학과, 전형명을 검색해 주세요.";
-          trackFilter.value = "전체"; // 필터 초기화
-          resDiv.innerHTML = '<div style="text-align:center; padding:30px; opacity:0.6;">전체 탭 통합 검색입니다. 검색어와 계열을 선택해주세요.</div>';
+          searchInput.placeholder = "전체 시트 통합 검색어 입력 (대학명/학과/전형명)";
+          if (trackFilter) trackFilter.value = "전체";
+          if (typeFilter) typeFilter.value = "전체";
+          resDiv.innerHTML = '<div style="text-align:center; padding:30px; opacity:0.6;">전체 탭 통합 검색입니다. 검색어와 필터를 조절해주세요.</div>';
       } else {
           subTabs.style.display = 'flex'; 
           window.switchSusiSubMode('인문');
@@ -693,26 +697,29 @@ function getNonsulSimulationHtml_(rawData) {
       const resDiv = document.getElementById('susiResultArea');
       const searchInput = document.getElementById('susiSearchInput');
       const trackFilter = document.getElementById('susiTrackFilter');
+      const typeFilter = document.getElementById('susiTypeFilter');
 
       if (mode === 'search') {
           searchBar.style.display = 'flex';
-          searchInput.placeholder = `[${window.__activeSusiSheet}] 시트 내에서 검색어를 입력하세요.`;
-          trackFilter.value = "전체"; // 필터 초기화
-          resDiv.innerHTML = `<div style="text-align:center; padding:30px; opacity:0.6;">[${window.__activeSusiSheet}] 시트 전용 검색입니다. 검색어와 계열을 선택하세요.</div>`;
+          searchInput.placeholder = `[${window.__activeSusiSheet}] 시트 내에서 검색어 입력`;
+          if (trackFilter) trackFilter.value = "전체";
+          if (typeFilter) typeFilter.value = "전체";
+          resDiv.innerHTML = `<div style="text-align:center; padding:30px; opacity:0.6;">[${window.__activeSusiSheet}] 시트 전용 검색입니다. 검색어와 필터를 조절하세요.</div>`;
       } else {
           searchBar.style.display = 'none';
           window.renderSusiSummaryTable(window.__activeSusiSheet, mode);
       }
   };
 
-  // 💡 [핵심] 검색 실행 로직 (계열 필터링 추가!)
   window.executeSusiSearch = async function() {
       const keyword = document.getElementById('susiSearchInput').value.trim();
-      const trackFilter = document.getElementById('susiTrackFilter').value; // 계열 필터 값 가져오기
+      const trackFilter = document.getElementById('susiTrackFilter').value;
+      const typeFilter = document.getElementById('susiTypeFilter').value;
       const resDiv = document.getElementById('susiResultArea');
       
-      if (!keyword && window.__activeSusiSheet === 'global_search') {
-          return alert('통합 검색에서는 검색어를 반드시 입력하세요.');
+      // 검색어나 필터 조건이 없으면 안내 문구 띄우기
+      if (!keyword && trackFilter === "전체" && typeFilter === "전체" && window.__activeSusiSheet === 'global_search') {
+          return alert('통합 검색에서는 검색어를 입력하거나 필터를 지정해주세요.');
       }
       
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
@@ -720,17 +727,22 @@ function getNonsulSimulationHtml_(rawData) {
 
       let results = window.__susiData;
       
-      // 1. 시트 필터링
+      // 1. 선택된 탭(시트) 필터링
       if (window.__activeSusiSheet !== 'global_search') {
           results = results.filter(d => d.source === window.__activeSusiSheet);
       }
-
-      // 2. 💡 계열 필터링 (전체 / 인문 / 자연)
+      
+      // 2. 계열(트랙) 필터링
       if (trackFilter !== "전체") {
           results = results.filter(d => d.track && d.track.includes(trackFilter));
       }
+
+      // 3. 💡 [핵심 추가] 전형유형(교과/종합) 필터링
+      if (typeFilter !== "전체") {
+          results = results.filter(d => d.type && d.type.includes(typeFilter));
+      }
       
-      // 3. 키워드 필터링
+      // 4. 키워드 검색
       if (keyword) {
           results = results.filter(d => d.univ.includes(keyword) || d.dept.includes(keyword) || (d.admName && d.admName.includes(keyword)));
       }
@@ -745,7 +757,6 @@ function getNonsulSimulationHtml_(rawData) {
           const reqEval = window.evaluateNonsulReq(r.req); 
           const statusColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
-          // 논술 시트 전용 디테일 박스
           let nonsulExtraHtml = "";
           if (r.source === "논술") {
               nonsulExtraHtml = `
@@ -807,49 +818,34 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = html;
   };
 
-  // 표 그리기 (5칸 유지)
+  // 표 렌더링 함수는 그대로 유지
   window.renderSusiSummaryTable = async function(sheet, track) {
       const resDiv = document.getElementById('susiResultArea');
       resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
-
       if (!await window.ensureSusiDataLoaded(resDiv)) return;
-
       const results = window.__susiData.filter(d => d.source === sheet && d.track && d.track.includes(track));
-
       if (results.length === 0) {
-          resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">해당 시트에 [${track}] 계열 데이터가 없습니다.</div>`;
-          return;
+          resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">해당 시트에 [${track}] 계열 데이터가 없습니다.</div>`; return;
       }
-
       const univRankOrder = [
           "서울대", "연세대", "가톨릭대", "성균관대", "울산대", "고려대", "한양대", "경희대", "이화여대", "이화여자대", "중앙대", 
           "서강대", "한국외대", "한국외국어대", "서울시립대", "건국대", "동국대", "홍익대", "숙명여대", "숙명여자대", 
           "국민대", "숭실대", "세종대", "단국대", "인하대", "아주대", "항공대", "가천대", 
           "광운대", "명지대", "상명대", "서울과기대", "성신여대", "동덕여대", "덕성여대", "서울여대", "삼육대", "한성대", "서경대"
       ];
-      
       const getUnivRank = (uName) => {
           const branchRanks = {
               "한양대(ERICA)": 25.1, "중앙대(다빈치)": 25.2, "한국외대(글로벌)": 25.3, "단국대(천안)": 25.4,
               "연세대(미래)": 35.1, "고려대(세종)": 35.2, "홍익대(세종)": 35.3, "건국대(글로컬)": 35.4, "동국대(WISE)": 35.5
           };
           for (const key in branchRanks) if (uName.includes(key)) return branchRanks[key];
-          const idx = univRankOrder.findIndex(u => uName.includes(u));
-          return idx !== -1 ? idx : 999; 
+          const idx = univRankOrder.findIndex(u => uName.includes(u)); return idx !== -1 ? idx : 999; 
       };
-
       const flagshipUnivs = ["부산대", "경북대", "전남대", "충남대", "전북대", "충북대", "강원대", "경상국립대", "제주대"];
-
       const grouped = {};
       results.forEach(r => {
-          let cat = 50; 
-          let medType = "";
-          let isMed = false;
-          
-          const region = String(r.region || "");
-          const univ = String(r.univ || "");
-          const dept = String(r.dept || "");
-
+          let cat = 50; let medType = ""; let isMed = false;
+          const region = String(r.region || ""); const univ = String(r.univ || ""); const dept = String(r.dept || "");
           if (track.includes('자연')) {
               if (dept.includes("치의예") || dept.includes("치의학")) { cat = 11; medType = "치의예"; isMed = true; }
               else if (dept.includes("한의예") || dept.includes("한의학")) { cat = 12; medType = "한의예"; isMed = true; }
@@ -857,39 +853,26 @@ function getNonsulSimulationHtml_(rawData) {
               else if ((dept.includes("약학") || dept.includes("약대")) && !/(신약|제약|약과학|한약)/.test(dept)) { cat = 14; medType = "약학"; isMed = true; }
               else if ((dept.includes("의예") || dept.includes("의학") || dept.includes("의과")) && !/(식물|의공|의생명|의료|의과학)/.test(dept)) { cat = 10; medType = "의예"; isMed = true; }
           } 
-          
           if (!isMed) {
               if (region.includes("서울") || /(성균관대|경희대)/.test(univ)) cat = 20;
               else if (region.includes("경기") || region.includes("인천")) cat = 30;
               else if (flagshipUnivs.some(u => univ.includes(u))) cat = 40;
-              
-              if (/(ERICA|다빈치|글로벌|미래|세종|천안|글로컬|WISE)/i.test(univ)) {
-                  if (cat > 35) cat = 35; 
-              }
+              if (/(ERICA|다빈치|글로벌|미래|세종|천안|글로컬|WISE)/i.test(univ)) { if (cat > 35) cat = 35; }
           }
-
           const groupKey = `${cat}_${univ}`;
           if (!grouped[groupKey]) grouped[groupKey] = { univ: univ, cat: cat, isMed: isMed, medType: medType, reqs: {} };
-
           const reqKey = r.req || "없음";
-          if (!grouped[groupKey].reqs[reqKey]) {
-              grouped[groupKey].reqs[reqKey] = { items: [], req: r.req };
-          }
+          if (!grouped[groupKey].reqs[reqKey]) { grouped[groupKey].reqs[reqKey] = { items: [], req: r.req }; }
           grouped[groupKey].reqs[reqKey].items.push(r);
       });
-
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
           const gA = grouped[a]; const gB = grouped[b];
           if (gA.cat !== gB.cat) return gA.cat - gB.cat; 
-          
           let rankA = getUnivRank(gA.univ); let rankB = getUnivRank(gB.univ);
-
           if (gA.cat === 10) {
               const medRank = ["서울대", "연세대", "가톨릭대", "성균관대", "울산대", "고려대", "한양대", "경희대", "중앙대", "이화여대", "이화여자대", "아주대", "인하대", "가천대"];
-              let mIdxA = medRank.findIndex(u => gA.univ.includes(u));
-              let mIdxB = medRank.findIndex(u => gB.univ.includes(u));
-              if (gA.univ.includes("미래")) mIdxA = 999;
-              if (gB.univ.includes("미래")) mIdxB = 999;
+              let mIdxA = medRank.findIndex(u => gA.univ.includes(u)); let mIdxB = medRank.findIndex(u => gB.univ.includes(u));
+              if (gA.univ.includes("미래")) mIdxA = 999; if (gB.univ.includes("미래")) mIdxB = 999;
               rankA = mIdxA !== -1 && mIdxA !== 999 ? mIdxA : rankA + 100;
               rankB = mIdxB !== -1 && mIdxB !== 999 ? mIdxB : rankB + 100;
           }
@@ -911,18 +894,14 @@ function getNonsulSimulationHtml_(rawData) {
               </thead>
               <tbody>
       `;
-
       sortedGroupKeys.forEach(groupKey => {
           const grpData = grouped[groupKey];
           const reqKeys = Object.keys(grpData.reqs);
           const rowspan = reqKeys.length;
-          
           reqKeys.forEach((reqKey, idx) => {
               const grp = grpData.reqs[reqKey];
               const reqEval = window.evaluateNonsulReq(grp.req);
-              
               const examDateStr = grp.items[0].examDate && grp.items[0].examDate !== "-" ? escapeHtml(grp.items[0].examDate) : "-";
-
               let oxMark = ""; let oxColor = ""; let oxBg = "";
               if (reqEval.tag.includes("🟢")) { oxMark = "O"; oxColor = "#2ecc71"; oxBg = "rgba(46,204,113,0.15)"; }
               else if (reqEval.tag.includes("🔴")) { oxMark = "X"; oxColor = "#e74c3c"; oxBg = "rgba(231,76,60,0.15)"; }
@@ -935,7 +914,6 @@ function getNonsulSimulationHtml_(rawData) {
                   if(!deptsByAdm[adm]) deptsByAdm[adm] = [];
                   deptsByAdm[adm].push(it.dept);
               });
-
               let displayDept = "";
               Object.keys(deptsByAdm).forEach(adm => {
                   let dList = deptsByAdm[adm];
@@ -944,22 +922,18 @@ function getNonsulSimulationHtml_(rawData) {
               });
 
               const isNewUniv = (idx === 0);
-              
               let univDisplayName = escapeHtml(grpData.univ);
               if (isNewUniv && grpData.isMed) {
                   univDisplayName = `<span style="color:#e74c3c; font-size:10px; font-weight:900; border:1px solid rgba(231,76,60,0.5); background:rgba(231,76,60,0.1); padding:2px 4px; border-radius:4px; margin-bottom:4px; display:inline-block;">✚ ${grpData.medType}</span><br>${univDisplayName}`;
               }
               const univNameHtml = isNewUniv ? `<strong style="color:#fff; font-size:13px; line-height:1.4;">${univDisplayName}</strong>` : `<span style="opacity:0.2;">"</span>`;
-
               const borderBottom = idx === rowspan - 1 ? `border-bottom:1px solid rgba(255,255,255,0.1);` : `border-bottom:1px dashed rgba(255,255,255,0.05);`;
               const borderTop = isNewUniv ? `border-top:1px solid rgba(255,255,255,0.1);` : ``;
 
               tableHtml += `<tr style="transition:background 0.1s; ${borderBottom} ${borderTop}" onmouseover="this.style.background='rgba(255,255,255,0.04)'" onmouseout="this.style.background='transparent'">`;
-              
               if (isNewUniv) {
                   tableHtml += `<td rowspan="${rowspan}" style="padding:8px; border-right:1px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2); vertical-align:middle;">${univNameHtml}</td>`;
               }
-              
               tableHtml += `
                   <td style="padding:8px; border-right:1px solid rgba(255,255,255,0.03);">${displayDept}</td>
                   <td style="padding:8px; text-align:left; border-right:1px solid rgba(255,255,255,0.03); opacity:0.9; word-break:keep-all; font-size:11px;">${escapeHtml(grp.req || "없음")}</td>
@@ -968,7 +942,6 @@ function getNonsulSimulationHtml_(rawData) {
               </tr>`;
           });
       });
-
       tableHtml += `</tbody></table></div>`;
       resDiv.innerHTML = tableHtml;
   };
@@ -1012,10 +985,17 @@ function getNonsulSimulationHtml_(rawData) {
       <div id="susiSearchBarWrapper" style="padding:12px; background:rgba(155, 89, 182, 0.1); border:1px dashed rgba(155, 89, 182, 0.4); border-radius:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         <span style="font-weight:bold; color:#fff; font-size:13px;">🎓 지원 대학/학과/전형 검색:</span>
         
-        <select id="susiTrackFilter" style="background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.6); color:#fff; font-size:13px; padding:7px 10px; border-radius:6px; outline:none; cursor:pointer;">
+        <select id="susiTrackFilter" onchange="window.executeSusiSearch()" style="background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.6); color:#fff; font-size:13px; padding:7px 10px; border-radius:6px; outline:none; cursor:pointer;">
             <option value="전체">전체 계열</option>
             <option value="인문">인문계열</option>
             <option value="자연">자연계열</option>
+        </select>
+
+        <select id="susiTypeFilter" onchange="window.executeSusiSearch()" style="background:rgba(0,0,0,0.5); border:1px solid rgba(155, 89, 182, 0.6); color:#fff; font-size:13px; padding:7px 10px; border-radius:6px; outline:none; cursor:pointer;">
+            <option value="전체">전체 전형</option>
+            <option value="학생부교과">학생부교과</option>
+            <option value="학생부종합">학생부종합</option>
+            <option value="논술">논술</option>
         </select>
 
         <input type="text" id="susiSearchInput" placeholder="검색어 입력..." 
