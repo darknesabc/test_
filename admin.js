@@ -540,7 +540,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (수시 전형 모든 디테일 탑재)
+ * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (입결 픽스 완벽 버전)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -783,7 +783,6 @@ function getNonsulSimulationHtml_(rawData) {
       const sortedGroupKeys = Object.keys(grouped).sort((a, b) => {
           const gA = grouped[a]; const gB = grouped[b];
           if (gA.cat !== gB.cat) return gA.cat - gB.cat; 
-          
           let rankA = getUnivRank(gA.univ); let rankB = getUnivRank(gB.univ);
 
           if (gA.cat === 10) {
@@ -875,7 +874,7 @@ function getNonsulSimulationHtml_(rawData) {
       resDiv.innerHTML = tableHtml;
   };
 
-  // 💡 [검색 로직] 수시 전용 디테일 항목들 렌더링 포함
+  // 💡 [검색 로직] 2023년 기준문구 제거 & 충원 표시 복구
   window.executeSusiSearch = async function() {
       const keyword = document.getElementById('susiSearchInput').value.trim();
       const trackFilter = document.getElementById('susiTrackFilter').value;
@@ -917,7 +916,6 @@ function getNonsulSimulationHtml_(rawData) {
           const reqEval = window.evaluateNonsulReq(r.req); 
           const statusColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
-          // 💡 [디테일 처리] 논술 vs 일반 수시(교과/종합) 카드를 구분해서 예쁘게 그립니다.
           let extraHtml = "";
           if (r.source === "논술") {
               extraHtml = `
@@ -956,6 +954,7 @@ function getNonsulSimulationHtml_(rawData) {
               }
           }
 
+          // 💡 2023년도는 '기준' 텍스트를 빼고 출력
           html += `
             <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; margin-bottom: 12px; transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='rgba(255,255,255,0.03)'">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
@@ -986,9 +985,9 @@ function getNonsulSimulationHtml_(rawData) {
                     </div>
                     <div style="padding-left:4px;">
                         <div style="color:rgba(255,255,255,0.4); margin-bottom:4px; font-weight:bold;">📈 입결/경쟁률/충원 (25'→24'→23')</div>
-                        ${r.std2025 || r.std2024 ? `<div style="color:rgba(255,255,255,0.5); margin-bottom:4px; font-size:10px;">기준: 25'(${escapeHtml(r.std2025||'-')}), 24'(${escapeHtml(r.std2024||'-')}), 23'(${escapeHtml(r.std2023||'-')})</div>` : ""}
+                        ${r.std2025 || r.std2024 ? `<div style="color:rgba(255,255,255,0.5); margin-bottom:4px; font-size:10px;">기준: 25'(${escapeHtml(r.std2025||'-')}), 24'(${escapeHtml(r.std2024||'-')})</div>` : ""}
                         <div style="color:#2ecc71; margin-bottom:4px;">입결: <b style="font-size:13px;">${escapeHtml(r.cut2025 || '-')}</b> → ${escapeHtml(r.cut2024 || '-')} → ${escapeHtml(r.cut2023 || '-')}</div>
-                        ${r.source !== "논술" ? `<div style="color:#e67e22; margin-bottom:4px;">충원: <b style="font-size:13px;">${escapeHtml(r.wait2025 || '-')}</b> → ${escapeHtml(r.wait2024 || '-')}</div>` : ""}
+                        ${r.source !== "논술" ? `<div style="color:#e67e22; margin-bottom:4px;">충원: <b style="font-size:13px;">${escapeHtml(r.wait2025 || '-')}</b> → ${escapeHtml(r.wait2024 || '-')} → ${escapeHtml(r.wait2023 || '-')}</div>` : ""}
                         <div style="color:#3498db;">경쟁: <b style="font-size:13px;">${escapeHtml(r.comp2025 || '-')}</b> → ${escapeHtml(r.comp2024 || '-')} → ${escapeHtml(r.comp2023 || '-')}</div>
                     </div>
                 </div>
