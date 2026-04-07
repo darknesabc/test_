@@ -735,6 +735,25 @@ function getNonsulSimulationHtml_(rawData) {
           const reqEval = window.evaluateNonsulReq(r.req); 
           const statusColor = reqEval.tag.includes("🟢") ? "#2ecc71" : reqEval.tag.includes("🔴") ? "#ff4757" : "#f1c40f";
 
+          // 💡 [핵심] 논술 시트일 경우에만 출력되는 전용 상세 정보 박스 생성!
+          let nonsulExtraHtml = "";
+          if (r.source === "논술") {
+              nonsulExtraHtml = `
+              <div style="margin-top:10px; background:rgba(155, 89, 182, 0.1); border:1px dashed rgba(155, 89, 182, 0.3); padding:12px; border-radius:8px; font-size:11px; display:flex; flex-direction:column; gap:6px;">
+                  <div style="color:#e056fd; font-weight:bold; font-size:12px; margin-bottom:2px;">📝 논술 상세 정보</div>
+                  <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                      <div><span style="opacity:0.6;">논술유형:</span> <span style="color:#fff;">${escapeHtml(r.testType || "-")}</span></div>
+                      <div><span style="opacity:0.6;">시험시간/문항:</span> <span style="color:#fff;">${escapeHtml(r.timeInfo || "-")}</span></div>
+                  </div>
+                  <div><span style="opacity:0.6;">출제범위:</span> <span style="color:#fff;">${escapeHtml(r.scope || "-")}</span></div>
+                  <div style="border-top:1px dashed rgba(255,255,255,0.1); padding-top:6px; margin-top:2px;">
+                      <div style="margin-bottom:4px;"><span style="opacity:0.6;">내신반영과목:</span> <span style="color:#fff;">${escapeHtml(r.gpaSubj || "-")}</span></div>
+                      <div><span style="opacity:0.6;">진로선택과목:</span> <span style="color:#fff;">${escapeHtml(r.careerSubj || "-")}</span></div>
+                  </div>
+              </div>
+              `;
+          }
+
           html += `
             <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; margin-bottom: 12px;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; gap:10px; flex-wrap:wrap;">
@@ -769,6 +788,9 @@ function getNonsulSimulationHtml_(rawData) {
                         <div style="color:#3498db;">경쟁: <b style="font-size:13px;">${escapeHtml(r.comp2025 || '-')}</b> → ${escapeHtml(r.comp2024 || '-')} → ${escapeHtml(r.comp2023 || '-')}</div>
                     </div>
                 </div>
+                
+                ${nonsulExtraHtml}
+                
                 ${r.examDate && r.examDate !== "-" ? `<div style="margin-top:10px; font-size:11px; font-weight:bold; color:#ff4757; background:rgba(231, 76, 60, 0.1); padding:4px 8px; border-radius:4px; display:inline-block;">📅 고사일정: ${escapeHtml(r.examDate)}</div>` : ""}
             </div>
           `;
@@ -776,7 +798,6 @@ function getNonsulSimulationHtml_(rawData) {
       html += `</div>`;
       resDiv.innerHTML = html;
   };
-
   // 💡 4단계: 시트별 전체보기 요약 표 그리기 (5칸 표 + 그룹화 + 서열정렬 완벽 지원)
   window.renderSusiSummaryTable = async function(sheet, track) {
       const resDiv = document.getElementById('susiResultArea');
