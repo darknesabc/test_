@@ -292,7 +292,7 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 NEW] 대학 라인 예측 화면 (가산점 뱃지 및 반영조합 텍스트 탑재)
+ * ✅ [프론트엔드 PREMIUM] 대학 라인 예측 화면 (UI 최적화: 비율 툴팁 숨김 및 색상 다이어트 적용)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
@@ -326,29 +326,33 @@ function getUniversityLineHtml_(placement) {
 
           let scoreHtml = deptScore ? `<span style="color:#f39c12; font-size:11px; font-weight:900; margin-left:4px;">(${deptScore})</span>` : "";
 
-          // 💡 [유불리 뱃지 색상 적용]
+          // 💡 [핵심 변경: PREMIUM 색상 다이어트]
           let badgeHtmlStr = "";
           badges.forEach(b => {
-              let bg = "#7f8c8d"; 
-              if (b.includes("🟢")) bg = "#2ecc71"; // 유리/극상 (초록)
-              else if (b.includes("🔴")) bg = "#e74c3c"; // 불리 (빨강)
-              else if (b.includes("⭐")) bg = "#f39c12"; // 자동유리(선택형) (주황)
-              else if (b === "과1") bg = "#3498db";         
-              else if (b === "사1") bg = "#9b59b6";   
-              else if (b === "탐1") bg = "#e67e22";   
-              else if (b === "지역인재") bg = "#27ae60"; 
-              else if (b === "지역균형") bg = "#16a085"; 
-              else if (b.includes("미적") || b.includes("기하")) bg = "#e74c3c"; 
-              else if (b.includes("과탐")) bg = "#3498db"; 
-              else if (b.includes("사탐")) bg = "#9b59b6"; 
+              // 1. 유/불리 뱃지 (🟢/🔴/⭐) -> 강렬한 원색 유지 (시선 집중)
+              let bg = ""; 
+              let co = "#fff";
+              let bo = "none";
               
-              badgeHtmlStr += `<span style="background:${bg}; color:#fff; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
+              if (b.includes("🟢")) { bg = "#2ecc71"; bo = "1px solid #27ae60"; } // 극상/유리 (초록)
+              else if (b.includes("🔴")) { bg = "#e74c3c"; bo = "1px solid #c0392b"; } // 불리 (빨강)
+              else if (b.includes("⭐")) { bg = "#f39c12"; co = "#fff"; bo = "1px solid #d35400"; } // 선택형유리 (주황)
+              
+              // 2. 나머지 모든 부가 정보 뱃지 -> 차분한 네이비/화이트 테두리 톤 (톤다운)
+              else { 
+                  bg = "rgba(52, 152, 219, 0.1)"; // 아주 연한 파랑 배경
+                  co = "rgba(255, 255, 255, 0.7)"; // 약간 투명한 화이트 글씨
+                  bo = "1px solid rgba(255, 255, 255, 0.15)"; // 옅은 테두리
+              }
+              
+              badgeHtmlStr += `<span style="background:${bg}; color:${co}; border:${bo}; border-radius:4px; padding:2px 5px; font-size:10px; font-weight:800; white-space:nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.3); display:inline-block;">${b}</span>`;
           });
           
+          // 비율 툴팁 (숨김 처리 유지)
           let tooltipHtml = "";
           if (d.combo || d.ratio) {
               tooltipHtml = `
-                <div class="ratio-tooltip" style="display:none; position:absolute; z-index:100; background:rgba(0,0,0,0.85); border:1px solid #f39c12; color:#fff; padding:6px 10px; border-radius:6px; font-size:11px; font-weight:bold; top:100%; left:50%; transform:translateX(-50%); white-space:nowrap; box-shadow:0 4px 10px rgba(0,0,0,0.5); pointer-events:none;">
+                <div class="ratio-tooltip" style="display:none; position:absolute; z-index:100; background:rgba(0,0,0,0.9); border:1px solid #f39c12; color:#fff; padding:6px 10px; border-radius:6px; font-size:11px; font-weight:bold; top:100%; left:50%; transform:translateX(-50%); white-space:nowrap; box-shadow:0 4px 12px rgba(0,0,0,0.6); pointer-events:none;">
                   <span style="color:#f39c12; margin-right:4px;">${d.combo ? '['+escapeHtml(d.combo)+']' : ''}</span>${escapeHtml(d.ratio || '')}
                 </div>
               `;
@@ -359,7 +363,7 @@ function getUniversityLineHtml_(placement) {
                  onmouseover="const t=this.querySelector('.ratio-tooltip'); if(t) t.style.display='block';"
                  onmouseout="const t=this.querySelector('.ratio-tooltip'); if(t) t.style.display='none';">
               <span style="font-weight:600; line-height:1.3; color:#f8f9fa; text-align:center;">${displayName}${scoreHtml}</span>
-              ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin-top:2px;">${badgeHtmlStr}</div>` : ""}
+              ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:3px; justify-content:center; margin-top:3px;">${badgeHtmlStr}</div>` : ""}
               ${tooltipHtml}
             </div>
           `;
@@ -437,7 +441,7 @@ function getUniversityLineHtml_(placement) {
       if (!isMatch) return;
 
       if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
-      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo }); // 💡 콤보 전송
+      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo });
     });
 
     ALL_GROUPS.forEach(gun => {
@@ -477,7 +481,7 @@ function getUniversityLineHtml_(placement) {
       }
 
       if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
-      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo }); // 💡 콤보 전송
+      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo });
     }
   });
 
