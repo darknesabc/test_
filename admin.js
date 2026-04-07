@@ -540,7 +540,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (기본탭 검색 모드 적용)
+ * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (내신 입결 범위 직접 입력 탑재)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -647,6 +647,20 @@ function getNonsulSimulationHtml_(rawData) {
   window.__activeSusiSheet = 'global_search';
   window.__activeSusiMode = 'search';
 
+  // 💡 [핵심 UI 기능] 내신 입력창 직접 입력(범위) 모드 토글
+  window.toggleGpaCustomInput = function() {
+      const rangeVal = document.getElementById('susiGpaRange').value;
+      const standardWrap = document.getElementById('susiGpaStandardWrap');
+      const customWrap = document.getElementById('susiGpaCustomWrap');
+      if (rangeVal === 'custom') {
+          standardWrap.style.display = 'none';
+          customWrap.style.display = 'flex';
+      } else {
+          standardWrap.style.display = 'flex';
+          customWrap.style.display = 'none';
+      }
+  };
+
   window.ensureSusiDataLoaded = async function(resDiv) {
       if (window.__susiData) return true;
       try {
@@ -681,6 +695,8 @@ function getNonsulSimulationHtml_(rawData) {
       const searchInput = document.getElementById('susiSearchInput');
       const trackFilter = document.getElementById('susiTrackFilter');
       const typeFilter = document.getElementById('susiTypeFilter');
+      const gpaInput = document.getElementById('susiGpaInput'); 
+      const gpaRange = document.getElementById('susiGpaRange'); 
 
       if (typeFilter) {
           typeFilter.style.display = (sheet === '논술') ? 'none' : 'inline-block';
@@ -689,13 +705,14 @@ function getNonsulSimulationHtml_(rawData) {
       if (sheet === 'global_search') {
           subTabs.style.display = 'none'; 
           searchBar.style.display = 'flex';
-          if (searchInput) { searchInput.placeholder = "전체 시트 통합 검색어 입력 (대학명/학과/전형명)"; searchInput.value = ""; }
+          if (searchInput) { searchInput.placeholder = "대학명/학과/전형명 검색"; searchInput.value = ""; }
           if (trackFilter) trackFilter.value = "전체";
           if (typeFilter) typeFilter.value = "전체";
-          resDiv.innerHTML = '<div style="text-align:center; padding:30px; opacity:0.6;">전체 탭 통합 검색입니다. 검색어와 필터를 조절해주세요.</div>';
+          if (gpaInput) gpaInput.value = "";
+          if (gpaRange) { gpaRange.value = "0.3"; window.toggleGpaCustomInput(); }
+          resDiv.innerHTML = '<div style="text-align:center; padding:30px; opacity:0.6;">전체 탭 통합 검색입니다. 내신 등급이나 검색어를 입력하세요.</div>';
       } else {
           subTabs.style.display = 'flex'; 
-          // 💡 [핵심 변경] 탭을 누르면 '인문'이 아니라 'search(이 시트에서 검색)'가 기본 활성화 되도록 변경!
           window.switchSusiSubMode('search');
       }
   };
@@ -717,30 +734,43 @@ function getNonsulSimulationHtml_(rawData) {
       const searchInput = document.getElementById('susiSearchInput');
       const trackFilter = document.getElementById('susiTrackFilter');
       const typeFilter = document.getElementById('susiTypeFilter');
+      const gpaInput = document.getElementById('susiGpaInput');
+      const gpaRange = document.getElementById('susiGpaRange');
 
       if (mode === 'search') {
           searchBar.style.display = 'flex';
-          if (searchInput) { searchInput.placeholder = `[${window.__activeSusiSheet}] 시트 내에서 검색어를 입력하세요.`; searchInput.value = ""; }
+          if (searchInput) { searchInput.placeholder = `[${window.__activeSusiSheet}] 시트 내에서 검색`; searchInput.value = ""; }
           if (trackFilter) trackFilter.value = "전체";
           if (typeFilter) typeFilter.value = "전체";
-          resDiv.innerHTML = `<div style="text-align:center; padding:30px; opacity:0.6;">[${window.__activeSusiSheet}] 시트 전용 검색입니다. 검색어와 필터를 조절하세요.</div>`;
+          if (gpaInput) gpaInput.value = "";
+          if (gpaRange) { gpaRange.value = "0.3"; window.toggleGpaCustomInput(); }
+          resDiv.innerHTML = `<div style="text-align:center; padding:30px; opacity:0.6;">[${window.__activeSusiSheet}] 시트 전용 검색입니다. 내신 등급이나 검색어를 입력하세요.</div>`;
       } else {
           searchBar.style.display = 'none';
           window.renderSusiSummaryTable(window.__activeSusiSheet, mode);
       }
   };
 
+  // 💡 [핵심] 검색 로직에 "직접입력(범위)" 필터 적용
   window.executeSusiSearch = async function() {
       const keyword = document.getElementById('susiSearchInput').value.trim();
       const trackFilter = document.getElementById('susiTrackFilter').value;
       const typeFilter = document.getElementById('susiTypeFilter') ? document.getElementById('susiTypeFilter').value : "전체";
+      const gpaRangeStr = document.getElementById('susiGpaRange').value;
+      
+      const targetGpaStr = document.getElementById('susiGpaInput').value.trim();
+      const customMinStr = document.getElementById('susiGpaMin').value.trim();
+      const customMaxStr = document.getElementById('susiGpaMax').value.trim();
+      
       const resDiv = document.getElementById('susiResultArea');
       
-      if (!keyword && trackFilter === "전체" && typeFilter === "전체" && window.__activeSusiSheet === 'global_search') {
-          return alert('통합 검색에서는 검색어를 입력하거나 필터를 지정해주세요.');
+      // 입력값이 하나도 없을 경우 차단
+      const isGpaEntered = gpaRangeStr === 'custom' ? (customMinStr || customMaxStr) : targetGpaStr;
+      if (!keyword && !isGpaEntered && trackFilter === "전체" && typeFilter === "전체" && window.__activeSusiSheet === 'global_search') {
+          return alert('통합 검색에서는 검색어나 목표 내신을 반드시 입력해주세요.');
       }
       
-      resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 불러오는 중입니다...</div>`;
+      resDiv.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.6;">데이터를 분석 중입니다...</div>`;
       if (!await window.ensureSusiDataLoaded(resDiv)) return;
 
       let results = window.__susiData;
@@ -748,15 +778,59 @@ function getNonsulSimulationHtml_(rawData) {
       if (window.__activeSusiSheet !== 'global_search') {
           results = results.filter(d => d.source === window.__activeSusiSheet);
       }
+      if (trackFilter !== "전체") results = results.filter(d => d.track && d.track.includes(trackFilter));
+      if (typeFilter !== "전체") results = results.filter(d => d.type && d.type.includes(typeFilter));
       
-      if (trackFilter !== "전체") {
-          results = results.filter(d => d.track && d.track.includes(trackFilter));
+      // 💡 [내신 입결 필터링 마법]
+      if (gpaRangeStr === 'custom') {
+          // 직접 범위 지정
+          if (customMinStr || customMaxStr) {
+              const minGpa = customMinStr ? parseFloat(customMinStr) : 0.0;
+              const maxGpa = customMaxStr ? parseFloat(customMaxStr) : 9.0;
+              
+              results = results.filter(r => {
+                  const c25 = parseFloat(r.cut2025);
+                  const c24 = parseFloat(r.cut2024);
+                  const c23 = parseFloat(r.cut2023);
+
+                  let validCut = NaN;
+                  if (!isNaN(c25)) validCut = c25;
+                  else if (!isNaN(c24)) validCut = c24;
+                  else if (!isNaN(c23)) validCut = c23;
+
+                  if (isNaN(validCut)) return false;
+                  return validCut >= minGpa && validCut <= maxGpa;
+              });
+          }
+      } else if (targetGpaStr) {
+          // 자동 타겟팅 모드 (±적정, 넓게, 상향, 안정)
+          const targetGpa = parseFloat(targetGpaStr);
+          if (!isNaN(targetGpa)) {
+              results = results.filter(r => {
+                  const c25 = parseFloat(r.cut2025);
+                  const c24 = parseFloat(r.cut2024);
+                  const c23 = parseFloat(r.cut2023);
+
+                  let validCut = NaN;
+                  if (!isNaN(c25)) validCut = c25;
+                  else if (!isNaN(c24)) validCut = c24;
+                  else if (!isNaN(c23)) validCut = c23;
+
+                  if (isNaN(validCut)) return false;
+
+                  let min = targetGpa - 0.3;
+                  let max = targetGpa + 0.3;
+
+                  if (gpaRangeStr === "0.3") { min = targetGpa - 0.3; max = targetGpa + 0.3; }
+                  else if (gpaRangeStr === "0.5") { min = targetGpa - 0.5; max = targetGpa + 0.5; }
+                  else if (gpaRangeStr === "up") { min = targetGpa - 0.5; max = targetGpa; }    
+                  else if (gpaRangeStr === "down") { min = targetGpa; max = targetGpa + 0.5; }  
+
+                  return validCut >= min && validCut <= max;
+              });
+          }
       }
 
-      if (typeFilter !== "전체") {
-          results = results.filter(d => d.type && d.type.includes(typeFilter));
-      }
-      
       if (keyword) {
           results = results.filter(d => d.univ.includes(keyword) || d.dept.includes(keyword) || (d.admName && d.admName.includes(keyword)));
       }
@@ -1019,27 +1093,55 @@ function getNonsulSimulationHtml_(rawData) {
           <button id="subModeBtn_자연" class="susi-sub-btn" onclick="window.switchSusiSubMode('자연')" style="background:transparent; color:rgba(255,255,255,0.5); border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:11px; font-weight:bold; transition:all 0.2s;">📋 자연 전체보기</button>
       </div>
 
-      <div id="susiSearchBarWrapper" style="padding:12px; background:rgba(52, 152, 219, 0.1); border:1px dashed rgba(52, 152, 219, 0.4); border-radius:8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <span style="font-weight:bold; color:#fff; font-size:13px;">🎓 지원 대학/학과/전형 검색:</span>
+      <div id="susiSearchBarWrapper" style="padding:12px; background:rgba(52, 152, 219, 0.1); border:1px dashed rgba(52, 152, 219, 0.4); border-radius:8px; display:flex; flex-direction:column; gap:10px;">
         
-        <select id="susiTrackFilter" onchange="window.executeSusiSearch()" style="background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#fff; font-size:13px; padding:7px 10px; border-radius:6px; outline:none; cursor:pointer;">
-            <option value="전체">전체 계열</option>
-            <option value="인문">인문계열</option>
-            <option value="자연">자연계열</option>
-        </select>
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="font-weight:bold; color:#fff; font-size:13px;">🎓 지원 대학/학과/전형 검색:</span>
+            
+            <select id="susiTrackFilter" onchange="window.executeSusiSearch()" style="background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#fff; font-size:13px; padding:6px 10px; border-radius:6px; outline:none; cursor:pointer;">
+                <option value="전체">전체 계열</option>
+                <option value="인문">인문계열</option>
+                <option value="자연">자연계열</option>
+            </select>
 
-        <select id="susiTypeFilter" onchange="window.executeSusiSearch()" style="background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#fff; font-size:13px; padding:7px 10px; border-radius:6px; outline:none; cursor:pointer;">
-            <option value="전체">전체 전형</option>
-            <option value="학생부교과">학생부교과</option>
-            <option value="학생부종합">학생부종합</option>
-            <option value="논술">논술</option>
-        </select>
+            <select id="susiTypeFilter" onchange="window.executeSusiSearch()" style="background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#fff; font-size:13px; padding:6px 10px; border-radius:6px; outline:none; cursor:pointer;">
+                <option value="전체">전체 전형</option>
+                <option value="학생부교과">학생부교과</option>
+                <option value="학생부종합">학생부종합</option>
+                <option value="논술">논술</option>
+            </select>
 
-        <input type="text" id="susiSearchInput" placeholder="검색어 입력..." 
-               onkeydown="if(event.key==='Enter') window.executeSusiSearch()" 
-               style="flex:1; min-width:200px; background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#fff; font-size:14px; padding:7px 12px; border-radius:6px; outline:none;" />
-        <button onclick="window.executeSusiSearch()" 
-                style="background:#3498db; color:#fff; border:none; padding:8px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; box-shadow:0 2px 4px rgba(0,0,0,0.2);">🔍 검색</button>
+            <div style="display:flex; align-items:center; background:rgba(0,0,0,0.5); border:1px solid rgba(46, 204, 113, 0.5); border-radius:6px; padding:2px 8px;">
+                <span style="color:#2ecc71; font-size:12px; font-weight:bold; margin-right:4px;">내신컷</span>
+                
+                <select id="susiGpaRange" onchange="window.toggleGpaCustomInput(); window.executeSusiSearch();" style="background:transparent; border:none; color:#f1c40f; font-size:12px; outline:none; cursor:pointer; margin-right:4px; border-right:1px solid rgba(255,255,255,0.2); padding-right:4px;">
+                    <option value="0.3" selected>±0.3 (적정)</option>
+                    <option value="0.5">±0.5 (넓게)</option>
+                    <option value="up">상향 (-0.5)</option>
+                    <option value="down">안정 (+0.5)</option>
+                    <option value="custom">직접입력(범위)</option>
+                </select>
+
+                <div id="susiGpaStandardWrap" style="display:flex; align-items:center;">
+                    <input type="number" id="susiGpaInput" step="0.1" placeholder="예: 2.5" onkeydown="if(event.key==='Enter') window.executeSusiSearch()" style="width:55px; background:transparent; border:none; color:#fff; font-size:13px; outline:none; text-align:center;" />
+                </div>
+
+                <div id="susiGpaCustomWrap" style="display:none; align-items:center;">
+                   <input type="number" id="susiGpaMin" step="0.1" placeholder="최소" onkeydown="if(event.key==='Enter') window.executeSusiSearch()" style="width:40px; background:transparent; border:none; color:#fff; font-size:13px; outline:none; text-align:center;">
+                   <span style="color:#fff; margin:0 2px;">~</span>
+                   <input type="number" id="susiGpaMax" step="0.1" placeholder="최대" onkeydown="if(event.key==='Enter') window.executeSusiSearch()" style="width:40px; background:transparent; border:none; color:#fff; font-size:13px; outline:none; text-align:center;">
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px; width:100%;">
+            <input type="text" id="susiSearchInput" placeholder="검색어 입력..." 
+                   onkeydown="if(event.key==='Enter') window.executeSusiSearch()" 
+                   style="flex:1; background:rgba(0,0,0,0.5); border:1px solid rgba(52, 152, 219, 0.6); color:#fff; font-size:14px; padding:7px 12px; border-radius:6px; outline:none;" />
+            <button onclick="window.executeSusiSearch()" 
+                    style="background:#3498db; color:#fff; border:none; padding:8px 20px; border-radius:6px; font-weight:bold; cursor:pointer; font-size:13px; box-shadow:0 2px 4px rgba(0,0,0,0.2);">🔍 검색</button>
+        </div>
+
       </div>
 
       <div id="susiResultArea" style="margin-top:10px;">
