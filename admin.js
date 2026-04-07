@@ -107,7 +107,7 @@ function buildMoveMapFromItems_(items) {
 }
 
 /** =========================
-* ✅ 설문 기록을 출결 스케줄에 맞게 맵핑
+* ✅ 설문 기록을 출결 스케줄에 맞게 맵핑 (수정 버전)
 * ========================= */
 function buildSurveyMapFromItems_(items) {
   const map = {}; 
@@ -115,31 +115,32 @@ function buildSurveyMapFromItems_(items) {
   
   for (const it of arr) {
     const iso = String(it?.date || "").trim();
-    let reason = String(it?.reason || "").trim(); // 원본 사유
+    let reason = String(it?.reason || "").trim();
     const timeType = String(it?.timeType || "").trim();
 
     if (!iso || !reason || !timeType) continue;
 
-    // 💡 [추가] 사유를 "학원", "병원", "개인일정" 핵심 단어로만 축약합니다.
+    // 사유 축약 로직
     if (reason.includes("학원")) reason = "학원";
     else if (reason.includes("병원")) reason = "병원";
     else if (reason.includes("개인일정")) reason = "개인일정";
-    else {
-      // 혹시 다른 사유가 있을 경우, 괄호 '(' 앞부분까지만 잘라서 깔끔하게 보여줍니다.
-      reason = reason.split("(")[0].trim();
-    }
+    else reason = reason.split("(")[0].trim();
 
-    // F열(timeType) 내용으로 정확히 시간대 파악
+    // 💡 원장님 요청에 따른 교시 구간 수정
     let startP = 0, endP = 0;
-    if (timeType.includes("결석")) { startP = 1; endP = 8; }
-    else if (timeType.includes("오전")) { startP = 1; endP = 3; }
-    else if (timeType.includes("오후")) { startP = 4; endP = 6; }
-    else if (timeType.includes("야간") || timeType.includes("저녁")) { startP = 7; endP = 8; }
+    if (timeType.includes("결석")) { 
+      startP = 1; endP = 8; // 결석: 1~8교시
+    } else if (timeType.includes("저녁") || timeType.includes("야간")) { 
+      startP = 1; endP = 7; // 저녁: 1~7교시 (수정됨)
+    } else if (timeType.includes("오후")) { 
+      startP = 1; endP = 6; // 오후: 1~6교시 (수정됨)
+    } else if (timeType.includes("오전")) { 
+      startP = 1; endP = 3; // 오전: 1~3교시 (유지)
+    }
 
     if (startP > 0) {
       map[iso] = map[iso] || {};
       for (let p = startP; p <= endP; p++) {
-        // 불필요한 기호 제거 후 짧아진 사유로 저장
         let cleanReason = reason.replace(/◼/g, '').trim();
         map[iso][p] = `[설문] ${cleanReason}`; 
       }
