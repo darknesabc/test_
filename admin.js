@@ -326,7 +326,9 @@ function getUniversityLineHtml_(placement) {
 
           let scoreHtml = deptScore ? `<span style="color:#f39c12; font-size:11px; font-weight:900; margin-left:4px;">(${deptScore})</span>` : "";
 
-          // 💡 [초슬림 뱃지 UI] 패딩과 갭을 쫙 줄여서 부피를 최소화!
+          // 💡 [계열 텍스트 추가] 학과 이름 앞에 회색으로 작게 표시
+          let streamHtml = d.streamName ? `<span style="font-size:9.5px; color:#95a5a6; font-weight:normal; margin-right:3px;">[${escapeHtml(d.streamName)}]</span>` : "";
+
           let badgeHtmlStr = "";
           badges.forEach(b => {
               let bg = "#7f8c8d"; 
@@ -342,12 +344,10 @@ function getUniversityLineHtml_(placement) {
                   bo = "1px solid rgba(255, 255, 255, 0.15)"; 
               }
               
-              // 합쳐진 '미기' 키워드에 대한 색상 반영
-              if (b.includes("미적") || b.includes("기하") || b.includes("미기")) bg = "rgba(231, 76, 60, 0.15)"; // 빨강계열 톤다운
+              if (b.includes("미적") || b.includes("기하") || b.includes("미기")) bg = "rgba(231, 76, 60, 0.15)"; 
               else if (b.includes("과탐")) bg = "rgba(52, 152, 219, 0.15)"; 
               else if (b.includes("사탐")) bg = "rgba(155, 89, 182, 0.15)"; 
               
-              // 💡 패딩을 1px 4px로 줄이고, 글자 크기를 9.5px, 자간을 좁혀 초밀착형 뱃지로 만듭니다!
               badgeHtmlStr += `<span style="background:${bg}; color:${co}; border:${bo}; border-radius:3px; padding:1px 4px; font-size:9.5px; font-weight:800; letter-spacing:-0.5px; white-space:nowrap; box-shadow: 0 1px 1px rgba(0,0,0,0.2); display:inline-block;">${b}</span>`;
           });
           
@@ -360,7 +360,6 @@ function getUniversityLineHtml_(placement) {
               `;
           }
 
-          // 💡 마진과 갭을 확 줄였습니다. (margin-bottom:4px, gap:2px)
           return `
             <div style="position:relative; margin-bottom:4px; padding-bottom:3px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:1px; word-break:keep-all; cursor:pointer;"
                  onclick="
@@ -371,7 +370,7 @@ function getUniversityLineHtml_(placement) {
                         if(!isBlock) t.style.display='block';
                     }
                  ">
-              <span style="font-weight:600; line-height:1.2; font-size:11.5px; color:#f8f9fa; text-align:center;">${displayName}${scoreHtml}</span>
+              <span style="font-weight:600; line-height:1.2; font-size:11.5px; color:#f8f9fa; text-align:center;">${streamHtml}${displayName}${scoreHtml}</span>
               ${badgeHtmlStr ? `<div style="display:flex; flex-wrap:wrap; gap:2px; justify-content:center; margin-top:1px;">${badgeHtmlStr}</div>` : ""}
               ${tooltipHtml}
             </div>
