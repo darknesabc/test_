@@ -555,7 +555,7 @@ function getUniversityLineHtml_(placement) {
   const btnStyle = "background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold; outline:none; margin-right:3px; transition:all 0.2s;";
   const activeBtnStyle = "background:#f1c40f; color:#000; border:1px solid #f1c40f;";
 
-  // 💡 [수정] panelHtml 안에 점수판 영역(sim-subject-breakdown)을 맨 아랫줄에 추가!
+  // 💡 [수정할 패널 전체 코드] 아래 코드로 통째로 교체해 주세요!
   const panelHtml = `
     <div style="display:flex; align-items:center; gap:10px; padding:6px 10px; background:rgba(142, 68, 173, 0.2); border:1px dashed rgba(142, 68, 173, 0.4); border-radius:6px; margin-top:8px; flex-wrap:wrap;">
       <div style="color:#fff; font-weight:bold; font-size:13px; white-space:nowrap;">🛠️ 시뮬레이션 조정 패널</div>
@@ -603,9 +603,9 @@ function getUniversityLineHtml_(placement) {
         <button onclick="window.changeSimOption('tamType', '사과탐', this)" style="${btnStyle}${safeTamType==='사과탐'?activeBtnStyle:''}">사+과 융합</button>
       </div>
 
-      <div style="width:100%; border-top:1px dashed rgba(255,255,255,0.1); margin-top:4px; padding-top:6px; display:flex; justify-content:flex-end; align-items:center;">
-         <div id="sim-subject-breakdown" style="font-size:12px; font-weight:bold; color:rgba(255,255,255,0.8); background:rgba(0,0,0,0.3); padding:4px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.05);">
-            </div>
+      <div style="margin-left:auto; display:flex; align-items:center;">
+         <div id="sim-subject-breakdown" style="font-size:12px; font-weight:bold; color:rgba(255,255,255,0.8); background:rgba(0,0,0,0.3); padding:4px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); white-space:nowrap;">
+         </div>
       </div>
     </div>
   `;
