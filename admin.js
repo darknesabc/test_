@@ -292,7 +292,7 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 PREMIUM] 대학 라인 예측 화면 (완전판: 계열 동기화, 점수 갭, 클릭 툴팁)
+ * ✅ [프론트엔드 PREMIUM] 대학 라인 예측 화면 (완전판: 단일/평균 스위치, 계열 필터, 점수 갭, 클릭 툴팁)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
@@ -304,17 +304,17 @@ function getUniversityLineHtml_(placement) {
   if (streamText.includes("사과탐")) safeTamType = "사과탐";
   else if (streamText.includes("사탐")) safeTamType = "사탐";
 
-  // 💡 [핵심] 계열 필터링 상태 추가 (기본값 '전체')
+  // 💡 [핵심] scoreMode (single vs avg) 추가!
   window.__currentSimStatus = {
       score: placement.defaultUpScore,
       math: safeMathType,
       tamType: safeTamType,
       search: "",
-      stream: "전체" 
+      stream: "전체",
+      scoreMode: "single" // 기본값: 해당 모평
   };
   window.__currentPlacement = placement;
 
-  // 💡 [핵심] referenceScore를 받아와 기준 점수 대비 (±) 계산
   window.renderDepartmentListHelper = function(deptDataList, keyword = "", referenceScore = 0) {
       const limit = keyword ? 999 : 4; 
 
@@ -328,12 +328,10 @@ function getUniversityLineHtml_(placement) {
               displayName = `<span style="background:#f1c40f; color:#000; padding:0 2px; border-radius:2px; font-weight:900;">${escapeHtml(name)}</span>`;
           }
 
-          // 💡 [점수 차이 표시] - 기준 점수(referenceScore)로 가/감점 계산
           let scoreHtml = "";
           if (deptScore > 0 && referenceScore > 0) {
               const gap = referenceScore - deptScore;
               let gapStr = "", gapColor = "";
-              
               if (gap > 0) { gapStr = `+${gap}`; gapColor = "#3498db"; } 
               else if (gap < 0) { gapStr = `${gap}`; gapColor = "#e74c3c"; } 
               else { gapStr = `±0`; gapColor = "#2ecc71"; }
@@ -343,18 +341,14 @@ function getUniversityLineHtml_(placement) {
                              <span style="color:${gapColor}; font-size:10.5px; margin-left:2px;">(${gapStr})</span>
                            </span>`;
           } else if (deptScore > 0) {
-              // 목표점수(기준점수)가 0인 경우 점수만 표시
               scoreHtml = `<span style="font-size:11px; font-weight:900; margin-left:4px; letter-spacing:-0.5px; color:#f39c12;">${deptScore}</span>`;
           }
 
-          // 💡 [계열 텍스트 표시]
           let streamHtml = d.streamName ? `<span style="font-size:9.5px; color:#95a5a6; font-weight:normal; margin-right:3px;">[${escapeHtml(d.streamName)}]</span>` : "";
 
-          // 💡 [초슬림 뱃지]
           let badgeHtmlStr = "";
           badges.forEach(b => {
               let bg = "#7f8c8d", co = "#fff", bo = "none";
-              
               if (b.includes("🟢")) { bg = "#2ecc71"; bo = "1px solid #27ae60"; } 
               else if (b.includes("🔴")) { bg = "#e74c3c"; bo = "1px solid #c0392b"; } 
               else if (b.includes("⭐")) { bg = "#f39c12"; co = "#fff"; bo = "1px solid #d35400"; } 
@@ -367,7 +361,6 @@ function getUniversityLineHtml_(placement) {
               badgeHtmlStr += `<span style="background:${bg}; color:${co}; border:${bo}; border-radius:3px; padding:1px 4px; font-size:9.5px; font-weight:800; letter-spacing:-0.5px; white-space:nowrap; box-shadow: 0 1px 1px rgba(0,0,0,0.2); display:inline-block;">${b}</span>`;
           });
           
-          // 💡 [클릭 툴팁]
           let tooltipHtml = "";
           if (d.combo || d.ratio) {
               tooltipHtml = `
@@ -434,7 +427,6 @@ function getUniversityLineHtml_(placement) {
     `;
   };
 
-  // 💡 [핵심 최적화] '내 점수'와 '목표 점수' 양쪽 테이블을 동시에 필터링 및 렌더링
   window.runUniversitySimulation = function() {
     const status = window.__currentSimStatus;
     const placeData = window.__currentPlacement;
@@ -444,11 +436,20 @@ function getUniversityLineHtml_(placement) {
     const myLines = { '가': {}, '나': {}, '다': {}, '군외': {} };
     
     const targetScore = Number(status.score) || 0;
-    const baseScore = placeData.myScore;
+    const isAvgMode = (status.scoreMode === 'avg');
+    const baseScore = isAvgMode ? placeData.myScoreAvg : placeData.myScore; // 💡 선택된 모드에 따라 기준 점수 스위칭!
     const keyword = (status.search || "").trim();
     
+    // 💡 왼쪽 파란 박스 내용 동적 변경
+    const box = document.getElementById('my-score-box');
+    if (box) {
+        const boxLabel = isAvgMode ? "누적<br>평균" : "해당<br>모평";
+        const boxTitle = isAvgMode ? (placeData.averageContext || "누적 평균 기준") : "해당 모의고사 기준 합산";
+        box.innerHTML = `${boxLabel}<br><br><span style="font-size:16px; color:#f1c40f;">${baseScore}</span>`;
+        box.title = boxTitle;
+    }
+
     placeData.allMatches.forEach(m => {
-      // ✅ 1. 계열 필터 동기화 (전체, 인문, 자연)
       if (status.stream !== "전체") {
           const sName = m.streamName || "";
           if (!sName.includes(status.stream)) return;
@@ -468,7 +469,7 @@ function getUniversityLineHtml_(placement) {
 
       const item = { name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo, streamName: m.streamName };
 
-      // ✅ 2. 내 점수(baseScore) 라인 매칭
+      // 내 점수(baseScore) 라인 매칭
       if (!keyword) {
           if (m.score >= baseScore - 1 && m.score <= baseScore + 1) {
               if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
@@ -481,7 +482,7 @@ function getUniversityLineHtml_(placement) {
           }
       }
 
-      // ✅ 3. 목표/상승 점수(targetScore) 라인 매칭
+      // 목표/상승 점수(targetScore) 라인 매칭
       let isUpMatch = false;
       if (keyword) {
           if (m.univ.includes(keyword) || m.dept.includes(keyword)) isUpMatch = true;
@@ -495,13 +496,12 @@ function getUniversityLineHtml_(placement) {
       }
     });
 
-    // 화면에 양쪽 모두 동시 렌더링
     ALL_GROUPS.forEach(gun => {
        const tdMy = document.getElementById('my-data-' + gun);
-       if (tdMy) tdMy.innerHTML = window.renderSingleGroupDataHelper(myLines[gun], keyword, baseScore); // 내 점수 렌더링
+       if (tdMy) tdMy.innerHTML = window.renderSingleGroupDataHelper(myLines[gun], keyword, baseScore); 
 
        const tdUp = document.getElementById('up-data-' + gun);
-       if (tdUp) tdUp.innerHTML = window.renderSingleGroupDataHelper(upLines[gun], keyword, targetScore); // 상승 점수 렌더링
+       if (tdUp) tdUp.innerHTML = window.renderSingleGroupDataHelper(upLines[gun], keyword, targetScore); 
     });
   };
 
@@ -524,12 +524,13 @@ function getUniversityLineHtml_(placement) {
     const isFirst = (idx === 0);
     rowsHtml += `<tr style="border-top:1px solid rgba(255,255,255,0.2);">`;
     
+    // 💡 [핵심] 파란 박스에 ID 부여
     if (isFirst) {
-        rowsHtml += `<td rowspan="4" style="width:45px; background:#2980b9; color:#fff; text-align:center; font-weight:900; font-size:13px; border-right:1px solid rgba(255,255,255,0.2);">내<br>점<br>수<br><br><span style="font-size:16px; color:#f1c40f;">${placement.myScore}</span></td>`;
+        rowsHtml += `<td id="my-score-box" rowspan="4" style="width:45px; background:#2980b9; color:#fff; text-align:center; font-weight:900; font-size:13px; border-right:1px solid rgba(255,255,255,0.2); cursor:help;"></td>`;
     }
     
     rowsHtml += `<td style="width:30px; text-align:center; font-weight:bold; font-size:13px; background:rgba(255,255,255,0.05); color:#fff; border-right:1px solid rgba(255,255,255,0.2);">${escapeHtml(gun)}</td>`;
-    rowsHtml += `<td id="my-data-${gun}" style="padding:0; vertical-align:top; border-right:1px solid rgba(255,255,255,0.2); min-width:300px;"></td>`; // 💡 ID 부여하여 동적 렌더링 준비
+    rowsHtml += `<td id="my-data-${gun}" style="padding:0; vertical-align:top; border-right:1px solid rgba(255,255,255,0.2); min-width:300px;"></td>`;
 
     if (isFirst) {
         rowsHtml += `<td rowspan="4" style="width:40px; text-align:center; color:#e74c3c; font-size:20px; font-weight:bold; border-right:1px solid rgba(255,255,255,0.2); background:rgba(0,0,0,0.1);">▶</td>`;
@@ -543,12 +544,19 @@ function getUniversityLineHtml_(placement) {
   const btnStyle = "background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold; outline:none; margin-right:3px; transition:all 0.2s;";
   const activeBtnStyle = "background:#f1c40f; color:#000; border:1px solid #f1c40f;";
 
-  // 💡 [핵심] 상단 패널에 계열 드롭다운 추가
+  // 💡 [핵심] 패널에 scoreMode 스위치 버튼 2개 추가!
   const panelHtml = `
     <div style="display:flex; align-items:center; gap:10px; padding:6px 10px; background:rgba(142, 68, 173, 0.2); border:1px dashed rgba(142, 68, 173, 0.4); border-radius:6px; margin-top:8px; flex-wrap:wrap;">
       <div style="color:#fff; font-weight:bold; font-size:13px; white-space:nowrap;">🛠️ 시뮬레이션 조정 패널</div>
       
-      <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+      <div id="sim-scoremode-options" style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+        <button onclick="window.changeSimOption('scoreMode', 'single', this)" style="${activeBtnStyle}">해당 모평</button>
+        <button onclick="window.changeSimOption('scoreMode', 'avg', this)" style="${btnStyle}">누적 평균</button>
+      </div>
+
+      <div style="width:1px; height:15px; background:rgba(255,255,255,0.1); margin-left:5px;"></div>
+
+      <div style="display:flex; align-items:center; gap:5px; margin-left:5px;">
         <span style="color:rgba(255,255,255,0.7); font-size:12px;">목표 백분위:</span>
         <input type="number" value="${placement.defaultUpScore}" 
                oninput="window.__currentSimStatus.score=this.value; window.runUniversitySimulation()" 
@@ -591,7 +599,7 @@ function getUniversityLineHtml_(placement) {
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
       <div style="background:#0a0f19; border-bottom:2px solid #f1c40f; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
-        <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 시뮬레이션 <span style="font-size:11px; opacity:0.6; font-weight:normal;">(백분위 합산 기준)</span></div>
+        <div style="color:#fff; font-weight:800; font-size:14px;">▣ 정시 지원가능 대학 & 학과 시뮬레이션</div>
         <div style="background:#f1c40f; color:#000; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">학생 실제 응시: <span style="color:#c0392b; margin-left:4px;">${escapeHtml(placement.stream)}</span></div>
       </div>
       ${panelHtml}
