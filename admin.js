@@ -611,7 +611,7 @@ function getUniversityLineHtml_(placement) {
 }
 
 /** =========================
- * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (내신 입결 범위 직접 입력 탑재)
+ * 📝 [프론트엔드 NEW] 수시 종합 지원 시뮬레이션 및 최저 판독기 (누적 평균 탑재 완벽판)
  * ========================= */
 function getNonsulSimulationHtml_(rawData) {
   const getG = (val) => parseInt(String(val).replace(/\D/g, '')) || 9;
@@ -628,57 +628,80 @@ function getNonsulSimulationHtml_(rawData) {
   if (isSci && !isSoc) tamType = "과탐";
   if (!isSci && isSoc) tamType = "사탐";
 
-  window.__currentNonsulProfile = {
-      kor: getG(rawData?.kor?.expected_grade),
-      math: getG(rawData?.math?.expected_grade),
-      eng: getG(rawData?.eng?.expected_grade || rawData?.eng?.grade),
-      hist: getG(rawData?.hist?.expected_grade || rawData?.hist?.grade),
-      tam1: getG(rawData?.tam1?.expected_grade),
-      tam2: getG(rawData?.tam2?.expected_grade),
-      mathType: (mChoice.includes("미적") || mChoice.includes("기하")) ? "미기" : "확통",
-      tamType: tamType
+  let mathShort = "공통";
+  if (mChoice.includes("미적")) mathShort = "미적";
+  else if (mChoice.includes("기하")) mathShort = "기하";
+  else if (mChoice.includes("확통") || mChoice.includes("확률")) mathShort = "확통";
+  
+  let displayTamType = tamType === "사과탐" ? "사+과" : tamType;
+
+  // 💡 [핵심] 백엔드에서 넘어온 수시 전용 등급 데이터 (단일 모평 & 누적 평균)
+  window.__susiGrades = rawData?.susiGrades || { 
+      single: { kor:9, math:9, eng:9, hist:9, tam1:9, tam2:9 }, 
+      avg: { kor:9, math:9, eng:9, hist:9, tam1:9, tam2:9 }, 
+      context: "" 
+  };
+  window.__currentSusiScoreMode = 'single'; // 기본값: 해당 모평
+  window.__susiMathType = (mChoice.includes("미적") || mChoice.includes("기하")) ? "미기" : "확통";
+  window.__susiTamType = tamType;
+
+  // 💡 [신규] 상단 학생 등급 텍스트를 실시간으로 바꿔주는 함수
+  window.updateSusiGradeDisplay = function() {
+      const g = window.__susiGrades[window.__currentSusiScoreMode];
+      const bar = document.getElementById("susi-grade-status-bar");
+      if (bar) {
+          const prefix = window.__currentSusiScoreMode === 'avg' ? "<b>[누적 평균]</b> " : "<b>[해당 모평]</b> ";
+          bar.innerHTML = `${prefix} 국${g.kor} 수(${mathShort})${g.math} 영${g.eng} <span style="color:#2ecc71;">한${g.hist}</span> ${displayTamType}(${g.tam1},${g.tam2})`;
+          bar.title = window.__currentSusiScoreMode === 'avg' ? window.__susiGrades.context : "선택된 단일 모의고사 기준 등급";
+      }
   };
 
+  // 💡 [신규] 수시 최저 완벽 판독기 (탐구 1과목/2과목 평균 완벽 처리)
   window.evaluateNonsulReq = function(reqStr) {
       reqStr = String(reqStr || "").trim();
       if (!reqStr || reqStr === "-" || reqStr.includes("없음") || reqStr.includes("미적용")) {
           return { pass: true, tag: "🟢 최저없음", msg: "수능 최저 미적용" };
       }
 
-      const p = window.__currentNonsulProfile;
-      let pool = [];
-
-      let histFail = false;
-      let histMsg = "";
+      const grades = window.__susiGrades[window.__currentSusiScoreMode];
+      
+      let histFail = false; let histMsg = "";
       let histReqMatch = reqStr.match(/(?:한국사|한)\s*(\d)/); 
       if (histReqMatch) {
           let histTarget = parseInt(histReqMatch[1]);
-          if (p.hist > histTarget) {
-              histFail = true;
-              histMsg = `한국사 미달(내등급:${p.hist})`;
+          if (grades.hist > histTarget) {
+              histFail = true; histMsg = `한국사 미달(내등급:${grades.hist})`;
           }
       }
 
-      if (reqStr.includes("국")) pool.push(p.kor);
+      // 🎯 탐구 로직 완벽 적용
+      let tamGrade = Math.min(grades.tam1, grades.tam2); // 기본은 상위 1과목
+      if (reqStr.includes("(2)") || reqStr.includes("탐2") || reqStr.includes("평균") || reqStr.includes("2과목")) {
+          const avgExact = (grades.tam1 + grades.tam2) / 2.0;
+          if (reqStr.includes("반올림")) tamGrade = Math.round(avgExact);
+          else tamGrade = Math.floor(avgExact); // 기본값 절사
+      }
+
+      let pool = [];
+      if (reqStr.includes("국")) pool.push(grades.kor);
       if (reqStr.includes("수")) {
-          if ((reqStr.includes("미/기") || reqStr.includes("미기")) && p.mathType !== "미기") {} 
-          else { pool.push(p.math); }
+          if ((reqStr.includes("미/기") || reqStr.includes("미기")) && window.__susiMathType !== "미기") {} 
+          else pool.push(grades.math);
       }
-      if (reqStr.includes("영")) pool.push(p.eng);
+      if (reqStr.includes("영")) pool.push(grades.eng);
       if (reqStr.includes("탐") || reqStr.includes("과") || reqStr.includes("사")) {
-          let t1 = p.tam1, t2 = p.tam2;
-          if (reqStr.includes("과") && p.tamType === "사탐") { t1 = 9; t2 = 9; }
-          if (reqStr.includes("사") && p.tamType === "과탐") { t1 = 9; t2 = 9; }
-          
-          if (reqStr.includes("과1,과2") || reqStr.includes("과1, 과2") || reqStr.includes("탐1,탐2") || reqStr.includes("탐1, 탐2") || reqStr.includes("각각")) {
-              pool.push(t1); pool.push(t2);
+          if (reqStr.includes("과") && window.__susiTamType === "사탐") { pool.push(9); pool.push(9); }
+          else if (reqStr.includes("사") && window.__susiTamType === "과탐") { pool.push(9); pool.push(9); }
+          else if (reqStr.includes("과1,과2") || reqStr.includes("탐1,탐2") || reqStr.includes("각각")) {
+              pool.push(grades.tam1); pool.push(grades.tam2);
           } else {
-              let tamScore = Math.min(t1, t2); 
-              if (reqStr.includes("(2)") || reqStr.includes("2과목")) tamScore = (t1 + t2) / 2.0; 
-              pool.push(tamScore);
+              pool.push(tamGrade);
           }
       }
 
+      // 지정 과목이 없으면 전체 풀 사용
+      if (pool.length === 0) pool = [grades.kor, grades.math, grades.eng, tamGrade];
+      
       pool.sort((a,b) => a - b); 
 
       let pass = false; let tag = "🟡 수동확인"; let msg = "요강 확인 요망";
@@ -705,20 +728,41 @@ function getNonsulSimulationHtml_(rawData) {
       }
 
       if (histFail) {
-          pass = false;
-          tag = "🔴 미달";
+          pass = false; tag = "🔴 미달";
           msg = (msg !== "요강 확인 요망" && !msg.includes("조건 미달")) ? `${msg}, ${histMsg}` : histMsg;
       } else if (pass && histReqMatch) {
-          msg += `, 한${p.hist}통과`;
+          msg += `, 한${grades.hist}통과`;
       }
 
       return { pass, tag, msg };
   };
 
+  // 💡 [신규] 수시 전용 스위치 토글 함수
+  window.changeSusiScoreMode = function(mode, element) {
+      window.__currentSusiScoreMode = mode;
+      const parent = element.parentElement;
+      parent.querySelectorAll('button').forEach(b => {
+          b.style.background = 'rgba(255,255,255,0.05)';
+          b.style.color = 'rgba(255,255,255,0.6)';
+          b.style.borderColor = 'rgba(255,255,255,0.1)';
+      });
+      element.style.background = '#9b59b6';
+      element.style.color = '#fff';
+      element.style.borderColor = '#9b59b6';
+      
+      window.updateSusiGradeDisplay(); // 상단 라벨 변경
+      
+      // 현재 화면 새로고침 (검색이 켜져있으면 검색, 탭이 켜져있으면 탭 새로고침)
+      if (window.__activeSusiSheet === 'global_search' || window.__activeSusiMode === 'search') {
+          window.executeSusiSearch();
+      } else {
+          window.renderSusiSummaryTable(window.__activeSusiSheet, window.__activeSusiMode);
+      }
+  };
+
   window.__activeSusiSheet = 'global_search';
   window.__activeSusiMode = 'search';
 
-  // 💡 [핵심 UI 기능] 내신 입력창 직접 입력(범위) 모드 토글
   window.toggleGpaCustomInput = function() {
       const rangeVal = document.getElementById('susiGpaRange').value;
       const standardWrap = document.getElementById('susiGpaStandardWrap');
@@ -822,7 +866,6 @@ function getNonsulSimulationHtml_(rawData) {
       }
   };
 
-  // 💡 [핵심] 검색 로직에 "직접입력(범위)" 필터 적용
   window.executeSusiSearch = async function() {
       const keyword = document.getElementById('susiSearchInput').value.trim();
       const trackFilter = document.getElementById('susiTrackFilter').value;
@@ -835,7 +878,6 @@ function getNonsulSimulationHtml_(rawData) {
       
       const resDiv = document.getElementById('susiResultArea');
       
-      // 입력값이 하나도 없을 경우 차단
       const isGpaEntered = gpaRangeStr === 'custom' ? (customMinStr || customMaxStr) : targetGpaStr;
       if (!keyword && !isGpaEntered && trackFilter === "전체" && typeFilter === "전체" && window.__activeSusiSheet === 'global_search') {
           return alert('통합 검색에서는 검색어나 목표 내신을 반드시 입력해주세요.');
@@ -852,51 +894,33 @@ function getNonsulSimulationHtml_(rawData) {
       if (trackFilter !== "전체") results = results.filter(d => d.track && d.track.includes(trackFilter));
       if (typeFilter !== "전체") results = results.filter(d => d.type && d.type.includes(typeFilter));
       
-      // 💡 [내신 입결 필터링 마법]
       if (gpaRangeStr === 'custom') {
-          // 직접 범위 지정
           if (customMinStr || customMaxStr) {
               const minGpa = customMinStr ? parseFloat(customMinStr) : 0.0;
               const maxGpa = customMaxStr ? parseFloat(customMaxStr) : 9.0;
               
               results = results.filter(r => {
-                  const c25 = parseFloat(r.cut2025);
-                  const c24 = parseFloat(r.cut2024);
-                  const c23 = parseFloat(r.cut2023);
-
+                  const c25 = parseFloat(r.cut2025); const c24 = parseFloat(r.cut2024); const c23 = parseFloat(r.cut2023);
                   let validCut = NaN;
-                  if (!isNaN(c25)) validCut = c25;
-                  else if (!isNaN(c24)) validCut = c24;
-                  else if (!isNaN(c23)) validCut = c23;
-
+                  if (!isNaN(c25)) validCut = c25; else if (!isNaN(c24)) validCut = c24; else if (!isNaN(c23)) validCut = c23;
                   if (isNaN(validCut)) return false;
                   return validCut >= minGpa && validCut <= maxGpa;
               });
           }
       } else if (targetGpaStr) {
-          // 자동 타겟팅 모드 (±적정, 넓게, 상향, 안정)
           const targetGpa = parseFloat(targetGpaStr);
           if (!isNaN(targetGpa)) {
               results = results.filter(r => {
-                  const c25 = parseFloat(r.cut2025);
-                  const c24 = parseFloat(r.cut2024);
-                  const c23 = parseFloat(r.cut2023);
-
+                  const c25 = parseFloat(r.cut2025); const c24 = parseFloat(r.cut2024); const c23 = parseFloat(r.cut2023);
                   let validCut = NaN;
-                  if (!isNaN(c25)) validCut = c25;
-                  else if (!isNaN(c24)) validCut = c24;
-                  else if (!isNaN(c23)) validCut = c23;
-
+                  if (!isNaN(c25)) validCut = c25; else if (!isNaN(c24)) validCut = c24; else if (!isNaN(c23)) validCut = c23;
                   if (isNaN(validCut)) return false;
 
-                  let min = targetGpa - 0.3;
-                  let max = targetGpa + 0.3;
-
+                  let min = targetGpa - 0.3; let max = targetGpa + 0.3;
                   if (gpaRangeStr === "0.3") { min = targetGpa - 0.3; max = targetGpa + 0.3; }
                   else if (gpaRangeStr === "0.5") { min = targetGpa - 0.5; max = targetGpa + 0.5; }
                   else if (gpaRangeStr === "up") { min = targetGpa - 0.5; max = targetGpa; }    
                   else if (gpaRangeStr === "down") { min = targetGpa; max = targetGpa + 0.5; }  
-
                   return validCut >= min && validCut <= max;
               });
           }
@@ -930,8 +954,7 @@ function getNonsulSimulationHtml_(rawData) {
                       <div style="margin-bottom:4px;"><span style="opacity:0.6;">내신반영과목:</span> <span style="color:#fff;">${escapeHtml(r.gpaSubj || "-")}</span></div>
                       <div><span style="opacity:0.6;">진로선택과목:</span> <span style="color:#fff;">${escapeHtml(r.careerSubj || "-")}</span></div>
                   </div>
-              </div>
-              `;
+              </div>`;
           } else {
               const hasSusiExtra = r.yoy || r.docs || r.multiApply || r.gradeRatio || r.subjReflect || r.careerSubj;
               if (hasSusiExtra) {
@@ -949,8 +972,7 @@ function getNonsulSimulationHtml_(rawData) {
                           <div style="margin-bottom:4px;"><span style="opacity:0.6;">교과 반영과목:</span> <span style="color:#fff;">${escapeHtml(r.subjReflect || "-")}</span></div>
                           <div><span style="opacity:0.6;">진로선택과목:</span> <span style="color:#fff;">${escapeHtml(r.careerSubj || "-")}</span></div>
                       </div>
-                  </div>
-                  `;
+                  </div>`;
               }
           }
 
@@ -975,7 +997,6 @@ function getNonsulSimulationHtml_(rawData) {
                         <div style="font-size:10px; color:${statusColor}; margin-top:4px; opacity:0.8;">${reqEval.msg}</div>
                     </div>
                 </div>
-
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px; background:rgba(0,0,0,0.3); padding:10px 12px; border-radius:8px; font-size:11px;">
                     <div style="border-right:1px solid rgba(255,255,255,0.1); padding-right:10px;">
                         <div style="color:rgba(255,255,255,0.4); margin-bottom:4px; font-weight:bold;">📋 전형방법 및 최저</div>
@@ -990,9 +1011,7 @@ function getNonsulSimulationHtml_(rawData) {
                         <div style="color:#3498db;">경쟁: <b style="font-size:13px;">${escapeHtml(r.comp2025 || '-')}</b> → ${escapeHtml(r.comp2024 || '-')} → ${escapeHtml(r.comp2023 || '-')}</div>
                     </div>
                 </div>
-                
                 ${extraHtml}
-                
                 ${r.examDate && r.examDate !== "-" ? `<div style="margin-top:10px; font-size:11px; font-weight:bold; color:#ff4757; background:rgba(231, 76, 60, 0.1); padding:4px 8px; border-radius:4px; display:inline-block;">📅 고사일정: ${escapeHtml(r.examDate)}</div>` : ""}
             </div>
           `;
@@ -1134,22 +1153,26 @@ function getNonsulSimulationHtml_(rawData) {
       tabsHtml += `<button id="sheetBtn_${t}" class="susi-sheet-btn" onclick="window.switchSusiSheet('${t}')" style="background:transparent; color:rgba(255,255,255,0.5); border:1px solid rgba(255,255,255,0.2); padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;" onmouseover="this.style.borderColor='#34495e'; this.style.color='#fff';" onmouseout="if(this.style.background==='transparent') { this.style.borderColor='rgba(255,255,255,0.2)'; this.style.color='rgba(255,255,255,0.5)'; }">📋 ${t}</button>`;
   });
 
-  let mathShort = "공통";
-  if (mChoice.includes("미적")) mathShort = "미적";
-  else if (mChoice.includes("기하")) mathShort = "기하";
-  else if (mChoice.includes("확통") || mChoice.includes("확률")) mathShort = "확통";
-  
-  let displayTamType = tamType;
-  if (tamType === "사과탐") displayTamType = "사+과";
+  const btnStyle = "background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold; outline:none; margin-right:3px; transition:all 0.2s;";
+  const activeBtnStyle = "background:#9b59b6; color:#fff; border:1px solid #9b59b6;";
 
-  setTimeout(() => { if(window.switchSusiSheet) window.switchSusiSheet('global_search'); }, 50);
+  setTimeout(() => { 
+      if(window.switchSusiSheet) window.switchSusiSheet('global_search'); 
+      if(window.updateSusiGradeDisplay) window.updateSusiGradeDisplay(); // 초기 학생 상태바 렌더링
+  }, 50);
 
   return `
     <div style="margin-top:20px; font-family:sans-serif; animation: fadeIn 0.4s ease;">
-      <div style="background:#0a0f19; border-bottom:2px solid #9b59b6; display:flex; justify-content:space-between; padding:8px 12px; align-items:center;">
+      <div style="background:#0a0f19; border-bottom:2px solid #9b59b6; display:flex; justify-content:space-between; padding:8px 12px; align-items:center; flex-wrap:wrap; gap:8px;">
         <div style="color:#fff; font-weight:800; font-size:14px;">🎓 수시(종합/교과/논술) 지원 시뮬레이션 및 최저 판독기</div>
-        <div style="background:#9b59b6; color:#fff; padding:2px 10px; font-weight:900; font-size:12px; border-radius:2px;">
-            학생 등급: <span style="color:#f1c40f; margin-left:4px;">국${window.__currentNonsulProfile.kor} 수(${mathShort})${window.__currentNonsulProfile.math} 영${window.__currentNonsulProfile.eng} <span style="color:#2ecc71;">한${window.__currentNonsulProfile.hist}</span> ${displayTamType}(${window.__currentNonsulProfile.tam1},${window.__currentNonsulProfile.tam2})</span>
+        
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div id="susi-scoremode-options" style="display:flex; align-items:center; gap:5px;">
+                <button onclick="window.changeSusiScoreMode('single', this)" style="${activeBtnStyle}">해당 모평</button>
+                <button onclick="window.changeSusiScoreMode('avg', this)" style="${btnStyle}">누적 평균</button>
+            </div>
+            <div id="susi-grade-status-bar" style="background:#9b59b6; color:#fff; padding:3px 10px; font-weight:900; font-size:12px; border-radius:4px; box-shadow:0 2px 4px rgba(0,0,0,0.2); cursor:help;">
+                </div>
         </div>
       </div>
       
