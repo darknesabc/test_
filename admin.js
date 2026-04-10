@@ -427,6 +427,7 @@ function getUniversityLineHtml_(placement) {
     `;
   };
 
+  // 💡 [핵심 최적화] '내 점수'는 점수 고정, '목표 점수'만 검색 반영
   window.runUniversitySimulation = function() {
     const status = window.__currentSimStatus;
     const placeData = window.__currentPlacement;
@@ -437,10 +438,10 @@ function getUniversityLineHtml_(placement) {
     
     const targetScore = Number(status.score) || 0;
     const isAvgMode = (status.scoreMode === 'avg');
-    const baseScore = isAvgMode ? placeData.myScoreAvg : placeData.myScore; // 💡 선택된 모드에 따라 기준 점수 스위칭!
+    const baseScore = isAvgMode ? placeData.myScoreAvg : placeData.myScore; 
     const keyword = (status.search || "").trim();
     
-    // 💡 왼쪽 파란 박스 내용 동적 변경
+    // 왼쪽 파란 박스 내용 동적 변경
     const box = document.getElementById('my-score-box');
     if (box) {
         const boxLabel = isAvgMode ? "누적<br>평균" : "해당<br>모평";
@@ -450,11 +451,13 @@ function getUniversityLineHtml_(placement) {
     }
 
     placeData.allMatches.forEach(m => {
+      // 1. 계열 필터 (이건 양쪽 다 적용)
       if (status.stream !== "전체") {
           const sName = m.streamName || "";
           if (!sName.includes(status.stream)) return;
       }
 
+      // 필수 과목 필터
       if (m.mathReq === "미기" && status.math !== "미기") return;
       if (m.mathReq === "확통" && status.math !== "확통") return;
 
@@ -469,20 +472,15 @@ function getUniversityLineHtml_(placement) {
 
       const item = { name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo, streamName: m.streamName };
 
-      // 내 점수(baseScore) 라인 매칭
-      if (!keyword) {
-          if (m.score >= baseScore - 1 && m.score <= baseScore + 1) {
-              if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
-              myLines[m.gun][m.univ].push(item);
-          }
-      } else {
-          if (m.univ.includes(keyword) || m.dept.includes(keyword)) {
-              if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
-              myLines[m.gun][m.univ].push(item);
-          }
+      // ✅ 2. 내 점수(baseScore) 라인 매칭 
+      // 검색어와 무관하게 무조건 내 점수 범위(±1)만 굳건하게 유지합니다!
+      if (m.score >= baseScore - 1 && m.score <= baseScore + 1) {
+          if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
+          myLines[m.gun][m.univ].push(item);
       }
 
-      // 목표/상승 점수(targetScore) 라인 매칭
+      // ✅ 3. 목표/상승 점수(targetScore) 라인 매칭
+      // 검색어가 있으면 점수 무시하고 검색 결과 표출, 없으면 목표점수 범위 표출!
       let isUpMatch = false;
       if (keyword) {
           if (m.univ.includes(keyword) || m.dept.includes(keyword)) isUpMatch = true;
@@ -497,9 +495,11 @@ function getUniversityLineHtml_(placement) {
     });
 
     ALL_GROUPS.forEach(gun => {
+       // 내 점수 렌더링 (키워드를 넘기면 점수 라인 내에서 해당 대학에 노란색 하이라이트만 됨)
        const tdMy = document.getElementById('my-data-' + gun);
        if (tdMy) tdMy.innerHTML = window.renderSingleGroupDataHelper(myLines[gun], keyword, baseScore); 
 
+       // 상승/목표 점수 렌더링
        const tdUp = document.getElementById('up-data-' + gun);
        if (tdUp) tdUp.innerHTML = window.renderSingleGroupDataHelper(upLines[gun], keyword, targetScore); 
     });
