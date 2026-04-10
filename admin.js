@@ -292,7 +292,7 @@ function renderGradeTableHtml_(rows, rawData) {
 }
 
 /** =========================
- * ✅ [프론트엔드 PREMIUM] 대학 라인 예측 화면 (UI 최적화: 비율 툴팁 숨김 및 색상 다이어트 적용)
+ * ✅ [프론트엔드 PREMIUM] 대학 라인 예측 화면 (계열 선택 드롭다운 필터 및 ±점수 표시 추가)
  * ========================= */
 function getUniversityLineHtml_(placement) {
   if (!placement || !placement.allMatches) return "";
@@ -304,45 +304,58 @@ function getUniversityLineHtml_(placement) {
   if (streamText.includes("사과탐")) safeTamType = "사과탐";
   else if (streamText.includes("사탐")) safeTamType = "사탐";
 
+  // 💡 [핵심] 계열 필터링 상태 기본값 '전체'
   window.__currentSimStatus = {
       score: placement.defaultUpScore,
       math: safeMathType,
       tamType: safeTamType,
-      search: "" 
+      search: "",
+      stream: "전체" 
   };
   window.__currentPlacement = placement;
 
   window.renderDepartmentListHelper = function(deptDataList, keyword = "") {
       const limit = keyword ? 999 : 4; 
+      const currentSimScore = Number(window.__currentSimStatus.score) || 0;
+
       const htmlStr = deptDataList.slice(0, limit).map(d => {
           const name = typeof d === 'string' ? d : (d.name || "");
           const badges = d.badges || []; 
-          const deptScore = d.score ? d.score : ""; 
+          const deptScore = d.score ? Number(d.score) : 0; 
           
           let displayName = escapeHtml(name);
           if (keyword && name.includes(keyword)) {
               displayName = `<span style="background:#f1c40f; color:#000; padding:0 2px; border-radius:2px; font-weight:900;">${escapeHtml(name)}</span>`;
           }
 
-          let scoreHtml = deptScore ? `<span style="color:#f39c12; font-size:11px; font-weight:900; margin-left:4px;">(${deptScore})</span>` : "";
+          // [점수 차이 표시]
+          let scoreHtml = "";
+          if (deptScore > 0) {
+              const gap = currentSimScore - deptScore;
+              let gapStr = "", gapColor = "";
+              
+              if (gap > 0) { gapStr = `+${gap}`; gapColor = "#3498db"; } 
+              else if (gap < 0) { gapStr = `${gap}`; gapColor = "#e74c3c"; } 
+              else { gapStr = `±0`; gapColor = "#2ecc71"; }
+              
+              scoreHtml = `<span style="font-size:11px; font-weight:900; margin-left:4px; letter-spacing:-0.5px;">
+                             <span style="color:#f39c12;">${deptScore}</span>
+                             <span style="color:${gapColor}; font-size:10.5px; margin-left:2px;">(${gapStr})</span>
+                           </span>`;
+          }
 
-          // 💡 [계열 텍스트 추가] 학과 이름 앞에 회색으로 작게 표시
+          // 학과명 앞 계열 표시 (작은 글씨)
           let streamHtml = d.streamName ? `<span style="font-size:9.5px; color:#95a5a6; font-weight:normal; margin-right:3px;">[${escapeHtml(d.streamName)}]</span>` : "";
 
+          // 초슬림 뱃지
           let badgeHtmlStr = "";
           badges.forEach(b => {
-              let bg = "#7f8c8d"; 
-              let co = "#fff";
-              let bo = "none";
+              let bg = "#7f8c8d", co = "#fff", bo = "none";
               
               if (b.includes("🟢")) { bg = "#2ecc71"; bo = "1px solid #27ae60"; } 
               else if (b.includes("🔴")) { bg = "#e74c3c"; bo = "1px solid #c0392b"; } 
               else if (b.includes("⭐")) { bg = "#f39c12"; co = "#fff"; bo = "1px solid #d35400"; } 
-              else { 
-                  bg = "rgba(52, 152, 219, 0.1)"; 
-                  co = "rgba(255, 255, 255, 0.7)"; 
-                  bo = "1px solid rgba(255, 255, 255, 0.15)"; 
-              }
+              else { bg = "rgba(52, 152, 219, 0.1)"; co = "rgba(255, 255, 255, 0.7)"; bo = "1px solid rgba(255, 255, 255, 0.15)"; }
               
               if (b.includes("미적") || b.includes("기하") || b.includes("미기")) bg = "rgba(231, 76, 60, 0.15)"; 
               else if (b.includes("과탐")) bg = "rgba(52, 152, 219, 0.15)"; 
@@ -388,7 +401,7 @@ function getUniversityLineHtml_(placement) {
       }
       return htmlStr;
   };
-  
+
   window.renderSingleGroupDataHelper = function(univDataObj, keyword = "") {
     if (!univDataObj || Object.keys(univDataObj).length === 0) {
         return `<div style="padding:20px; text-align:center; color:rgba(255,255,255,0.3); font-size:12px; font-style:italic;">매칭 대학 없음</div>`;
@@ -427,6 +440,12 @@ function getUniversityLineHtml_(placement) {
     const keyword = (status.search || "").trim();
     
     placeData.allMatches.forEach(m => {
+      // 💡 [핵심] 드롭다운에서 선택한 계열만 보여주기
+      if (status.stream !== "전체") {
+          const sName = m.streamName || "";
+          if (!sName.includes(status.stream)) return;
+      }
+
       if (m.mathReq === "미기" && status.math !== "미기") return;
       if (m.mathReq === "확통" && status.math !== "확통") return;
 
@@ -449,7 +468,7 @@ function getUniversityLineHtml_(placement) {
       if (!isMatch) return;
 
       if (!upLines[m.gun][m.univ]) upLines[m.gun][m.univ] = [];
-      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo });
+      upLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo, streamName: m.streamName });
     });
 
     ALL_GROUPS.forEach(gun => {
@@ -489,7 +508,7 @@ function getUniversityLineHtml_(placement) {
       }
 
       if (!myLines[m.gun][m.univ]) myLines[m.gun][m.univ] = [];
-      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo });
+      myLines[m.gun][m.univ].push({ name: m.dept, badges: m.badges, score: m.score, ratio: m.ratio, combo: m.combo, streamName: m.streamName });
     }
   });
 
@@ -517,6 +536,7 @@ function getUniversityLineHtml_(placement) {
   const btnStyle = "background:rgba(255,255,255,0.05); color:rgba(255,255,255,0.6); border:1px solid rgba(255,255,255,0.1); border-radius:4px; padding:3px 8px; font-size:11px; cursor:pointer; font-weight:bold; outline:none; margin-right:3px; transition:all 0.2s;";
   const activeBtnStyle = "background:#f1c40f; color:#000; border:1px solid #f1c40f;";
 
+  // 💡 [핵심] 시뮬레이션 조정 패널에 <select> 드롭다운 추가
   const panelHtml = `
     <div style="display:flex; align-items:center; gap:10px; padding:6px 10px; background:rgba(142, 68, 173, 0.2); border:1px dashed rgba(142, 68, 173, 0.4); border-radius:6px; margin-top:8px; flex-wrap:wrap;">
       <div style="color:#fff; font-weight:bold; font-size:13px; white-space:nowrap;">🛠️ 시뮬레이션 조정 패널</div>
@@ -528,7 +548,16 @@ function getUniversityLineHtml_(placement) {
                style="width:65px; background:rgba(0,0,0,0.5); border:1px solid rgba(241,196,15,0.6); color:#f1c40f; font-size:15px; font-weight:900; text-align:center; outline:none; padding:4px 6px; border-radius:4px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.5); cursor:pointer;" />
       </div>
 
-      <div style="display:flex; align-items:center; gap:5px; margin-left:10px;">
+      <div style="display:flex; align-items:center; gap:5px; margin-left:5px;">
+        <select onchange="window.__currentSimStatus.stream=this.value; window.runUniversitySimulation()" 
+                style="background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; font-size:12px; outline:none; padding:4px 6px; border-radius:4px; cursor:pointer; font-weight:bold;">
+            <option value="전체">전체 계열</option>
+            <option value="인문">인문계열</option>
+            <option value="자연">자연계열</option>
+        </select>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:5px; margin-left:5px;">
         <span style="color:rgba(255,255,255,0.7); font-size:12px;">🎯 타겟 검색:</span>
         <input type="text" placeholder="대학/학과 검색" 
                oninput="window.__currentSimStatus.search=this.value; window.runUniversitySimulation()" 
